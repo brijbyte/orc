@@ -43,9 +43,9 @@ v1.7.18, md4c 0.5.2, utf8proc 2.11.3, c-timestamp, and curl 8.11.1 +
 mbedTLS 3.6.2. curl and mbedTLS compile once and link statically, so the binary
 depends only on libc/pthread and the OS CA bundle — no system libcurl needed.
 `make SYSTEM_CURL=1` links the system libcurl instead (faster first build).
-The binary lands at `bin/orc`; `make install` copies it to `$PREFIX/bin`
-(default `/usr/local`). macOS builds target macOS 13 by default; override
-with `MACOSX_DEPLOYMENT_TARGET=<version> make`.
+The binary lands at `bin/orc-debug`; `make install` copies it to
+`$PREFIX/bin/orc` (default `/usr/local`). macOS builds target macOS 13 by
+default; override with `MACOSX_DEPLOYMENT_TARGET=<version> make`.
 
 ## Release (maintainers)
 
@@ -57,14 +57,14 @@ the `TAP_PUSH_TOKEN` secret (a PAT with push access to
 ## Use
 
 ```
-./bin/orc                          # interactive REPL
-./bin/orc -p "fix the failing test"  # one-shot, scriptable (exit 130 on Ctrl-C)
-./bin/orc --resume                 # continue the most recent session
-./bin/orc --resume <id>            # continue by session id (prefix ok)
-./bin/orc --list                   # list sessions (id, time, first prompt)
-./bin/orc --login                  # sign in with ChatGPT (browser OAuth)
-./bin/orc --auth                   # show Codex auth status
-./bin/orc -m gpt-5.6-terra -e high # model / reasoning effort (env: ORC_MODEL)
+./bin/orc-debug                          # interactive REPL
+./bin/orc-debug -p "fix the failing test"  # one-shot, scriptable (exit 130 on Ctrl-C)
+./bin/orc-debug --resume                 # continue the most recent session
+./bin/orc-debug --resume <id>            # continue by session id (prefix ok)
+./bin/orc-debug --list                   # list sessions (id, time, first prompt)
+./bin/orc-debug --login                  # sign in with ChatGPT (browser OAuth)
+./bin/orc-debug --auth                   # show Codex auth status
+./bin/orc-debug -m gpt-5.6-terra -e high # model / reasoning effort (env: ORC_MODEL)
 ```
 
 The REPL stays responsive while the agent works: keep typing and press Enter

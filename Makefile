@@ -1,4 +1,5 @@
 CC ?= cc
+STRIP ?= strip
 CPPFLAGS += -D_POSIX_C_SOURCE=200809L -Ivendor -Isrc
 CFLAGS ?= -O2
 CFLAGS += -std=c11 -Wall -Wextra
@@ -51,24 +52,37 @@ LDLIBS += -framework CoreFoundation -framework SystemConfiguration
 endif
 endif
 
-all: bin/orc
+DEBUG_BIN = bin/orc-debug
+RELEASE_BIN = bin/orc
 
-bin/orc: $(OBJS)
+all: $(DEBUG_BIN)
+
+$(DEBUG_BIN): $(OBJS)
 	mkdir -p bin
 	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
 
+release: $(RELEASE_BIN)
+
+$(RELEASE_BIN): $(DEBUG_BIN)
+	cp $< $@
+	$(STRIP) $@
+
 # vendor/ is gitignored; fetch pinned deps on first build
 CJSON_URL = https://cdn.jsdelivr.net/gh/DaveGamble/cJSON@v1.7.18
-vendor/cJSON.c vendor/cJSON.h:
+vendor/cJSON.c vendor/cJSON.h: vendor/.cjson.stamp
+vendor/.cjson.stamp:
 	mkdir -p vendor
 	curl -fsSL -o vendor/cJSON.c $(CJSON_URL)/cJSON.c
 	curl -fsSL -o vendor/cJSON.h $(CJSON_URL)/cJSON.h
+	touch $@
 
 MD4C_URL = https://cdn.jsdelivr.net/gh/mity/md4c@release-0.5.2/src
-vendor/md4c.c vendor/md4c.h:
+vendor/md4c.c vendor/md4c.h: vendor/.md4c.stamp
+vendor/.md4c.stamp:
 	mkdir -p vendor
 	curl -fsSL -o vendor/md4c.c $(MD4C_URL)/md4c.c
 	curl -fsSL -o vendor/md4c.h $(MD4C_URL)/md4c.h
+	touch $@
 
 UTF8PROC_URL = https://cdn.jsdelivr.net/gh/JuliaStrings/utf8proc@v2.11.3
 vendor/utf8proc.c:
@@ -84,10 +98,12 @@ vendor/utf8proc_data.c:
 # c-timestamp: RFC3339 parse/format (no tagged releases; pinned to a commit)
 TS_URL = https://cdn.jsdelivr.net/gh/chansen/c-timestamp@b205c407ae6680d23d74359ac00444b80989792f
 TS_SRCS = timestamp_parse.c timestamp_format.c timestamp_valid.c
-vendor/timestamp.h $(addprefix vendor/,$(TS_SRCS)):
+vendor/timestamp.h $(addprefix vendor/,$(TS_SRCS)): vendor/.timestamp.stamp
+vendor/.timestamp.stamp:
 	mkdir -p vendor
-	for f in timestamp.h $(TS_SRCS); do \
+	set -e; for f in timestamp.h $(TS_SRCS); do \
 		curl -fsSL -o vendor/$$f $(TS_URL)/$$f; done
+	touch $@
 
 MBEDTLS_URL = https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-$(MBEDTLS_VER)/mbedtls-$(MBEDTLS_VER).tar.bz2
 vendor/mbedtls/lib/libmbedtls.a:
@@ -115,7 +131,8 @@ vendor/curl/lib/libcurl.a: vendor/mbedtls/lib/libmbedtls.a
 
 # linenoise: async line editing (no tagged releases; pinned to a commit)
 LN_URL = https://cdn.jsdelivr.net/gh/antirez/linenoise@a473823d74b93eab2ba83480df16ed37617493f2
-vendor/linenoise.c vendor/linenoise.h:
+vendor/linenoise.c vendor/linenoise.h: vendor/.linenoise.stamp
+vendor/.linenoise.stamp:
 	mkdir -p vendor
 	curl -fsSL -o vendor/linenoise.c $(LN_URL)/linenoise.c
 	curl -fsSL -o vendor/linenoise.h $(LN_URL)/linenoise.h
@@ -124,6 +141,7 @@ vendor/linenoise.c vendor/linenoise.h:
 	# orc additions: history-navigation hook (menu selection in src/input.c),
 	# Shift+Enter/Ctrl-J soft line breaks, full CSI parameter parsing
 	patch -p0 < scripts/linenoise-orc.patch
+	touch $@
 
 vendor/cJSON.o: vendor/cJSON.c vendor/cJSON.h
 vendor/md4c.o: vendor/md4c.c vendor/md4c.h
@@ -136,11 +154,11 @@ $(OBJS): vendor/cJSON.h vendor/md4c.h vendor/utf8proc.h vendor/timestamp.h \
 	vendor/linenoise.h $(firstword $(MBED_A)) $(CURL_A)
 
 PREFIX ?= /usr/local
-install: bin/orc
+install: $(DEBUG_BIN)
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
-	install -m 755 bin/orc $(DESTDIR)$(PREFIX)/bin/orc
+	install -m 755 $(DEBUG_BIN) $(DESTDIR)$(PREFIX)/bin/orc
 
 clean:
-	rm -f bin/orc $(OBJS)
+	rm -f $(DEBUG_BIN) $(RELEASE_BIN) $(OBJS)
 
-.PHONY: all install clean
+.PHONY: all release install clean
