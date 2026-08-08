@@ -145,10 +145,18 @@ static int menu_collect(const char *buf) {
     return n;
 }
 
+/* Dim horizontal rule at the cursor; no line movement. */
+static void rule_print(int cols) {
+    fputs(ANSI_DIM, stdout);
+    for (int i = 0; i < cols; i++) fputs("─", stdout);
+    fputs(ANSI_RESET, stdout);
+}
+
 /* Redraw the area under the input line: menu candidates (selected row in
  * reverse video; SGR 22 ends bold/dim without dropping the reverse), then
- * the dim status line. Steps down to the input's last row first (the cursor
- * may sit on an earlier wrapped row), and ends back at the cursor row. */
+ * the box bottom border, a gap row, and the dim status line. Steps down to
+ * the input's last row first (the cursor may sit on an earlier wrapped row),
+ * and ends back at the cursor row. */
 static void below_draw(void) {
     if (!menu_n && !status_buf[0] && !below_rows) return;
     int down = (int)ls.oldrows - ls.oldrpos;
@@ -172,9 +180,12 @@ static void below_draw(void) {
         fputs(ANSI_RESET, stdout);
     }
     if (status_buf[0]) {
+        fputs("\n\r\x1b[2K", stdout); /* box bottom border */
+        rule_print((int)ls.cols);
+        fputs("\n\r\x1b[2K", stdout); /* gap before the status line */
         printf("\n\r\x1b[2K" ANSI_DIM "%.*s" ANSI_RESET,
                (int)ls.cols > 1 ? (int)ls.cols - 1 : 0, status_buf);
-        n++;
+        n += 3;
     }
     if (n == 0) fputs("\n\r", stdout); /* step below to reach the leftovers */
     fputs("\x1b[J", stdout);           /* clear leftover rows */
@@ -241,14 +252,13 @@ static void menu_discard(void) {
     menu_key[0] = '\0';
 }
 
-/* Dim rule drawn one row above the input line, like a box top border. */
+/* Rule drawn one row above the input line, like a box top border. */
 static void border_draw(void) {
     struct winsize w;
     int cols = 80;
     if (ioctl(1, TIOCGWINSZ, &w) == 0 && w.ws_col > 0) cols = w.ws_col;
-    fputs(ANSI_DIM, stdout);
-    for (int i = 0; i < cols; i++) fputs("─", stdout);
-    fputs(ANSI_RESET "\n\r", stdout);
+    rule_print(cols);
+    fputs("\n\r", stdout);
 }
 
 static void edit_start(void) {
