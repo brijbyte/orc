@@ -13,6 +13,7 @@ void input_drain(void);         /* consume pending keystrokes */
 void input_wait(void);          /* block until a line queues, EOF, or SIGINT */
 char *input_take(int *queued);  /* pop queued line (malloc'd) or NULL;
                                  * *queued=1 if typed while the agent worked */
+const char *input_peek(void);   /* head of the queue without popping, or NULL */
 int input_eof(void);            /* Ctrl-D on an empty line */
 void input_set_idle(int idle);  /* 0 while an agent turn runs */
 void input_erase(void);         /* call before writing agent output */

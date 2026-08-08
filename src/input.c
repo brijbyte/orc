@@ -415,14 +415,14 @@ void input_drain(void) {
         linenoiseHide(&ls);
         menu_discard(); /* clears the rows below the input */
         fputs("\x1b[1A\r\x1b[2K", stdout);
-        printf(BOLD_CYAN(">") " " ANSI_CYAN "%s" ANSI_RESET "\n\r", line);
+        /* Pending lines stay dim; the styled replay prints on consumption. */
+        if (idle_flag)
+            printf(BOLD_CYAN(">") " " ANSI_CYAN "%s" ANSI_RESET "\n\r", line);
+        else
+            printf(ANSI_DIM "> %s ⏳" ANSI_RESET "\n\r", line);
         fflush(stdout);
         linenoiseHistoryAdd(line);
         push_line(line);
-        if (!idle_flag) {
-            fputs(DIM("  ⏳ queued") "\n\r", stdout);
-            fflush(stdout);
-        }
         edit_start();
     }
 }
@@ -438,6 +438,8 @@ void input_wait(void) {
         input_drain();
     }
 }
+
+const char *input_peek(void) { return qhead ? qhead->s : NULL; }
 
 char *input_take(int *queued) {
     if (!qhead) return NULL;

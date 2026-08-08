@@ -200,6 +200,33 @@ static char *message_text(cJSON *item) {
     return sb.data;
 }
 
+/* Slash command or exit word: runs after the turn, never sent as steering.
+ * Mirrors command_dispatch: "/tmp/x" is a path, not a command. */
+static int is_control_line(const char *s) {
+    if (strcmp(s, "exit") == 0 || strcmp(s, "quit") == 0) return 1;
+    if (s[0] != '/') return 0;
+    size_t n = strcspn(s, " \t");
+    return memchr(s + 1, '/', n - 1) == NULL;
+}
+
+/* Inject lines queued during the turn as user messages, so the model sees
+ * them at the next request (pi-style steering between tool rounds). */
+static void steer(agent *ag, int tty) {
+    input_drain();
+    const char *peek;
+    while ((peek = input_peek()) && !is_control_line(peek)) {
+        char *line = input_take(NULL);
+        input_erase();
+        printf(tty ? BOLD_CYAN(">") " " ANSI_CYAN "%s" ANSI_RESET "\n"
+                   : "> %s\n",
+               line);
+        fflush(stdout);
+        input_redraw();
+        commit(ag, user_message(line));
+        free(line);
+    }
+}
+
 #define REPLAY_MAX 30
 void agent_replay(agent *ag) {
     int n = cJSON_GetArraySize(ag->history);
@@ -319,5 +346,6 @@ int agent_turn(agent *ag, const char *user_text) {
             }
         }
         if (interrupted) return 1;
+        steer(ag, isatty(1));
     }
 }
