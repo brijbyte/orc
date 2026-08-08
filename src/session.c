@@ -176,10 +176,12 @@ void session_close(orc_session *s) {
     s->f = NULL;
 }
 
-/* Read one --list row: id, start time, and first user message. */
-static int list_one(const char *path, orc_session_info *info) {
+/* Read one --list row if it belongs to cwd. */
+static int list_one(const char *path, const char *cwd, orc_session_info *info) {
     FILE *f = fopen(path, "r");
     if (!f) return -1;
+    memset(info, 0, sizeof *info);
+    int cwd_matches = 0;
     char *line = NULL;
     size_t cap = 0;
     for (int ln = 0; ln < 4 && getline(&line, &cap, f) != -1; ln++) {
@@ -187,7 +189,10 @@ static int list_one(const char *path, orc_session_info *info) {
         if (!item) continue;
         cJSON *meta = cJSON_GetObjectItem(item, "_meta");
         if (meta) {
-            cJSON *v = cJSON_GetObjectItem(meta, "id");
+            cJSON *v = cJSON_GetObjectItem(meta, "cwd");
+            if (cJSON_IsString(v) && strcmp(v->valuestring, cwd) == 0)
+                cwd_matches = 1;
+            v = cJSON_GetObjectItem(meta, "id");
             if (cJSON_IsString(v))
                 snprintf(info->id, sizeof info->id, "%s", v->valuestring);
             v = cJSON_GetObjectItem(meta, "t");
@@ -214,7 +219,7 @@ static int list_one(const char *path, orc_session_info *info) {
     fclose(f);
     char *separator = strchr(info->when, 'T');
     if (separator) *separator = ' ';
-    return 0;
+    return cwd_matches;
 }
 
 static int newest_first(const void *a, const void *b) {
@@ -224,6 +229,11 @@ static int newest_first(const void *a, const void *b) {
 int session_list(orc_session_info **items, size_t *count) {
     *items = NULL;
     *count = 0;
+    char *cwd = getcwd(NULL, 0);
+    if (!cwd) {
+        snprintf(last_error, sizeof last_error, "cannot get current directory");
+        return -1;
+    }
     char *dir = orc_path("sessions");
     DIR *d = opendir(dir);
     char **names = NULL;
@@ -250,11 +260,12 @@ int session_list(orc_session_info **items, size_t *count) {
     for (size_t i = 0; i < n; i++) {
         char path[4096];
         snprintf(path, sizeof path, "%s/%s", dir, names[i]);
-        if (rows && list_one(path, &rows[used]) == 0) used++;
+        if (rows && list_one(path, cwd, &rows[used]) > 0) used++;
         free(names[i]);
     }
     free(names);
     free(dir);
+    free(cwd);
     if (n && !rows) {
         snprintf(last_error, sizeof last_error, "out of memory");
         return -1;

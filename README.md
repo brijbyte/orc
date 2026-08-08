@@ -61,7 +61,7 @@ the `TAP_PUSH_TOKEN` secret (a PAT with push access to
 ./bin/orc-debug -p "fix the failing test"  # one-shot, scriptable (exit 130 on Ctrl-C)
 ./bin/orc-debug --resume                 # continue the most recent session
 ./bin/orc-debug --resume <id>            # continue by session id (prefix ok)
-./bin/orc-debug --list                   # list sessions (id, time, first prompt)
+./bin/orc-debug --list                   # list this directory's sessions
 ./bin/orc-debug --login                  # sign in with ChatGPT (browser OAuth)
 ./bin/orc-debug --auth                   # show Codex auth status
 ./bin/orc-debug -m gpt-5.6-terra -e high # model / reasoning effort (env: ORC_MODEL)

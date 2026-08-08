@@ -24,7 +24,7 @@ static void usage(void) {
          "  -e <effort>       reasoning effort: low|medium|high (default " ORC_DEFAULT_EFFORT ")\n"
          "  --provider <name> provider (default codex; env ORC_PROVIDER)\n"
          "  --resume [id|path] resume most recent (or given) session\n"
-         "  --list            list sessions, newest first\n"
+         "  --list            list sessions for this directory, newest first\n"
          "  --login           sign in to the provider (browser OAuth)\n"
          "  --auth            show provider auth status\n"
          "  --version         print version\n"

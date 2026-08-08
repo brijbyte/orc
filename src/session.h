@@ -39,7 +39,7 @@ void session_set_cfg(orc_session *s, const orc_cfg *cfg);
 
 void session_close(orc_session *s);
 
-/* Load session summaries, newest first. The caller frees them. */
+/* Load summaries for the current directory, newest first. The caller frees them. */
 int session_list(orc_session_info **items, size_t *count);
 const char *session_error(void);
 
