@@ -5,8 +5,9 @@ by the harness. See README.md for user-facing docs.
 
 ## Build & test
 
-- `make` (first build fetches pinned cJSON v1.7.18 + md4c 0.5.2 into
-  gitignored `vendor/`; binary lands at `bin/orc`)
+- `make` (first build fetches pinned deps into gitignored `vendor/` and
+  compiles curl+mbedTLS statically — takes minutes once; binary lands at
+  `bin/orc`; `make SYSTEM_CURL=1` links system libcurl for faster iteration)
 - Smoke tests: `./bin/orc --auth`, `./bin/orc -p "say hi"`, `./bin/orc --resume`
 - orc home (`orc_home()` in util.c): `$XDG_CONFIG_HOME/orc`, else
   `~/.config/orc` when `~/.config` exists, else `~/.orc`
@@ -42,6 +43,7 @@ by the harness. See README.md for user-facing docs.
 
 ## Conventions
 
-- C11, `-Wall -Wextra` clean. Only deps: system libcurl + vendored cJSON/md4c.
+- C11, `-Wall -Wextra` clean. All deps vendored + pinned (cJSON, md4c,
+  c-timestamp, curl+mbedTLS static); no system libs beyond libc/pthread.
 - Tool/model-facing text stays terse (token budget is a feature).
 - Errors from tools return as output strings for the model, never abort.

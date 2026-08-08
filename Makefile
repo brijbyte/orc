@@ -2,7 +2,6 @@ CC ?= cc
 CPPFLAGS += -D_POSIX_C_SOURCE=200809L -Ivendor -Isrc
 CFLAGS ?= -O2
 CFLAGS += -std=c11 -Wall -Wextra
-LDLIBS += -lcurl
 
 # Keep macOS releases runnable on supported Apple Silicon systems. These flags
 # are Darwin-only so the same Makefile remains usable on Linux and other POSIX
@@ -12,12 +11,31 @@ ifeq ($(UNAME_S),Darwin)
 MACOSX_DEPLOYMENT_TARGET ?= 13.0
 CFLAGS += -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
 LDFLAGS += -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
+export MACOSX_DEPLOYMENT_TARGET  # vendor sub-builds (mbedTLS, curl) honor it
 endif
 
 OBJS = src/main.o src/agent.o src/provider.o src/providers/codex.o src/http.o \
        src/tools.o src/session.o src/render.o src/util.o vendor/cJSON.o \
        vendor/md4c.o vendor/timestamp_parse.o vendor/timestamp_format.o \
        vendor/timestamp_valid.o
+
+# libcurl is embedded statically (with mbedTLS) so the binary has no deps
+# beyond libc/pthread. `make SYSTEM_CURL=1` links the system libcurl instead.
+CURL_VER = 8.11.1
+MBEDTLS_VER = 3.6.2
+VENDOR := $(abspath vendor)
+ifeq ($(SYSTEM_CURL),1)
+LDLIBS += -lcurl
+else
+CURL_A = vendor/curl/lib/libcurl.a
+MBED_A = vendor/mbedtls/lib/libmbedtls.a vendor/mbedtls/lib/libmbedx509.a \
+         vendor/mbedtls/lib/libmbedcrypto.a
+CPPFLAGS += -I$(VENDOR)/curl/include
+LDLIBS += $(CURL_A) $(MBED_A) -lpthread
+ifeq ($(UNAME_S),Darwin)
+LDLIBS += -framework CoreFoundation -framework SystemConfiguration
+endif
+endif
 
 all: bin/orc
 
@@ -46,11 +64,35 @@ vendor/timestamp.h $(addprefix vendor/,$(TS_SRCS)):
 	for f in timestamp.h $(TS_SRCS); do \
 		curl -fsSL -o vendor/$$f $(TS_URL)/$$f; done
 
+MBEDTLS_URL = https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-$(MBEDTLS_VER)/mbedtls-$(MBEDTLS_VER).tar.bz2
+vendor/mbedtls/lib/libmbedtls.a:
+	mkdir -p vendor
+	curl -fsSL $(MBEDTLS_URL) | tar xj -C vendor
+	$(MAKE) -C vendor/mbedtls-$(MBEDTLS_VER) lib
+	mkdir -p vendor/mbedtls/lib
+	cp vendor/mbedtls-$(MBEDTLS_VER)/library/*.a vendor/mbedtls/lib/
+	cp -R vendor/mbedtls-$(MBEDTLS_VER)/include vendor/mbedtls/
+
+CURL_SRC_URL = https://curl.se/download/curl-$(CURL_VER).tar.gz
+vendor/curl/lib/libcurl.a: vendor/mbedtls/lib/libmbedtls.a
+	curl -fsSL $(CURL_SRC_URL) | tar xz -C vendor
+	cd vendor/curl-$(CURL_VER) && ./configure --prefix=$(VENDOR)/curl \
+	  --disable-shared --enable-static --with-mbedtls=$(VENDOR)/mbedtls \
+	  --without-libpsl --without-zlib --without-brotli --without-zstd \
+	  --without-nghttp2 --without-libidn2 --without-ca-bundle \
+	  --without-ca-path --disable-docs --disable-manual --disable-ldap \
+	  --disable-ldaps --disable-rtsp --disable-ftp --disable-file \
+	  --disable-dict --disable-telnet --disable-tftp --disable-pop3 \
+	  --disable-imap --disable-smb --disable-smtp --disable-gopher \
+	  --disable-mqtt --disable-ntlm --disable-tls-srp > configure.log
+	$(MAKE) -C vendor/curl-$(CURL_VER)/lib install
+	$(MAKE) -C vendor/curl-$(CURL_VER)/include install
+
 vendor/cJSON.o: vendor/cJSON.c vendor/cJSON.h
 vendor/md4c.o: vendor/md4c.c vendor/md4c.h
 vendor/timestamp_parse.o vendor/timestamp_format.o vendor/timestamp_valid.o: \
 	vendor/timestamp.h
-$(OBJS): vendor/cJSON.h vendor/md4c.h vendor/timestamp.h
+$(OBJS): vendor/cJSON.h vendor/md4c.h vendor/timestamp.h $(CURL_A)
 
 clean:
 	rm -f bin/orc $(OBJS)

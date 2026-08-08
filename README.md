@@ -18,9 +18,13 @@ tool outputs, and server-side prompt caching via `prompt_cache_key`.
 make
 ```
 
-The first build fetches pinned cJSON (v1.7.18) and md4c (release-0.5.2) into
-`vendor/` (gitignored). The binary lands at `bin/orc`. macOS builds target
-macOS 13 by default; override with `MACOSX_DEPLOYMENT_TARGET=<version> make`.
+The first build fetches pinned deps into `vendor/` (gitignored): cJSON
+v1.7.18, md4c 0.5.2, c-timestamp, and curl 8.11.1 + mbedTLS 3.6.2. curl and
+mbedTLS compile once (a few minutes) and link statically, so the binary
+depends only on libc/pthread and the OS CA bundle — no system libcurl needed.
+`make SYSTEM_CURL=1` links the system libcurl instead (faster first build).
+The binary lands at `bin/orc`. macOS builds target macOS 13 by default;
+override with `MACOSX_DEPLOYMENT_TARGET=<version> make`.
 
 ## Use
 

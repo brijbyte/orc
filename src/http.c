@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 volatile sig_atomic_t g_interrupt = 0;
 
@@ -72,10 +73,29 @@ static int progress_cb(void *ud, curl_off_t dt, curl_off_t dn, curl_off_t ut, cu
     return g_interrupt ? 1 : 0;
 }
 
+/* The embedded (static) libcurl has no baked-in CA path; probe at runtime. */
+static const char *ca_bundle(void) {
+    static const char *paths[] = {
+        "/etc/ssl/cert.pem",                  /* macOS, BSD */
+        "/etc/ssl/certs/ca-certificates.crt", /* Debian/Ubuntu/Alpine */
+        "/etc/pki/tls/certs/ca-bundle.crt",   /* Fedora/RHEL */
+        "/etc/ssl/ca-bundle.pem",             /* openSUSE */
+        NULL,
+    };
+    const char *env = getenv("CURL_CA_BUNDLE");
+    if (!env || !*env) env = getenv("SSL_CERT_FILE");
+    if (env && *env) return env;
+    for (int i = 0; paths[i]; i++)
+        if (access(paths[i], R_OK) == 0) return paths[i];
+    return NULL;
+}
+
 static CURL *make_handle(const char *url, const char **headers, const char *body,
                          struct curl_slist **out_list) {
     CURL *h = curl_easy_init();
     if (!h) return NULL;
+    const char *ca = ca_bundle();
+    if (ca) curl_easy_setopt(h, CURLOPT_CAINFO, ca);
     struct curl_slist *list = NULL;
     for (int i = 0; headers && headers[i]; i++)
         list = curl_slist_append(list, headers[i]);
