@@ -42,6 +42,10 @@ to queue the next prompt (it runs when the current turn finishes, marked
 `↳ queued`), Ctrl-C interrupts the current turn, and lines get editing +
 history (linenoise, persisted at `<orc home>/history`).
 
+orc appends user instruction files to the system prompt when they exist:
+`~/.agents/AGENTS.md` (global), then `./AGENTS.md` in the working directory
+(project). Each file is clamped to 32 KB.
+
 The orc home is `$XDG_CONFIG_HOME/orc` (or `~/.config/orc` when `~/.config`
 exists), falling back to `~/.orc`. Sessions are append-only JSONL under
 `<orc home>/sessions/` — one Responses-API input item per line, so a session

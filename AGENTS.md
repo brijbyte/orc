@@ -46,6 +46,8 @@ by the harness. See README.md for user-facing docs.
 - C11, `-Wall -Wextra` clean. All deps vendored + pinned (cJSON, md4c,
   c-timestamp, curl+mbedTLS static); no system libs beyond libc/pthread.
 - Tool/model-facing text stays terse (token budget is a feature).
+- System instructions: base prompt + `~/.agents/AGENTS.md` + `./AGENTS.md`
+  (see `build_instructions` in main.c).
 - The REPL input line (src/input.c, linenoise async API) sits below streamed
   output: any code printing to the terminal mid-turn must emit whole lines
   wrapped in `input_erase()` / `input_redraw()`.
