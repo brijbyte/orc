@@ -5,8 +5,9 @@ by the harness. See README.md for user-facing docs.
 
 ## Build & test
 
-- `make` (first build fetches pinned cJSON v1.7.18 into gitignored `vendor/`)
-- Smoke tests: `./orc --auth`, `./orc -p "say hi"`, `./orc --resume`
+- `make` (first build fetches pinned cJSON v1.7.18 + md4c 0.5.2 into
+  gitignored `vendor/`; binary lands at `bin/orc`)
+- Smoke tests: `./bin/orc --auth`, `./bin/orc -p "say hi"`, `./bin/orc --resume`
 - `ORC_DEBUG=1` tees raw SSE to `~/.orc/debug.log`
 
 ## Architecture
@@ -39,6 +40,6 @@ by the harness. See README.md for user-facing docs.
 
 ## Conventions
 
-- C11, `-Wall -Wextra` clean. Only deps: system libcurl + vendored cJSON.
+- C11, `-Wall -Wextra` clean. Only deps: system libcurl + vendored cJSON/md4c.
 - Tool/model-facing text stays terse (token budget is a feature).
 - Errors from tools return as output strings for the model, never abort.

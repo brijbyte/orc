@@ -18,17 +18,18 @@ tool outputs, and server-side prompt caching via `prompt_cache_key`.
 make
 ```
 
-The first build fetches pinned cJSON (v1.7.18) into `vendor/` (gitignored).
+The first build fetches pinned cJSON (v1.7.18) and md4c (release-0.5.2) into
+`vendor/` (gitignored). The binary lands at `bin/orc`.
 
 ## Use
 
 ```
-./orc                          # interactive REPL
-./orc -p "fix the failing test"  # one-shot, scriptable (exit 130 on Ctrl-C)
-./orc --resume                 # continue the most recent session
-./orc --resume <path>          # continue a specific session
-./orc --auth                   # show Codex auth status
-./orc -m gpt-5.6-terra -e high # model / reasoning effort (env: ORC_MODEL)
+./bin/orc                          # interactive REPL
+./bin/orc -p "fix the failing test"  # one-shot, scriptable (exit 130 on Ctrl-C)
+./bin/orc --resume                 # continue the most recent session
+./bin/orc --resume <path>          # continue a specific session
+./bin/orc --auth                   # show Codex auth status
+./bin/orc -m gpt-5.6-terra -e high # model / reasoning effort (env: ORC_MODEL)
 ```
 
 Sessions are append-only JSONL under `~/.orc/sessions/` — one Responses-API
@@ -64,7 +65,7 @@ src/main.c            CLI, REPL, signals      src/tools.c    bash/read/write/edi
 src/agent.c           agentic loop            src/session.c  JSONL persistence
 src/provider.c        provider registry       src/render.c   ANSI markdown
 src/providers/codex.c Codex auth+request+SSE  src/util.c     strbuf, base64url, ...
-src/http.c            libcurl + SSE framing   vendor/cJSON.* vendored JSON
+src/http.c            libcurl + SSE framing   vendor/        cJSON, md4c
 ```
 
 New providers: one file in `src/providers/` implementing the `provider`
