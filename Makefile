@@ -1,6 +1,7 @@
 CC ?= cc
 STRIP ?= strip
-CPPFLAGS += -D_POSIX_C_SOURCE=200809L -Ivendor -Ithird_party/linenoise -Isrc
+CPPFLAGS += -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700 \
+            -Ivendor -Ithird_party/linenoise -Isrc
 CFLAGS ?= -O2
 CFLAGS += -std=c11 -Wall -Wextra
 
