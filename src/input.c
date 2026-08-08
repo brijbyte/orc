@@ -13,7 +13,6 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
-#include <time.h>
 #include <unistd.h>
 
 typedef struct qnode {
@@ -39,7 +38,6 @@ static const char *SPIN[] = {
 };
 #define SPIN_N ((int)(sizeof SPIN / sizeof *SPIN))
 static int spin_i;
-static struct timespec spin_last;
 
 static const char *cur_prompt(void) {
     /* Escapes in prompts are fine: linenoise width math skips them. */
@@ -146,10 +144,19 @@ static int menu_collect(const char *buf) {
     return n;
 }
 
+/* Bytes of s that fit in max without tearing a UTF-8 sequence. */
+static int utf8_clip(const char *s, int max) {
+    int len = (int)strlen(s);
+    if (max < 0) max = 0;
+    if (len <= max) return len;
+    while (max > 0 && (s[max] & 0xC0) == 0x80) max--;
+    return max;
+}
+
 /* Dim horizontal rule at the cursor; no line movement. */
 static void rule_print(int cols) {
     fputs(ANSI_DIM, stdout);
-    for (int i = 0; i < cols; i++) fputs("─", stdout);
+    for (int i = 1; i < cols; i++) fputs("─", stdout);
     fputs(ANSI_RESET, stdout);
 }
 
@@ -177,7 +184,8 @@ static void below_draw(void) {
                    it->c1, cur ? ANSI_UNBOLD : "");
         }
         if (avail > 0)
-            printf(ANSI_DIM "%.*s" ANSI_UNBOLD, avail, it->desc);
+            printf(ANSI_DIM "%.*s" ANSI_UNBOLD, utf8_clip(it->desc, avail),
+                   it->desc);
         fputs(ANSI_RESET, stdout);
     }
     if (status_buf[0]) {
@@ -185,7 +193,7 @@ static void below_draw(void) {
         rule_print((int)ls.cols);
         fputs("\n\r\x1b[2K", stdout); /* gap before the status line */
         printf("\n\r\x1b[2K" ANSI_DIM "%.*s" ANSI_RESET,
-               (int)ls.cols > 1 ? (int)ls.cols - 1 : 0, status_buf);
+               utf8_clip(status_buf, (int)ls.cols - 1), status_buf);
         n += 3;
     }
     if (n == 0) fputs("\n\r", stdout); /* step below to reach the leftovers */
@@ -262,6 +270,12 @@ static void border_draw(void) {
     fputs("\n\r", stdout);
 }
 
+/* The border ends in a hard newline, so terminals truncate it to one row
+ * on resize instead of wrapping it: always erase exactly one row. */
+static void border_erase(void) {
+    fputs(ANSI_UP_CLEAR_LINE, stdout);
+}
+
 static void edit_start(void) {
     border_draw();
     linenoiseEditStart(&ls, -1, -1, lbuf, sizeof lbuf, cur_prompt());
@@ -309,18 +323,12 @@ void input_init(void) {
 }
 
 /* Animate the busy prompt (spinner) while an agent turn runs. */
-static void spin_tick(void) {
+void input_tick(void) {
     if (idle_flag || !editing || hidden) return;
-    struct timespec now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
-    long ms = (now.tv_sec - spin_last.tv_sec) * 1000 +
-              (now.tv_nsec - spin_last.tv_nsec) / 1000000;
-    if (ms < 120) return;
-    spin_last = now;
     spin_i = (spin_i + 1) % SPIN_N;
     ls.prompt = cur_prompt();
     ls.plen = strlen(ls.prompt);
-    linenoiseShow(&ls); /* full in-place line redraw */
+    linenoiseShow(&ls);
 }
 
 int input_active(void) { return active; }
@@ -331,7 +339,6 @@ void input_set_idle(int idle) {
     if (idle_flag == idle) return;
     idle_flag = idle;
     spin_i = 0;
-    clock_gettime(CLOCK_MONOTONIC, &spin_last);
     if (active && editing) {
         ls.prompt = cur_prompt();
         ls.plen = strlen(ls.prompt);
@@ -341,12 +348,13 @@ void input_set_idle(int idle) {
 
 void input_erase(void) {
     if (active && editing && !hidden) {
+        input_resize();
         linenoiseHide(&ls);
         if (below_rows) { /* hide the rows; keep candidates + selection */
-            fputs("\x1b[J", stdout);
+            fputs(ANSI_CLEAR_DOWN, stdout);
             below_rows = 0;
         }
-        fputs("\x1b[1A\r\x1b[2K", stdout); /* take the border row too */
+        border_erase();
         fflush(stdout);
         hidden = 1;
     }
@@ -359,6 +367,22 @@ void input_redraw(void) {
         hidden = 0;
         below_draw(); /* restore the menu and status the erase hid */
     }
+}
+
+void input_resize(void) {
+    if (!active || !editing) return;
+    if (hidden) { /* keep geometry current; input_redraw repaints */
+        linenoiseResize(&ls);
+        return;
+    }
+    if (!linenoiseResize(&ls)) return;
+    linenoiseHide(&ls);
+    fputs(ANSI_CLEAR_DOWN, stdout);
+    border_erase();
+    border_draw();
+    linenoiseShow(&ls);
+    below_rows = 0;
+    below_draw();
 }
 
 void input_status_set(const char *s) {
@@ -379,7 +403,7 @@ static void push_line(char *line) {
 
 void input_drain(void) {
     if (!active || eof_flag) return;
-    spin_tick();
+    input_resize();
     for (;;) {
         struct pollfd p = {.fd = 0, .events = POLLIN};
         if (poll(&p, 1, 0) <= 0 || !editing) break;

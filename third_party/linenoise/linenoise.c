@@ -887,6 +887,24 @@ static void abFree(struct abuf *ab) {
     free(ab->b);
 }
 
+/* Write all bytes, riding out EINTR, EAGAIN, and short writes: a dropped
+ * chunk tears escape sequences and leaves stale rows on screen. */
+static ssize_t writeFully(int fd, const char *buf, size_t len) {
+    size_t off = 0;
+    while (off < len) {
+        ssize_t n = write(fd, buf+off, len-off);
+        if (n > 0) { off += (size_t)n; continue; }
+        if (n == -1 && errno == EINTR) continue;
+        if (n == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            struct pollfd p = { .fd = fd, .events = POLLOUT };
+            poll(&p, 1, -1);
+            continue;
+        }
+        return -1;
+    }
+    return (ssize_t)len;
+}
+
 /* A fold is a display-only replacement for a range in l->buf. The edited
  * buffer always keeps the real bytes; refresh code asks linenoiseRenderBuffer()
  * for a temporary printable version plus the cursor position inside it. */
@@ -1310,7 +1328,7 @@ static void refreshSingleLine(struct linenoiseState *l, int flags) {
         abAppend(&ab,seq,strlen(seq));
     }
 
-    if (write(fd,ab.b,ab.len) == -1) {} /* Can't recover from write error. */
+    if (writeFully(fd,ab.b,ab.len) == -1) {} /* Can't recover from write error. */
     abFree(&ab);
     free(render);
 }
@@ -1481,7 +1499,7 @@ static void refreshMultiLine(struct linenoiseState *l, int flags) {
     l->oldpos = l->pos;
     if (flags & REFRESH_WRITE) l->oldrpos = rpos2;
 
-    if (write(fd,ab.b,ab.len) == -1) {} /* Can't recover from write error. */
+    if (writeFully(fd,ab.b,ab.len) == -1) {} /* Can't recover from write error. */
     abFree(&ab);
     free(render);
 }
@@ -1519,6 +1537,25 @@ void linenoiseShow(struct linenoiseState *l) {
         refreshLineWithFlags(l,REFRESH_WRITE);
     }
     l->hidden = 0;
+}
+
+int linenoiseResize(struct linenoiseState *l) {
+    int cols = getColumns(l->ifd,l->ofd);
+    char *render = NULL;
+    size_t len, pos, pwidth, oldcols = l->cols;
+    int rows, col;
+
+    if (cols <= 0 || (size_t)cols == l->cols) return 0;
+    l->cols = cols;
+    if (linenoiseRenderBuffer(l,&render,&len,&pos) == -1) {
+        l->cols = oldcols;
+        return 0;
+    }
+    pwidth = utf8StrWidth(l->prompt,l->plen);
+    renderGeometry(l,render,len,pos,pwidth,&rows,&l->oldrpos,&col);
+    l->oldrows = rows;
+    free(render);
+    return 1;
 }
 
 /* Grow the editing buffer if this state owns a growable buffer. Only the
@@ -1594,9 +1631,9 @@ int linenoiseEditInsert(struct linenoiseState *l, const char *c, size_t clen) {
                 /* Avoid a full update of the line in the trivial case:
                  * single-width char, no hints, fits in one line. */
                 if (maskmode == 1) {
-                    if (write(l->ofd,"*",1) == -1) return -1;
+                    if (writeFully(l->ofd,"*",1) == -1) return -1;
                 } else {
-                    if (write(l->ofd,c,clen) == -1) return -1;
+                    if (writeFully(l->ofd,c,clen) == -1) return -1;
                 }
                 return 0;
             }
@@ -1795,7 +1832,7 @@ int linenoiseEditStart(struct linenoiseState *l, int stdin_fd, int stdout_fd, ch
      * initially is just an empty string. */
     linenoiseHistoryAdd("");
 
-    if (write(l->ofd,prompt,l->plen) == -1) return -1;
+    if (writeFully(l->ofd,prompt,l->plen) == -1) return -1;
     return 0;
 }
 

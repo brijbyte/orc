@@ -13,6 +13,8 @@
 #define ANSI_UNBOLD "\x1b[22m" /* normal intensity; keeps reverse/colors */
 #define ANSI_CYAN "\x1b[36m"
 #define ANSI_BOLD_CYAN "\x1b[1;36m"
+#define ANSI_CLEAR_DOWN "\x1b[J"
+#define ANSI_UP_CLEAR_LINE "\x1b[1A\r\x1b[2K"
 
 /* Style a string literal (compile-time concatenation). Not nestable: the
  * inner reset also ends the outer style. */

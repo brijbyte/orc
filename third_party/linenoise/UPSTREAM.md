@@ -9,6 +9,7 @@ The source keeps the upstream BSD license. The orc fork adds:
 - nonblocking history and Escape hooks
 - multiline input with explicit soft breaks
 - UTF-8-aware multiline redraw and cursor geometry
-- safe hide and in-place show operations
+- safe hide, show, and terminal-resize operations
+- full screen writes that ride out EINTR, EAGAIN, and short writes
 - full CSI parameter parsing, including Shift+Enter
 - `TCSANOW` terminal mode changes to keep type-ahead
