@@ -5,8 +5,9 @@ Minimal C coding-agent harness. Keep the code and model-facing text terse.
 ## Build and test
 
 - Fast build: `make SYSTEM_CURL=1`
-- Release-style static build: `make`
-- Smoke tests: `./bin/orc --auth`, `./bin/orc -p "say hi"`, `./bin/orc --resume`
+- Release build: `make release`
+- Smoke tests: `./bin/orc-debug --auth`, `./bin/orc-debug -p "say hi"`,
+  `./bin/orc-debug --resume`
 
 ## Architecture
 
@@ -16,8 +17,12 @@ Minimal C coding-agent harness. Keep the code and model-facing text terse.
 - `src/provider.h` defines providers. Implement each provider in
   `src/providers/` and register it in `src/provider.c`.
 - `src/agent.c` owns the turn and tool-call loop. Tools are in `src/tools.c`.
-- `src/commands.c` implements slash commands. `src/input.c` owns the REPL
-  line, the `/` menu, and the spinner.
+  `src/skills.c` discovers and searches skills for the `skill` tool.
+- `src/instructions.c` builds agent instructions on the first turn, not at
+  startup.
+- `src/commands.c` implements slash commands. `src/input.c` owns line editing,
+  the `/` menu, input queues, and the spinner. `src/ui.c` owns agent output and
+  terminal rendering.
 
 ## Codex invariants
 

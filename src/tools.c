@@ -1,6 +1,7 @@
 #include "tools.h"
 #include "event.h"
 #include "orc.h"
+#include "skills.h"
 #include "util.h"
 
 #include <errno.h>
@@ -45,7 +46,12 @@ const char *tools_schema_json(void) {
       "\"parameters\":{\"type\":\"object\",\"properties\":{"
         "\"path\":{\"type\":\"string\"},"
         "\"old\":{\"type\":\"string\"},"
-        "\"new\":{\"type\":\"string\"}},\"required\":[\"path\",\"old\",\"new\"]}}]";
+        "\"new\":{\"type\":\"string\"}},\"required\":[\"path\",\"old\",\"new\"]}},"
+     "{\"type\":\"function\",\"name\":\"skill\","
+      "\"description\":\"Find installed skills. Use when the user asks to find or use a skill.\","
+      "\"parameters\":{\"type\":\"object\",\"properties\":{"
+        "\"query\":{\"type\":\"string\","
+          "\"description\":\"Search by name or description. Omit to list all skills.\"}}}}]";
 }
 
 static const char *astr(cJSON *args, const char *key) {
@@ -256,5 +262,6 @@ char *tool_run(const char *name, cJSON *args) {
     if (strcmp(name, "read") == 0) return tool_read(args);
     if (strcmp(name, "write") == 0) return tool_write(args);
     if (strcmp(name, "edit") == 0) return tool_edit(args);
+    if (strcmp(name, "skill") == 0) return clamp_output(skills_query(astr(args, "query")));
     return errf("error: unknown tool %s", name);
 }

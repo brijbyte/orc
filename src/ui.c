@@ -7,6 +7,7 @@
 #include "render.h"
 #include "util.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -123,7 +124,21 @@ static const char *tool_icon(const char *name) {
     if (strcmp(name, "read") == 0) return "📖";
     if (strcmp(name, "write") == 0) return "📝";
     if (strcmp(name, "edit") == 0) return "✏️";
+    if (strcmp(name, "skill") == 0) return "🧠";
     return "🔧";
+}
+
+static const char *display_path(const char *path, char resolved[PATH_MAX]) {
+    if (path[0] != '/') return path;
+    const char *full = realpath(path, resolved);
+    if (!full) full = path;
+    char cwd[PATH_MAX];
+    if (!getcwd(cwd, sizeof cwd)) return path;
+    size_t n = strlen(cwd);
+    if (strcmp(full, cwd) == 0) return ".";
+    if (n == 1 || (strncmp(full, cwd, n) == 0 && full[n] == '/'))
+        return full + n + (n > 1);
+    return path;
 }
 
 static void ui_tool_call(cJSON *call) {
@@ -132,10 +147,16 @@ static void ui_tool_call(cJSON *call) {
     if (!name) return;
     cJSON *args = arguments ? cJSON_Parse(arguments) : NULL;
     const char *desc = "";
+    char resolved[PATH_MAX];
     if (args) {
         cJSON *arg = cJSON_GetObjectItem(args, "cmd");
-        if (!arg) arg = cJSON_GetObjectItem(args, "path");
-        if (cJSON_IsString(arg)) desc = arg->valuestring;
+        if (cJSON_IsString(arg)) {
+            desc = arg->valuestring;
+        } else {
+            arg = cJSON_GetObjectItem(args, "path");
+            if (cJSON_IsString(arg))
+                desc = display_path(arg->valuestring, resolved);
+        }
     }
     input_erase();
     const char *icon = tool_icon(name);

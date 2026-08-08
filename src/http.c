@@ -108,6 +108,7 @@ static CURL *make_handle(const char *url, const char **headers, const char *body
         list = next;
     }
     curl_easy_setopt(h, CURLOPT_URL, url);
+    curl_easy_setopt(h, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
     curl_easy_setopt(h, CURLOPT_HTTPHEADER, list);
     curl_easy_setopt(h, CURLOPT_POSTFIELDS, body);
     curl_easy_setopt(h, CURLOPT_NOPROGRESS, 0L);
