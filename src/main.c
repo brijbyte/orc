@@ -140,6 +140,8 @@ int main(int argc, char **argv) {
 
     agent_free(&ag);
     session_close(&sess);
+    fflush(stdout);
+    fprintf(stderr, "orc: resume with `orc --resume %.8s`\n", cfg.session_id);
     free(cfg.instructions);
     curl_global_cleanup();
     return rc;
