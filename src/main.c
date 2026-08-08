@@ -85,10 +85,14 @@ int main(int argc, char **argv) {
     cfg.effort = ORC_DEFAULT_EFFORT;
     uuid4(cfg.session_id);
 
+    int effort_explicit = 0;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) prompt = argv[++i];
         else if (strcmp(argv[i], "-m") == 0 && i + 1 < argc) cfg.model = argv[++i];
-        else if (strcmp(argv[i], "-e") == 0 && i + 1 < argc) cfg.effort = argv[++i];
+        else if (strcmp(argv[i], "-e") == 0 && i + 1 < argc) {
+            cfg.effort = argv[++i];
+            effort_explicit = 1;
+        }
         else if (strcmp(argv[i], "--provider") == 0 && i + 1 < argc) cfg.provider = argv[++i];
         else if (strcmp(argv[i], "--resume") == 0) {
             do_resume = 1;
@@ -114,6 +118,7 @@ int main(int argc, char **argv) {
 
     if (do_list) return session_list();
 
+    int model_explicit = cfg.model != NULL; /* -m flag or ORC_MODEL env */
     const provider *prov = provider_get(cfg.provider);
     if (!prov) {
         fprintf(stderr, "❌ orc: unknown provider '%s'; available:\n", cfg.provider);
@@ -162,6 +167,9 @@ int main(int argc, char **argv) {
         resumed = cJSON_CreateArray();
         if (!resumed || session_resume(&sess, resume_ref, resumed, &cfg) != 0)
             goto cleanup;
+        /* Restore the session's model/effort; explicit flags win. */
+        if (!model_explicit && sess.model[0]) cfg.model = sess.model;
+        if (!effort_explicit && sess.effort[0]) cfg.effort = sess.effort;
     } else if (session_new(&sess, &cfg) != 0) {
         fprintf(stderr, "❌ orc: cannot create session file\n");
         goto cleanup;

@@ -183,6 +183,7 @@ int command_dispatch(agent *ag, const char *line) {
         ag->cfg->model = model_buf;
         printf("✅ model set to %s%s\n", model_buf,
                known ? "" : " (not in provider's model list)");
+        session_set_cfg(ag->sess, ag->cfg);
         commands_status_update();
         return 1;
     }
@@ -199,6 +200,7 @@ int command_dispatch(agent *ag, const char *line) {
         snprintf(effort_buf, sizeof effort_buf, "%s", arg);
         ag->cfg->effort = effort_buf;
         printf("✅ effort set to %s\n", effort_buf);
+        session_set_cfg(ag->sess, ag->cfg);
         commands_status_update();
         return 1;
     }

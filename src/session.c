@@ -23,6 +23,7 @@ int session_new(orc_session *s, const orc_cfg *cfg) {
     cJSON *m = cJSON_CreateObject();
     cJSON_AddStringToObject(m, "id", cfg->session_id);
     cJSON_AddStringToObject(m, "model", cfg->model);
+    cJSON_AddStringToObject(m, "effort", cfg->effort);
     cJSON_AddStringToObject(m, "cwd", cwd);
     char now[40];
     now_rfc3339(now, sizeof now);
@@ -106,6 +107,12 @@ int session_resume(orc_session *s, const char *ref, cJSON *history, orc_cfg *cfg
                                  id->valuestring);
                     cJSON *ctx = cJSON_GetObjectItem(meta, "ctx");
                     if (cJSON_IsNumber(ctx)) s->ctx = (long long)ctx->valuedouble;
+                    cJSON *v = cJSON_GetObjectItem(meta, "model");
+                    if (cJSON_IsString(v))
+                        snprintf(s->model, sizeof s->model, "%s", v->valuestring);
+                    v = cJSON_GetObjectItem(meta, "effort");
+                    if (cJSON_IsString(v))
+                        snprintf(s->effort, sizeof s->effort, "%s", v->valuestring);
                     cJSON_Delete(item);
                 } else {
                     cJSON_AddItemToArray(history, item);
@@ -148,6 +155,21 @@ void session_set_ctx(orc_session *s, long long tokens) {
     s->ctx = tokens;
     fprintf(s->f, "{\"_meta\":{\"ctx\":%lld}}\n", tokens);
     fflush(s->f);
+}
+
+void session_set_cfg(orc_session *s, const orc_cfg *cfg) {
+    if (!s->f) return;
+    cJSON *root = cJSON_CreateObject();
+    cJSON *m = cJSON_AddObjectToObject(root, "_meta");
+    cJSON_AddStringToObject(m, "model", cfg->model);
+    cJSON_AddStringToObject(m, "effort", cfg->effort);
+    char *line = cJSON_PrintUnformatted(root);
+    if (line) {
+        fprintf(s->f, "%s\n", line);
+        fflush(s->f);
+        free(line);
+    }
+    cJSON_Delete(root);
 }
 
 void session_close(orc_session *s) {
