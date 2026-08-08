@@ -1,5 +1,6 @@
 #include "agent.h"
 
+#include "instructions.h"
 #include "tools.h"
 
 #include <stdlib.h>
@@ -124,6 +125,10 @@ void agent_replay(agent *ag) {
 }
 
 int agent_turn(agent *ag, const char *user_text) {
+    if (!ag->cfg->instructions) {
+        ag->cfg->instructions = instructions_build();
+        if (!ag->cfg->instructions) return -1;
+    }
     commit(ag, user_message(user_text));
 
     for (;;) {

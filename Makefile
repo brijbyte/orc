@@ -28,7 +28,7 @@ endif
 
 OBJS = src/main.o src/agent.o src/provider.o src/providers/codex.o src/http.o \
        src/tools.o src/session.o src/render.o src/input.o src/event.o src/ui.o \
-       src/commands.o src/util.o src/auth.o \
+       src/commands.o src/util.o src/auth.o src/instructions.o \
        vendor/cJSON.o vendor/md4c.o vendor/timestamp_parse.o \
        vendor/timestamp_format.o vendor/timestamp_valid.o vendor/linenoise.o \
        vendor/utf8proc.o

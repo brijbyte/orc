@@ -562,9 +562,9 @@ static char *build_body(cJSON *history, cJSON *tools, const orc_cfg *cfg) {
     cJSON *req = cJSON_CreateObject();
     cJSON_AddStringToObject(req, "model", cfg->model);
     cJSON_AddStringToObject(req, "instructions", cfg->instructions);
-    cJSON_AddItemToObject(req, "input", cJSON_Duplicate(history, 1));
+    cJSON_AddItemReferenceToObject(req, "input", history);
     if (tools)
-        cJSON_AddItemToObject(req, "tools", cJSON_Duplicate(tools, 1));
+        cJSON_AddItemReferenceToObject(req, "tools", tools);
     cJSON_AddStringToObject(req, "tool_choice", "auto");
     cJSON_AddBoolToObject(req, "parallel_tool_calls", 1);
     cJSON *reasoning = cJSON_CreateObject();
