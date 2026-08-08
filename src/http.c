@@ -1,4 +1,5 @@
 #include "http.h"
+#include "input.h"
 #include "orc.h"
 
 #include <curl/curl.h>
@@ -175,7 +176,29 @@ long http_post_sse(const char *url, const char **headers, const char *body,
 
     curl_easy_setopt(h, CURLOPT_WRITEFUNCTION, route_write);
     curl_easy_setopt(h, CURLOPT_WRITEDATA, &r);
-    CURLcode rc = curl_easy_perform(h);
+
+    /* Drive the transfer with the multi API, polling stdin alongside the
+     * socket so the user can keep typing while the response streams. */
+    CURLcode rc = CURLE_FAILED_INIT;
+    CURLM *m = curl_multi_init();
+    if (m) {
+        curl_multi_add_handle(m, h);
+        int running = 1;
+        while (running) {
+            if (curl_multi_perform(m, &running) != CURLM_OK) break;
+            if (!running) break;
+            struct curl_waitfd wfd = {.fd = input_fd(), .events = CURL_WAIT_POLLIN};
+            curl_multi_poll(m, wfd.fd >= 0 ? &wfd : NULL, wfd.fd >= 0 ? 1 : 0,
+                            200, NULL);
+            input_drain();
+        }
+        CURLMsg *msg;
+        int nq;
+        while ((msg = curl_multi_info_read(m, &nq)))
+            if (msg->msg == CURLMSG_DONE) rc = msg->data.result;
+        curl_multi_remove_handle(m, h);
+        curl_multi_cleanup(m);
+    }
 
     long status = -1;
     if (rc == CURLE_OK) status = r.status ? r.status : -1;

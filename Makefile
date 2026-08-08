@@ -15,9 +15,9 @@ export MACOSX_DEPLOYMENT_TARGET  # vendor sub-builds (mbedTLS, curl) honor it
 endif
 
 OBJS = src/main.o src/agent.o src/provider.o src/providers/codex.o src/http.o \
-       src/tools.o src/session.o src/render.o src/util.o vendor/cJSON.o \
-       vendor/md4c.o vendor/timestamp_parse.o vendor/timestamp_format.o \
-       vendor/timestamp_valid.o
+       src/tools.o src/session.o src/render.o src/input.o src/util.o \
+       vendor/cJSON.o vendor/md4c.o vendor/timestamp_parse.o \
+       vendor/timestamp_format.o vendor/timestamp_valid.o vendor/linenoise.o
 
 # libcurl is embedded statically (with mbedTLS) so the binary has no deps
 # beyond libc/pthread. `make SYSTEM_CURL=1` links the system libcurl instead.
@@ -88,11 +88,23 @@ vendor/curl/lib/libcurl.a: vendor/mbedtls/lib/libmbedtls.a
 	$(MAKE) -C vendor/curl-$(CURL_VER)/lib install
 	$(MAKE) -C vendor/curl-$(CURL_VER)/include install
 
+# linenoise: async line editing (no tagged releases; pinned to a commit)
+LN_URL = https://cdn.jsdelivr.net/gh/antirez/linenoise@a473823d74b93eab2ba83480df16ed37617493f2
+vendor/linenoise.c vendor/linenoise.h:
+	mkdir -p vendor
+	curl -fsSL -o vendor/linenoise.c $(LN_URL)/linenoise.c
+	curl -fsSL -o vendor/linenoise.h $(LN_URL)/linenoise.h
+	# TCSAFLUSH drops type-ahead, TCSADRAIN can block on unread output
+	sed -i.bak 's/TCSAFLUSH/TCSANOW/g' vendor/linenoise.c && rm -f vendor/linenoise.c.bak
+
 vendor/cJSON.o: vendor/cJSON.c vendor/cJSON.h
 vendor/md4c.o: vendor/md4c.c vendor/md4c.h
 vendor/timestamp_parse.o vendor/timestamp_format.o vendor/timestamp_valid.o: \
 	vendor/timestamp.h
-$(OBJS): vendor/cJSON.h vendor/md4c.h vendor/timestamp.h $(CURL_A)
+vendor/linenoise.o: CPPFLAGS += -include strings.h  # strcasecmp under POSIX
+vendor/linenoise.o: vendor/linenoise.c vendor/linenoise.h
+$(OBJS): vendor/cJSON.h vendor/md4c.h vendor/timestamp.h vendor/linenoise.h \
+	$(CURL_A)
 
 clean:
 	rm -f bin/orc $(OBJS)

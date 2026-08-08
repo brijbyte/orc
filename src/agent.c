@@ -1,5 +1,6 @@
 #include "agent.h"
 #include "ansi.h"
+#include "input.h"
 #include "provider.h"
 #include "render.h"
 #include "tools.h"
@@ -13,28 +14,60 @@
 typedef struct {
     md_render md;
     cJSON *pending;   /* items received this request */
+    strbuf think;     /* partial thinking line (emitted per whole line) */
     int thinking_open;
     int tty;
 } turn_ui;
 
+/* Emit one whole dim thinking line, keeping the input line below it. */
+static void put_think_line(turn_ui *ui, const char *s, size_t n) {
+    input_erase();
+    if (ui->tty) fputs(ANSI_DIM, stdout);
+    fwrite(s, 1, n, stdout);
+    if (ui->tty) fputs(ANSI_RESET, stdout);
+    fputc('\n', stdout);
+    fflush(stdout);
+    input_redraw();
+}
+
+/* Flush any partial thinking line (turn end or thinking -> text switch). */
+static void think_flush(turn_ui *ui) {
+    if (ui->think.len)
+        put_think_line(ui, ui->think.data, ui->think.len);
+    ui->think.len = 0;
+}
+
 static void ui_text_delta(const char *s, void *ud) {
     turn_ui *ui = ud;
     if (ui->thinking_open) {
-        if (ui->tty) fputs(ANSI_RESET, stdout);
+        think_flush(ui);
+        input_erase();
         fputs("\n", stdout);
+        input_redraw();
         ui->thinking_open = 0;
     }
+    input_erase();
     md_delta(&ui->md, s);
+    input_redraw();
 }
 
 static void ui_thinking_delta(const char *s, void *ud) {
     turn_ui *ui = ud;
-    if (!ui->thinking_open) {
-        if (ui->tty) fputs(ANSI_DIM, stdout);
-        ui->thinking_open = 1;
+    ui->thinking_open = 1;
+    if (!ui->tty) { /* no line editor to protect; stream as-is */
+        fputs(s, stdout);
+        fflush(stdout);
+        return;
     }
-    fputs(s, stdout);
-    fflush(stdout);
+    sb_append(&ui->think, s, strlen(s));
+    char *nl;
+    while (ui->think.len &&
+           (nl = memchr(ui->think.data, '\n', ui->think.len))) {
+        size_t n = (size_t)(nl - ui->think.data);
+        put_think_line(ui, ui->think.data, n);
+        memmove(ui->think.data, nl + 1, ui->think.len - n - 1);
+        ui->think.len -= n + 1;
+    }
 }
 
 static void ui_item_done(cJSON *item, void *ud) {
@@ -102,11 +135,13 @@ static void run_call(agent *ag, cJSON *call, int tty) {
         if (!a) a = cJSON_GetObjectItem(args, "path");
         if (cJSON_IsString(a)) desc = a->valuestring;
     }
+    input_erase();
     if (tty)
         printf(ANSI_DIM "→ %s %.100s" ANSI_RESET "\n", name, desc);
     else
         printf("→ %s %.100s\n", name, desc);
     fflush(stdout);
+    input_redraw();
 
     char *output = tool_run(name, args);
     if (args) cJSON_Delete(args);
@@ -126,6 +161,7 @@ int agent_turn(agent *ag, const char *user_text) {
         turn_ui ui;
         md_init(&ui.md);
         ui.pending = cJSON_CreateArray();
+        sb_init(&ui.think);
         ui.thinking_open = 0;
         ui.tty = isatty(1);
 
@@ -136,10 +172,14 @@ int agent_turn(agent *ag, const char *user_text) {
         };
         int rc = ag->prov->turn(ag->history, ag->tools, ag->cfg, &cb, &ui);
 
-        if (ui.thinking_open && ui.tty) fputs(ANSI_RESET, stdout);
+        think_flush(&ui);
+        sb_free(&ui.think);
+        input_erase();
         md_flush(&ui.md);
         md_free(&ui.md);
         fputs("\n", stdout);
+        fflush(stdout);
+        input_redraw();
 
         if (rc != PROVIDER_OK) {
             cJSON_Delete(ui.pending);  /* discard uncommitted turn */

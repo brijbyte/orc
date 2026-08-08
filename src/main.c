@@ -1,5 +1,6 @@
 #include "agent.h"
 #include "ansi.h"
+#include "input.h"
 #include "orc.h"
 #include "provider.h"
 #include "session.h"
@@ -130,25 +131,54 @@ int main(int argc, char **argv) {
     } else {
         printf("orc %s — %s (%s effort), session %.8s. Ctrl-D or 'exit' to quit.\n",
                ORC_VERSION, cfg.model, cfg.effort, cfg.session_id);
-        char line[65536];
-        for (;;) {
-            g_interrupt = 0;
-            fputs(ANSI_BOLD "> " ANSI_RESET, stdout);
-            fflush(stdout);
-            if (!fgets(line, sizeof line, stdin)) {
-                if (g_interrupt) {          /* Ctrl-C at prompt */
-                    clearerr(stdin);
-                    fputs("\n(^D or 'exit' to quit)\n", stdout);
+        input_init();
+        if (input_active()) {
+            /* Event-loop REPL: lines typed while a turn runs are queued. */
+            for (;;) {
+                g_interrupt = 0;
+                input_wait();
+                if (g_interrupt) { g_interrupt = 0; continue; }
+                int queued = 0;
+                char *line = input_take(&queued);
+                if (!line) {
+                    if (input_eof()) break;
                     continue;
                 }
-                break;                       /* EOF */
+                if (strcmp(line, "exit") == 0 || strcmp(line, "quit") == 0) {
+                    free(line);
+                    break;
+                }
+                if (queued) { /* replay so it's clear what runs now */
+                    input_erase();
+                    printf(ANSI_BOLD "> " ANSI_RESET "%s\n", line);
+                    input_redraw();
+                }
+                input_set_idle(0);
+                agent_turn(&ag, line);
+                input_set_idle(1);
+                free(line);
             }
-            size_t n = strlen(line);
-            while (n > 0 && (line[n - 1] == '\n' || line[n - 1] == '\r')) line[--n] = '\0';
-            if (n == 0) continue;
-            if (strcmp(line, "exit") == 0 || strcmp(line, "quit") == 0) break;
-            g_interrupt = 0;
-            agent_turn(&ag, line);
+        } else { /* stdin is a pipe: plain blocking reads */
+            char line[65536];
+            for (;;) {
+                g_interrupt = 0;
+                fputs(ANSI_BOLD "> " ANSI_RESET, stdout);
+                fflush(stdout);
+                if (!fgets(line, sizeof line, stdin)) {
+                    if (g_interrupt) {          /* Ctrl-C at prompt */
+                        clearerr(stdin);
+                        fputs("\n(^D or 'exit' to quit)\n", stdout);
+                        continue;
+                    }
+                    break;                       /* EOF */
+                }
+                size_t n = strlen(line);
+                while (n > 0 && (line[n - 1] == '\n' || line[n - 1] == '\r')) line[--n] = '\0';
+                if (n == 0) continue;
+                if (strcmp(line, "exit") == 0 || strcmp(line, "quit") == 0) break;
+                g_interrupt = 0;
+                agent_turn(&ag, line);
+            }
         }
         puts("");
     }

@@ -37,6 +37,11 @@ override with `MACOSX_DEPLOYMENT_TARGET=<version> make`.
 ./bin/orc -m gpt-5.6-terra -e high # model / reasoning effort (env: ORC_MODEL)
 ```
 
+The REPL stays responsive while the agent works: keep typing and press Enter
+to queue the next prompt (it runs when the current turn finishes, marked
+`↳ queued`), Ctrl-C interrupts the current turn, and lines get editing +
+history (linenoise, persisted at `<orc home>/history`).
+
 The orc home is `$XDG_CONFIG_HOME/orc` (or `~/.config/orc` when `~/.config`
 exists), falling back to `~/.orc`. Sessions are append-only JSONL under
 `<orc home>/sessions/` — one Responses-API input item per line, so a session
@@ -71,8 +76,9 @@ All tool outputs are clamped to ~20KB (head + tail) before entering history.
 src/main.c            CLI, REPL, signals      src/tools.c    bash/read/write/edit
 src/agent.c           agentic loop            src/session.c  JSONL persistence
 src/provider.c        provider registry       src/render.c   ANSI markdown
-src/providers/codex.c Codex auth+request+SSE  src/util.c     strbuf, base64url, ...
-src/http.c            libcurl + SSE framing   vendor/        cJSON, md4c
+src/providers/codex.c Codex auth+request+SSE  src/input.c    async line editor
+src/http.c            libcurl + SSE framing   src/util.c     strbuf, base64url, ...
+                                              vendor/        cJSON, md4c, ...
 ```
 
 New providers: one file in `src/providers/` implementing the `provider`
