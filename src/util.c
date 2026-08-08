@@ -151,3 +151,27 @@ char *expand_home(const char *path) {
     }
     return strdup(path);
 }
+
+char *orc_home(void) {
+    const char *xdg = getenv("XDG_CONFIG_HOME");
+    if (xdg && xdg[0] == '/') {
+        size_t n = strlen(xdg) + 5;
+        char *out = malloc(n);
+        snprintf(out, n, "%s/orc", xdg);
+        return out;
+    }
+    char *cfg = expand_home("~/.config");
+    struct stat st;
+    int have_cfg = stat(cfg, &st) == 0 && S_ISDIR(st.st_mode);
+    free(cfg);
+    return expand_home(have_cfg ? "~/.config/orc" : "~/.orc");
+}
+
+char *orc_path(const char *rel) {
+    char *home = orc_home();
+    size_t n = strlen(home) + strlen(rel) + 2;
+    char *out = malloc(n);
+    snprintf(out, n, "%s/%s", home, rel);
+    free(home);
+    return out;
+}

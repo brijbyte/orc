@@ -8,7 +8,9 @@ by the harness. See README.md for user-facing docs.
 - `make` (first build fetches pinned cJSON v1.7.18 + md4c 0.5.2 into
   gitignored `vendor/`; binary lands at `bin/orc`)
 - Smoke tests: `./bin/orc --auth`, `./bin/orc -p "say hi"`, `./bin/orc --resume`
-- `ORC_DEBUG=1` tees raw SSE to `~/.orc/debug.log`
+- orc home (`orc_home()` in util.c): `$XDG_CONFIG_HOME/orc`, else
+  `~/.config/orc` when `~/.config` exists, else `~/.orc`
+- `ORC_DEBUG=1` tees raw SSE to `<orc home>/debug.log`
 
 ## Architecture
 

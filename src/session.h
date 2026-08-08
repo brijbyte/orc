@@ -10,7 +10,7 @@ typedef struct {
     char path[4096];
 } orc_session;
 
-/* Start a new session file under ~/.orc/sessions/. Returns 0 on success. */
+/* Start a new session file under <orc home>/sessions/. Returns 0 on success. */
 int session_new(orc_session *s, const orc_cfg *cfg);
 
 /* Resume from path (or the most recent session if NULL). Appends the stored

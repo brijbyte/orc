@@ -7,10 +7,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#define SESS_DIR "~/.orc/sessions"
-
 int session_new(orc_session *s, const orc_cfg *cfg) {
-    char *dir = expand_home(SESS_DIR);
+    char *dir = orc_path("sessions");
     if (mkdirs(dir) != 0) { free(dir); return -1; }
     snprintf(s->path, sizeof s->path, "%s/%ld-%.8s.jsonl",
              dir, (long)time(NULL), cfg->session_id);
@@ -38,7 +36,7 @@ int session_new(orc_session *s, const orc_cfg *cfg) {
 
 /* Most recent session file (lexically greatest name — ts prefix makes this true). */
 static char *latest_session_path(void) {
-    char *dir = expand_home(SESS_DIR);
+    char *dir = orc_path("sessions");
     DIR *d = opendir(dir);
     if (!d) { free(dir); return NULL; }
     char best[512] = "";

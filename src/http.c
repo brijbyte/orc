@@ -138,8 +138,8 @@ long http_post_sse(const char *url, const char **headers, const char *body,
     r.err = err;
     r.handle = h;
     if (getenv("ORC_DEBUG")) {
-        char *p = expand_home("~/.orc/debug.log");
-        char *dir = expand_home("~/.orc");
+        char *p = orc_path("debug.log");
+        char *dir = orc_home();
         mkdirs(dir);
         r.sse.debug = fopen(p, "a");
         free(p);

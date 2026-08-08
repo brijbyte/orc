@@ -32,9 +32,11 @@ The first build fetches pinned cJSON (v1.7.18) and md4c (release-0.5.2) into
 ./bin/orc -m gpt-5.6-terra -e high # model / reasoning effort (env: ORC_MODEL)
 ```
 
-Sessions are append-only JSONL under `~/.orc/sessions/` — one Responses-API
-input item per line, so a session file is literally the conversation the model
-sees. `ORC_DEBUG=1` tees raw SSE to `~/.orc/debug.log`.
+The orc home is `$XDG_CONFIG_HOME/orc` (or `~/.config/orc` when `~/.config`
+exists), falling back to `~/.orc`. Sessions are append-only JSONL under
+`<orc home>/sessions/` — one Responses-API input item per line, so a session
+file is literally the conversation the model sees. `ORC_DEBUG=1` tees raw SSE
+to `<orc home>/debug.log`.
 
 ## Tools exposed to the model
 

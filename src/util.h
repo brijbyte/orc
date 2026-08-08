@@ -36,4 +36,11 @@ void now_rfc3339(char *out, size_t cap);
 /* Expand leading ~/ using $HOME. Returns malloc'd path. */
 char *expand_home(const char *path);
 
+/* orc home: $XDG_CONFIG_HOME/orc if set, ~/.config/orc if ~/.config exists,
+ * else ~/.orc. Returns malloc'd path. */
+char *orc_home(void);
+
+/* orc_home() + "/" + rel. Returns malloc'd path. */
+char *orc_path(const char *rel);
+
 #endif
