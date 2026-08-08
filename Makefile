@@ -27,20 +27,23 @@ endif
 
 OBJS = src/main.o src/agent.o src/provider.o src/providers/codex.o src/http.o \
        src/tools.o src/session.o src/render.o src/input.o src/commands.o src/util.o \
+       src/auth.o \
        vendor/cJSON.o vendor/md4c.o vendor/timestamp_parse.o \
-       vendor/timestamp_format.o vendor/timestamp_valid.o vendor/linenoise.o
+       vendor/timestamp_format.o vendor/timestamp_valid.o vendor/linenoise.o \
+       vendor/utf8proc.o
 
 # libcurl is embedded statically (with mbedTLS) so the binary has no deps
 # beyond libc/pthread. `make SYSTEM_CURL=1` links the system libcurl instead.
 CURL_VER = 8.11.1
 MBEDTLS_VER = 3.6.2
 VENDOR := $(abspath vendor)
-ifeq ($(SYSTEM_CURL),1)
-LDLIBS += -lcurl
-else
-CURL_A = vendor/curl/lib/libcurl.a
 MBED_A = vendor/mbedtls/lib/libmbedtls.a vendor/mbedtls/lib/libmbedx509.a \
          vendor/mbedtls/lib/libmbedcrypto.a
+CPPFLAGS += -I$(VENDOR)/mbedtls/include
+ifeq ($(SYSTEM_CURL),1)
+LDLIBS += -lcurl $(MBED_A) -lpthread
+else
+CURL_A = vendor/curl/lib/libcurl.a
 CPPFLAGS += -I$(VENDOR)/curl/include
 LDLIBS += $(CURL_A) $(MBED_A) -lpthread
 ifeq ($(UNAME_S),Darwin)
@@ -66,6 +69,17 @@ vendor/md4c.c vendor/md4c.h:
 	mkdir -p vendor
 	curl -fsSL -o vendor/md4c.c $(MD4C_URL)/md4c.c
 	curl -fsSL -o vendor/md4c.h $(MD4C_URL)/md4c.h
+
+UTF8PROC_URL = https://cdn.jsdelivr.net/gh/JuliaStrings/utf8proc@v2.11.3
+vendor/utf8proc.c:
+	mkdir -p vendor
+	curl -fsSL -o $@ $(UTF8PROC_URL)/utf8proc.c
+vendor/utf8proc.h:
+	mkdir -p vendor
+	curl -fsSL -o $@ $(UTF8PROC_URL)/utf8proc.h
+vendor/utf8proc_data.c:
+	mkdir -p vendor
+	curl -fsSL -o $@ $(UTF8PROC_URL)/utf8proc_data.c
 
 # c-timestamp: RFC3339 parse/format (no tagged releases; pinned to a commit)
 TS_URL = https://cdn.jsdelivr.net/gh/chansen/c-timestamp@b205c407ae6680d23d74359ac00444b80989792f
@@ -113,12 +127,13 @@ vendor/linenoise.c vendor/linenoise.h:
 
 vendor/cJSON.o: vendor/cJSON.c vendor/cJSON.h
 vendor/md4c.o: vendor/md4c.c vendor/md4c.h
+vendor/utf8proc.o: vendor/utf8proc.c vendor/utf8proc.h vendor/utf8proc_data.c
 vendor/timestamp_parse.o vendor/timestamp_format.o vendor/timestamp_valid.o: \
 	vendor/timestamp.h
 vendor/linenoise.o: CPPFLAGS += -include strings.h  # strcasecmp under POSIX
 vendor/linenoise.o: vendor/linenoise.c vendor/linenoise.h
-$(OBJS): vendor/cJSON.h vendor/md4c.h vendor/timestamp.h vendor/linenoise.h \
-	$(CURL_A)
+$(OBJS): vendor/cJSON.h vendor/md4c.h vendor/utf8proc.h vendor/timestamp.h \
+	vendor/linenoise.h $(firstword $(MBED_A)) $(CURL_A)
 
 PREFIX ?= /usr/local
 install: bin/orc

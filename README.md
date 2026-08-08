@@ -8,9 +8,11 @@ tool outputs, and server-side prompt caching via `prompt_cache_key`.
 ## Requirements
 
 - macOS or Linux with libcurl (preinstalled on macOS)
-- Codex CLI logged in once (`codex login`) — orc reuses `~/.codex/auth.json`
-  and refreshes tokens itself (compatible write-back; rotated refresh tokens
-  are persisted so the Codex CLI keeps working)
+- A ChatGPT subscription: sign in once with `orc --login` (browser OAuth;
+  credentials go to orc's own config dir). If the Codex CLI is already logged
+  in, orc can also reuse `~/.codex/auth.json` as a fallback — tokens are
+  refreshed in place either way (rotated refresh tokens are persisted so the
+  Codex CLI keeps working)
 
 ## Install
 
@@ -37,8 +39,8 @@ make
 ```
 
 The first build fetches pinned deps into `vendor/` (gitignored): cJSON
-v1.7.18, md4c 0.5.2, c-timestamp, and curl 8.11.1 + mbedTLS 3.6.2. curl and
-mbedTLS compile once (a few minutes) and link statically, so the binary
+v1.7.18, md4c 0.5.2, utf8proc 2.11.3, c-timestamp, and curl 8.11.1 +
+mbedTLS 3.6.2. curl and mbedTLS compile once and link statically, so the binary
 depends only on libc/pthread and the OS CA bundle — no system libcurl needed.
 `make SYSTEM_CURL=1` links the system libcurl instead (faster first build).
 The binary lands at `bin/orc`; `make install` copies it to `$PREFIX/bin`
@@ -60,6 +62,7 @@ the `TAP_PUSH_TOKEN` secret (a PAT with push access to
 ./bin/orc --resume                 # continue the most recent session
 ./bin/orc --resume <id>            # continue by session id (prefix ok)
 ./bin/orc --list                   # list sessions (id, time, first prompt)
+./bin/orc --login                  # sign in with ChatGPT (browser OAuth)
 ./bin/orc --auth                   # show Codex auth status
 ./bin/orc -m gpt-5.6-terra -e high # model / reasoning effort (env: ORC_MODEL)
 ```

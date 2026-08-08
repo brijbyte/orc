@@ -27,6 +27,15 @@ int mkdirs(const char *path);
 /* Decode base64url (no padding required). Returns malloc'd buffer, NUL-terminated. */
 char *base64url_decode(const char *in, size_t *out_len);
 
+/* Encode as base64url without padding. Returns malloc'd string. */
+char *base64url_encode(const unsigned char *in, size_t len);
+
+/* Fill buf with n bytes from /dev/urandom. Returns 0 on success. */
+int rand_bytes(unsigned char *buf, size_t n);
+
+/* SHA-256 of data into out. */
+void sha256(const void *data, size_t len, unsigned char out[32]);
+
 /* Write a random UUIDv4 string into out[37]. */
 void uuid4(char out[37]);
 

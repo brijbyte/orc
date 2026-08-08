@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <utf8proc.h>
 
 /* ---------------- block renderer: md4c events -> ANSI ---------------- */
 
@@ -102,11 +103,17 @@ static void break_line(rctx *c) {
     if (!c->at_start) newline(c);
 }
 
-/* Count visible columns: skip UTF-8 continuation bytes. */
 static int visw(const char *s, size_t n) {
     int w = 0;
-    for (size_t i = 0; i < n; i++)
-        if (((unsigned char)s[i] & 0xC0) != 0x80) w++;
+    for (size_t i = 0; i < n;) {
+        utf8proc_int32_t cp;
+        utf8proc_ssize_t used = utf8proc_iterate(
+            (const utf8proc_uint8_t *)s + i, (utf8proc_ssize_t)(n - i), &cp);
+        if (used < 0) { w++; i++; continue; }
+        int cw = utf8proc_charwidth(cp);
+        if (cw > 0) w += cw;
+        i += (size_t)used;
+    }
     return w;
 }
 

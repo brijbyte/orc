@@ -69,6 +69,7 @@ static void usage(void) {
          "  --provider <name> provider (default codex; env ORC_PROVIDER)\n"
          "  --resume [id|path] resume most recent (or given) session\n"
          "  --list            list sessions, newest first\n"
+         "  --login           sign in to the provider (browser OAuth)\n"
          "  --auth            show provider auth status\n"
          "  --version         print version\n"
          "  -h                help");
@@ -76,7 +77,7 @@ static void usage(void) {
 
 int main(int argc, char **argv) {
     const char *prompt = NULL, *resume_ref = NULL;
-    int do_resume = 0, do_auth = 0, do_list = 0;
+    int do_resume = 0, do_auth = 0, do_list = 0, do_login = 0;
 
     orc_cfg cfg = {0};
     cfg.provider = getenv("ORC_PROVIDER");
@@ -95,6 +96,7 @@ int main(int argc, char **argv) {
         }
         else if (strcmp(argv[i], "--list") == 0) do_list = 1;
         else if (strcmp(argv[i], "--auth") == 0) do_auth = 1;
+        else if (strcmp(argv[i], "--login") == 0) do_login = 1;
         else if (strcmp(argv[i], "--version") == 0) {
             puts("orc " ORC_VERSION);
             return 0;
@@ -132,6 +134,15 @@ int main(int argc, char **argv) {
     agent ag = {0};
     cJSON *resumed = NULL;
 
+    if (do_login) {
+        if (!prov->login) {
+            fprintf(stderr, "orc: provider '%s' has no login\n", prov->name);
+            rc = 2;
+        } else {
+            rc = prov->login() == 0 ? 0 : 1;
+        }
+        goto cleanup;
+    }
     if (do_auth) {
         rc = prov->auth_status() == 0 ? 0 : 1;
         goto cleanup;

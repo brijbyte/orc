@@ -2,6 +2,8 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <mbedtls/base64.h>
+#include <mbedtls/sha256.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -85,45 +87,65 @@ int mkdirs(const char *path) {
     return 0;
 }
 
-static int b64val(char c) {
-    if (c >= 'A' && c <= 'Z') return c - 'A';
-    if (c >= 'a' && c <= 'z') return c - 'a' + 26;
-    if (c >= '0' && c <= '9') return c - '0' + 52;
-    if (c == '-' || c == '+') return 62;
-    if (c == '_' || c == '/') return 63;
-    return -1;
-}
-
 char *base64url_decode(const char *in, size_t *out_len) {
     size_t n = strlen(in);
     while (n > 0 && in[n - 1] == '=') n--;
-    char *out = malloc(n * 3 / 4 + 4);
+    if (n % 4 == 1) return NULL;
+
+    size_t padded = (n + 3) / 4 * 4;
+    unsigned char *src = malloc(padded ? padded : 1);
+    unsigned char *out = malloc(n * 3 / 4 + 4);
+    if (!src || !out) { free(src); free(out); return NULL; }
+    for (size_t i = 0; i < n; i++)
+        src[i] = in[i] == '-' ? '+' : in[i] == '_' ? '/' : (unsigned char)in[i];
+    for (size_t i = n; i < padded; i++) src[i] = '=';
+
+    size_t olen = 0;
+    int rc = mbedtls_base64_decode(out, n * 3 / 4 + 3, &olen, src, padded);
+    free(src);
+    if (rc != 0) { free(out); return NULL; }
+    out[olen] = '\0';
+    if (out_len) *out_len = olen;
+    return (char *)out;
+}
+
+char *base64url_encode(const unsigned char *in, size_t len) {
+    size_t cap = 4 * ((len + 2) / 3) + 1;
+    unsigned char *out = malloc(cap);
     if (!out) return NULL;
-    size_t o = 0;
-    int acc = 0, bits = 0;
-    for (size_t i = 0; i < n; i++) {
-        int v = b64val(in[i]);
-        if (v < 0) continue;
-        acc = (acc << 6) | v;
-        bits += 6;
-        if (bits >= 8) {
-            bits -= 8;
-            out[o++] = (char)((acc >> bits) & 0xFF);
-        }
+    out[0] = '\0';
+    size_t olen = 0;
+    if (mbedtls_base64_encode(out, cap, &olen, in, len) != 0) {
+        free(out);
+        return NULL;
     }
-    out[o] = '\0';
-    if (out_len) *out_len = o;
-    return out;
+    for (size_t i = 0; i < olen; i++) {
+        if (out[i] == '+') out[i] = '-';
+        else if (out[i] == '/') out[i] = '_';
+    }
+    while (olen > 0 && out[olen - 1] == '=') olen--;
+    out[olen] = '\0';
+    return (char *)out;
+}
+
+int rand_bytes(unsigned char *buf, size_t n) {
+    FILE *f = fopen("/dev/urandom", "rb");
+    if (!f) return -1;
+    size_t r = fread(buf, 1, n, f);
+    fclose(f);
+    return r == n ? 0 : -1;
+}
+
+void sha256(const void *data, size_t len, unsigned char out[32]) {
+    if (mbedtls_sha256(data, len, out, 0) != 0) memset(out, 0, 32);
 }
 
 void uuid4(char out[37]) {
     unsigned char b[16];
-    FILE *f = fopen("/dev/urandom", "rb");
-    if (!f || fread(b, 1, 16, f) != 16) {
+    if (rand_bytes(b, 16) != 0) {
         srand((unsigned)time(NULL) ^ (unsigned)getpid());
         for (int i = 0; i < 16; i++) b[i] = (unsigned char)rand();
     }
-    if (f) fclose(f);
     b[6] = (b[6] & 0x0F) | 0x40;
     b[8] = (b[8] & 0x3F) | 0x80;
     snprintf(out, 37,
