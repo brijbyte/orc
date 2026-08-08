@@ -1,0 +1,7 @@
+*.o
+out/
+bin/
+orc
+.DS_Store
+vendor/
+orc
