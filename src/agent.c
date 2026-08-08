@@ -1,4 +1,5 @@
 #include "agent.h"
+#include "ansi.h"
 #include "provider.h"
 #include "render.h"
 #include "tools.h"
@@ -8,9 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-#define A_DIM "\x1b[2m"
-#define A_RESET "\x1b[0m"
 
 typedef struct {
     md_render md;
@@ -22,7 +20,7 @@ typedef struct {
 static void ui_text_delta(const char *s, void *ud) {
     turn_ui *ui = ud;
     if (ui->thinking_open) {
-        if (ui->tty) fputs(A_RESET, stdout);
+        if (ui->tty) fputs(ANSI_RESET, stdout);
         fputs("\n", stdout);
         ui->thinking_open = 0;
     }
@@ -32,7 +30,7 @@ static void ui_text_delta(const char *s, void *ud) {
 static void ui_thinking_delta(const char *s, void *ud) {
     turn_ui *ui = ud;
     if (!ui->thinking_open) {
-        if (ui->tty) fputs(A_DIM, stdout);
+        if (ui->tty) fputs(ANSI_DIM, stdout);
         ui->thinking_open = 1;
     }
     fputs(s, stdout);
@@ -103,7 +101,7 @@ static void run_call(agent *ag, cJSON *call, int tty) {
         if (cJSON_IsString(a)) desc = a->valuestring;
     }
     if (tty)
-        printf(A_DIM "→ %s %.100s" A_RESET "\n", name, desc);
+        printf(ANSI_DIM "→ %s %.100s" ANSI_RESET "\n", name, desc);
     else
         printf("→ %s %.100s\n", name, desc);
     fflush(stdout);
@@ -136,7 +134,7 @@ int agent_turn(agent *ag, const char *user_text) {
         };
         int rc = ag->prov->turn(ag->history, ag->tools, ag->cfg, &cb, &ui);
 
-        if (ui.thinking_open && ui.tty) fputs(A_RESET, stdout);
+        if (ui.thinking_open && ui.tty) fputs(ANSI_RESET, stdout);
         md_flush(&ui.md);
         md_free(&ui.md);
         fputs("\n", stdout);

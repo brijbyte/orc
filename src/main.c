@@ -1,4 +1,5 @@
 #include "agent.h"
+#include "ansi.h"
 #include "orc.h"
 #include "provider.h"
 #include "session.h"
@@ -117,7 +118,7 @@ int main(int argc, char **argv) {
         char line[65536];
         for (;;) {
             g_interrupt = 0;
-            fputs("\x1b[1m> \x1b[0m", stdout);
+            fputs(ANSI_BOLD "> " ANSI_RESET, stdout);
             fflush(stdout);
             if (!fgets(line, sizeof line, stdin)) {
                 if (g_interrupt) {          /* Ctrl-C at prompt */

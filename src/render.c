@@ -1,13 +1,11 @@
 #include "render.h"
+#include "ansi.h"
 #include "md4c.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-#define A_RESET "\x1b[0m"
-#define A_DIM "\x1b[2m"
 
 /* ---------------- block renderer: md4c events -> ANSI ---------------- */
 
@@ -50,15 +48,15 @@ static void sgr(rctx *c) {
         a |= c->st[i].attrs;
         if (c->st[i].fg) fg = c->st[i].fg;
     }
-    fputs(A_RESET, stdout);
+    fputs(ANSI_RESET, stdout);
     if (!a && !fg) return;
     char buf[48];
     int n = snprintf(buf, sizeof buf, "\x1b[");
-    if (a & S_BOLD) n += snprintf(buf + n, sizeof buf - n, "1;");
-    if (a & S_DIM) n += snprintf(buf + n, sizeof buf - n, "2;");
-    if (a & S_ITALIC) n += snprintf(buf + n, sizeof buf - n, "3;");
-    if (a & S_UNDER) n += snprintf(buf + n, sizeof buf - n, "4;");
-    if (a & S_STRIKE) n += snprintf(buf + n, sizeof buf - n, "9;");
+    if (a & S_BOLD) n += snprintf(buf + n, sizeof buf - n, "%d;", SGR_BOLD);
+    if (a & S_DIM) n += snprintf(buf + n, sizeof buf - n, "%d;", SGR_DIM);
+    if (a & S_ITALIC) n += snprintf(buf + n, sizeof buf - n, "%d;", SGR_ITALIC);
+    if (a & S_UNDER) n += snprintf(buf + n, sizeof buf - n, "%d;", SGR_UNDERLINE);
+    if (a & S_STRIKE) n += snprintf(buf + n, sizeof buf - n, "%d;", SGR_STRIKE);
     if (fg) n += snprintf(buf + n, sizeof buf - n, "%d;", fg);
     buf[n - 1] = 'm';
     fputs(buf, stdout);
@@ -80,7 +78,7 @@ static void pop_style(rctx *c) {
 
 static void quote_bars(rctx *c) {
     if (!c->quote) return;
-    fputs(A_RESET A_DIM, stdout);
+    fputs(ANSI_RESET ANSI_DIM, stdout);
     for (int i = 0; i < c->quote; i++) fputs("│ ", stdout);
 }
 
@@ -172,17 +170,17 @@ static void table_leave(rctx *c) {
     for (int r = 0; r < rows; r++) {
         break_line(c);
         quote_bars(c);
-        fputs(r < c->thead ? A_RESET "\x1b[1m" : A_RESET, stdout);
+        fputs(r < c->thead ? ANSI_RESET ANSI_BOLD : ANSI_RESET, stdout);
         for (int j = 0; j < cols; j++) {
-            if (j) fputs(A_RESET A_DIM " │ " A_RESET, stdout);
-            if (j && r < c->thead) fputs("\x1b[1m", stdout);
+            if (j) fputs(ANSI_RESET ANSI_DIM " │ " ANSI_RESET, stdout);
+            if (j && r < c->thead) fputs(ANSI_BOLD, stdout);
             pad_cell(&c->cells[r * cols + j], c->cellw[r * cols + j], colw[j],
                      c->talign[j]);
         }
         newline(c);
         if (r == c->thead - 1) {
             quote_bars(c);
-            fputs(A_RESET A_DIM, stdout);
+            fputs(ANSI_RESET ANSI_DIM, stdout);
             for (int j = 0; j < cols; j++) {
                 if (j) fputs("─┼─", stdout);
                 for (int k = 0; k < colw[j]; k++) fputs("─", stdout);
@@ -190,7 +188,7 @@ static void table_leave(rctx *c) {
             newline(c);
         }
     }
-    fputs(A_RESET, stdout);
+    fputs(ANSI_RESET, stdout);
     for (int i = 0; i < cols * rows; i++) sb_free(&c->cells[i]);
     free(c->cells);
     free(c->cellw);
@@ -236,7 +234,7 @@ static int cb_enter_block(MD_BLOCKTYPE type, void *detail, void *ud) {
                 strcpy(mark, d->task_mark == ' ' ? "☐ " : "☑ ");
             else
                 strcpy(mark, "• ");
-            fputs(A_RESET A_DIM, stdout);
+            fputs(ANSI_RESET ANSI_DIM, stdout);
             fputs(mark, stdout);
             c->list[fi].cont = c->list[fi].base + w;
         }
@@ -245,7 +243,8 @@ static int cb_enter_block(MD_BLOCKTYPE type, void *detail, void *ud) {
         break;
     }
     case MD_BLOCK_H: {
-        static const int hfg[6] = {95, 96, 94, 0, 0, 0};
+        static const int hfg[6] = {SGR_FG_BRIGHT_MAGENTA, SGR_FG_BRIGHT_CYAN,
+                                   SGR_FG_BRIGHT_BLUE, 0, 0, 0};
         int lv = (int)((MD_BLOCK_H_DETAIL *)detail)->level;
         break_line(c);
         push_style(c, S_BOLD, hfg[lv - 1]);
@@ -258,7 +257,7 @@ static int cb_enter_block(MD_BLOCKTYPE type, void *detail, void *ud) {
     case MD_BLOCK_HR: {
         break_line(c);
         line_prefix(c);
-        fputs(A_RESET A_DIM, stdout);
+        fputs(ANSI_RESET ANSI_DIM, stdout);
         for (int i = 0; i < 40; i++) fputs("─", stdout);
         newline(c);
         break;
@@ -327,7 +326,7 @@ static int cb_enter_span(MD_SPANTYPE type, void *detail, void *ud) {
         push_style(c, S_STRIKE, 0);
         break;
     case MD_SPAN_CODE:
-        push_style(c, 0, 36);
+        push_style(c, 0, SGR_FG_CYAN);
         break;
     case MD_SPAN_A:
     case MD_SPAN_IMG: {
@@ -343,8 +342,8 @@ static int cb_enter_span(MD_SPANTYPE type, void *detail, void *ud) {
             line_prefix(c);
             c->at_start = 0;
         }
-        printf("\x1b]8;;%s\x1b\\", c->href.data ? c->href.data : "");
-        push_style(c, S_UNDER, 94);
+        printf(OSC8_OPEN "%s" OSC8_ST, c->href.data ? c->href.data : "");
+        push_style(c, S_UNDER, SGR_FG_BRIGHT_BLUE);
         c->in_link = 1;
         break;
     }
@@ -369,10 +368,10 @@ static int cb_leave_span(MD_SPANTYPE type, void *detail, void *ud) {
     case MD_SPAN_IMG:
         c->in_link = 0;
         pop_style(c);
-        fputs("\x1b]8;;\x1b\\", stdout);
+        fputs(OSC8_CLOSE, stdout);
         if (!c->autolink && c->href.data &&
             (!c->linktext.data || strcmp(c->linktext.data, c->href.data))) {
-            fputs(A_RESET A_DIM " (", stdout);
+            fputs(ANSI_RESET ANSI_DIM " (", stdout);
             fputs(c->href.data, stdout);
             fputs(")", stdout);
             sgr(c);
@@ -419,7 +418,7 @@ static void render_block(const char *src, size_t n) {
     sb_init(&c.href);
     sb_init(&c.linktext);
     md_parse(src, (MD_SIZE)n, &parser, &c);
-    fputs(A_RESET, stdout);
+    fputs(ANSI_RESET, stdout);
     sb_free(&c.href);
     sb_free(&c.linktext);
 }
@@ -494,7 +493,7 @@ static int is_toplevel_item(const char *s) {
 static void feed_line(md_render *r, const char *s) {
     if (r->in_fence) {
         if (fence_close(r, s)) {
-            printf(A_DIM "%s" A_RESET "\n", s);
+            printf(ANSI_DIM "%s" ANSI_RESET "\n", s);
             r->in_fence = 0;
         } else {
             fputs(s, stdout);
@@ -506,7 +505,7 @@ static void feed_line(md_render *r, const char *s) {
     int len;
     if (fence_open(s, &ch, &len)) {
         flush_block(r);
-        printf(A_DIM "%s" A_RESET "\n", s);
+        printf(ANSI_DIM "%s" ANSI_RESET "\n", s);
         r->in_fence = 1;
         r->fence_ch = ch;
         r->fence_len = len;
