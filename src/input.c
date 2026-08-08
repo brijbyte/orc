@@ -36,6 +36,13 @@ static const char *cur_prompt(void) {
 
 static void edit_start(void) {
     linenoiseEditStart(&ls, -1, -1, lbuf, sizeof lbuf, cur_prompt());
+    /* linenoise raw mode clears OPOST; restore it so "\n" still returns the
+     * carriage — without this, multi-line agent output staircases. */
+    struct termios t;
+    if (tcgetattr(0, &t) == 0) {
+        t.c_oflag = cooked.c_oflag;
+        tcsetattr(0, TCSANOW, &t);
+    }
     editing = 1;
     hidden = 0;
 }
