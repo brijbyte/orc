@@ -1,16 +1,28 @@
 CC ?= cc
-CFLAGS = -std=c11 -Wall -Wextra -O2 -Ivendor -Isrc
-LDLIBS = -lcurl
+CPPFLAGS += -D_POSIX_C_SOURCE=200809L -Ivendor -Isrc
+CFLAGS ?= -O2
+CFLAGS += -std=c11 -Wall -Wextra
+LDLIBS += -lcurl
+
+# Keep macOS releases runnable on supported Apple Silicon systems. These flags
+# are Darwin-only so the same Makefile remains usable on Linux and other POSIX
+# platforms.
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+MACOSX_DEPLOYMENT_TARGET ?= 13.0
+CFLAGS += -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
+LDFLAGS += -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
+endif
 
 OBJS = src/main.o src/agent.o src/provider.o src/providers/codex.o src/http.o \
        src/tools.o src/session.o src/render.o src/util.o vendor/cJSON.o \
        vendor/md4c.o
 
+all: bin/orc
+
 bin/orc: $(OBJS)
 	mkdir -p bin
-	$(CC) -o $@ $(OBJS) $(LDLIBS)
-
-vendor/cJSON.o vendor/md4c.o: CFLAGS = -std=c11 -O2
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
 
 # vendor/ is gitignored; fetch pinned deps on first build
 CJSON_URL = https://cdn.jsdelivr.net/gh/DaveGamble/cJSON@v1.7.18
@@ -32,4 +44,4 @@ $(OBJS): vendor/cJSON.h vendor/md4c.h
 clean:
 	rm -f bin/orc $(OBJS)
 
-.PHONY: clean
+.PHONY: all clean

@@ -19,7 +19,8 @@ make
 ```
 
 The first build fetches pinned cJSON (v1.7.18) and md4c (release-0.5.2) into
-`vendor/` (gitignored). The binary lands at `bin/orc`.
+`vendor/` (gitignored). The binary lands at `bin/orc`. macOS builds target
+macOS 13 by default; override with `MACOSX_DEPLOYMENT_TARGET=<version> make`.
 
 ## Use
 

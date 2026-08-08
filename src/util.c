@@ -61,7 +61,8 @@ int write_file_atomic(const char *path, const char *data, size_t len) {
     size_t off = 0;
     while (off < len) {
         ssize_t w = write(fd, data + off, len - off);
-        if (w < 0) { close(fd); unlink(tmp); return -1; }
+        if (w < 0 && errno == EINTR) continue;
+        if (w <= 0) { close(fd); unlink(tmp); return -1; }
         off += (size_t)w;
     }
     if (close(fd) != 0) { unlink(tmp); return -1; }
