@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release orc"
+  short_description: "Prepare and verify a new orc release"
+  default_prompt: "Prepare a new orc release and give me the tag push command."

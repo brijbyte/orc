@@ -33,9 +33,8 @@ Minimal C coding-agent harness. Keep the code and model-facing text terse.
 ## Conventions
 
 - Use C11 and keep `-Wall -Wextra` clean.
-- `vendor/` is gitignored and fetched at build time. To change vendored
-  linenoise, edit `vendor/linenoise.*` and regenerate
-  `scripts/linenoise-orc.patch` (the Makefile applies it after fetch).
+- `vendor/` is gitignored and fetched at build time. The linenoise fork is
+  tracked in `third_party/linenoise/`; keep its `UPSTREAM.md` current.
 - Spell ANSI escapes in `src/ansi.h`. Emit styles only when the stream is a
   TTY. Prompts may contain SGR escapes; linenoise skips them in width math.
 - Terminal output during a turn must use whole lines between `input_erase()`
