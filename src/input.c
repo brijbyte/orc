@@ -63,8 +63,11 @@ void input_init(void) {
     linenoiseHistorySetMaxLen(200);
     linenoiseHistoryLoad(hist_path);
     active = 1;
-    atexit(shutdown_input);
     edit_start();
+    /* Register after edit_start: linenoise's own atexit (registered inside
+     * the first edit_start) frees history, so ours must run first (LIFO)
+     * to save history and restore the terminal before that. */
+    atexit(shutdown_input);
 }
 
 /* Animate the busy prompt (spinner) while an agent turn runs. */
