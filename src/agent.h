@@ -19,6 +19,9 @@ int agent_init(agent *ag, orc_cfg *cfg, const provider *prov,
 /* Run one user turn to completion (including tool rounds).
  * Returns 0 done, 1 interrupted, -1 error. */
 int agent_turn(agent *ag, const char *user_text);
+
+/* Print the tail of a resumed session as if it had just streamed. */
+void agent_replay(agent *ag);
 void agent_free(agent *ag);
 
 #endif

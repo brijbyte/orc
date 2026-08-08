@@ -8,6 +8,20 @@
 #define ANSI_RESET "\x1b[0m"
 #define ANSI_BOLD "\x1b[1m"
 #define ANSI_DIM "\x1b[2m"
+#define ANSI_ITALIC "\x1b[3m"
+#define ANSI_REVERSE "\x1b[7m"
+#define ANSI_UNBOLD "\x1b[22m" /* normal intensity; keeps reverse/colors */
+#define ANSI_CYAN "\x1b[36m"
+#define ANSI_BOLD_CYAN "\x1b[1;36m"
+
+/* Style a string literal (compile-time concatenation). Not nestable: the
+ * inner reset also ends the outer style. */
+#define BOLD(s) ANSI_BOLD s ANSI_RESET
+#define DIM(s) ANSI_DIM s ANSI_RESET
+#define ITALIC(s) ANSI_ITALIC s ANSI_RESET
+#define REVERSE(s) ANSI_REVERSE s ANSI_RESET
+#define CYAN(s) ANSI_CYAN s ANSI_RESET
+#define BOLD_CYAN(s) ANSI_BOLD_CYAN s ANSI_RESET
 
 /* SGR codes for composed sequences: "\x1b[" code (";" code)* "m". */
 enum {

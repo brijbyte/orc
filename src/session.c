@@ -1,4 +1,5 @@
 #include "session.h"
+#include "ansi.h"
 #include "util.h"
 
 #include <dirent.h>
@@ -119,8 +120,13 @@ int session_resume(orc_session *s, const char *ref, cJSON *history, orc_cfg *cfg
     s->f = fopen(s->path, "a");
     if (!s->f) return -1;
     s->items = items;
-    fprintf(stderr, "orc: resumed %.8s (%d items) %s\n",
-            cfg->session_id, items, s->path);
+    if (isatty(2))
+        fprintf(stderr,
+                "orc: resumed " BOLD("%.8s") DIM(" (%d items) %s") "\n",
+                cfg->session_id, items, s->path);
+    else
+        fprintf(stderr, "orc: resumed %.8s (%d items) %s\n",
+                cfg->session_id, items, s->path);
     return 0;
 }
 
@@ -177,7 +183,9 @@ static void list_one(const char *path) {
     fclose(f);
     char *tsep = strchr(when, 'T');
     if (tsep) *tsep = ' ';
-    printf("%-8s  %-16s  %s\n", id, when, title);
+    printf(isatty(1) ? CYAN("%-8s") "  " DIM("%-16s") "  %s\n"
+                     : "%-8s  %-16s  %s\n",
+           id, when, title);
 }
 
 /* ts-prefixed filenames: reverse-lexical order is newest first. */

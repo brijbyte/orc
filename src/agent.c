@@ -120,6 +120,25 @@ static const char *item_str(cJSON *item, const char *key) {
     return cJSON_IsString(v) ? v->valuestring : NULL;
 }
 
+/* Show a tool call: name + first line of the key argument. */
+static void print_call(cJSON *call, int tty) {
+    const char *name = item_str(call, "name");
+    const char *arguments = item_str(call, "arguments");
+    if (!name) return;
+    cJSON *args = arguments ? cJSON_Parse(arguments) : NULL;
+    const char *desc = "";
+    if (args) {
+        cJSON *a = cJSON_GetObjectItem(args, "cmd");
+        if (!a) a = cJSON_GetObjectItem(args, "path");
+        if (cJSON_IsString(a)) desc = a->valuestring;
+    }
+    if (tty)
+        printf(DIM("→ %s %.100s") "\n", name, desc);
+    else
+        printf("→ %s %.100s\n", name, desc);
+    if (args) cJSON_Delete(args);
+}
+
 static void run_call(agent *ag, cJSON *call, int tty) {
     const char *name = item_str(call, "name");
     const char *arguments = item_str(call, "arguments");
@@ -128,18 +147,8 @@ static void run_call(agent *ag, cJSON *call, int tty) {
 
     cJSON *args = arguments ? cJSON_Parse(arguments) : NULL;
 
-    /* Show what's running: tool name + first line of the key argument. */
-    const char *desc = "";
-    if (args) {
-        cJSON *a = cJSON_GetObjectItem(args, "cmd");
-        if (!a) a = cJSON_GetObjectItem(args, "path");
-        if (cJSON_IsString(a)) desc = a->valuestring;
-    }
     input_erase();
-    if (tty)
-        printf(ANSI_DIM "→ %s %.100s" ANSI_RESET "\n", name, desc);
-    else
-        printf("→ %s %.100s\n", name, desc);
+    print_call(call, tty);
     fflush(stdout);
     input_redraw();
 
@@ -152,6 +161,67 @@ static void run_call(agent *ag, cJSON *call, int tty) {
     cJSON_AddStringToObject(out, "output", output);
     free(output);
     commit(ag, out);
+}
+
+/* Concatenated text parts of a message item; malloc'd, NULL if none. */
+static char *message_text(cJSON *item) {
+    strbuf sb;
+    sb_init(&sb);
+    cJSON *part;
+    cJSON_ArrayForEach(part, cJSON_GetObjectItem(item, "content")) {
+        cJSON *t = cJSON_GetObjectItem(part, "text");
+        if (cJSON_IsString(t)) sb_append_str(&sb, t->valuestring);
+    }
+    return sb.data;
+}
+
+#define REPLAY_MAX 30
+void agent_replay(agent *ag) {
+    int n = cJSON_GetArraySize(ag->history);
+    if (n == 0) return;
+
+    /* Start at the second-to-last user message: the last full exchange. */
+    int start = 0, users = 0;
+    for (int i = n - 1; i >= 0 && users < 2; i--) {
+        cJSON *it = cJSON_GetArrayItem(ag->history, i);
+        const char *type = item_str(it, "type");
+        const char *role = item_str(it, "role");
+        if (type && strcmp(type, "message") == 0 &&
+            role && strcmp(role, "user") == 0) {
+            start = i;
+            users++;
+        }
+    }
+    if (n - start > REPLAY_MAX) start = n - REPLAY_MAX;
+
+    int tty = isatty(1);
+    if (start > 0)
+        printf(tty ? DIM("··· %d earlier items") "\n" : "··· %d earlier items\n",
+               start);
+    for (int i = start; i < n; i++) {
+        cJSON *it = cJSON_GetArrayItem(ag->history, i);
+        const char *type = item_str(it, "type");
+        if (!type) continue;
+        if (strcmp(type, "function_call") == 0) {
+            print_call(it, tty);
+        } else if (strcmp(type, "message") == 0) {
+            char *text = message_text(it);
+            if (!text) continue;
+            const char *role = item_str(it, "role");
+            if (role && strcmp(role, "user") == 0) {
+                printf(tty ? BOLD_CYAN(">") " %s\n" : "> %s\n", text);
+            } else {
+                md_render md;
+                md_init(&md);
+                md_delta(&md, text);
+                md_flush(&md);
+                md_free(&md);
+                fputs("\n", stdout);
+            }
+            free(text);
+        } /* reasoning and function_call_output items stay silent, as live */
+    }
+    fflush(stdout);
 }
 
 int agent_turn(agent *ag, const char *user_text) {

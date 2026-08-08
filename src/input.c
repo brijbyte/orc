@@ -27,12 +27,21 @@ static int active = 0, editing = 0, idle_flag = 1, eof_flag = 0, hidden = 0;
 static qnode *qhead, *qtail;
 static struct termios cooked; /* pre-raw state; linenoise's copy gets
                                * clobbered when we restart edits w/o Stop */
-static const char *SPIN[] = {"| > ", "/ > ", "- > ", "\\ > "};
+/* Idle and busy prompts are both 2 columns: the spinner replaces the '>'. */
+#define PROMPT_IDLE BOLD_CYAN(">") " "
+#define SPIN_FRAME(ch) CYAN(ch) " "
+static const char *SPIN[] = {
+    SPIN_FRAME("⠋"), SPIN_FRAME("⠙"), SPIN_FRAME("⠹"), SPIN_FRAME("⠸"),
+    SPIN_FRAME("⠼"), SPIN_FRAME("⠴"), SPIN_FRAME("⠦"), SPIN_FRAME("⠧"),
+    SPIN_FRAME("⠇"), SPIN_FRAME("⠏"),
+};
+#define SPIN_N ((int)(sizeof SPIN / sizeof *SPIN))
 static int spin_i;
 static struct timespec spin_last;
 
 static const char *cur_prompt(void) {
-    return idle_flag ? "> " : SPIN[spin_i];
+    /* Escapes in prompts are fine: linenoise width math skips them. */
+    return idle_flag ? PROMPT_IDLE : SPIN[spin_i];
 }
 
 /* --- slash-command autocomplete ------------------------------------------
@@ -141,16 +150,16 @@ static void menu_draw(void) {
     for (int i = 0; i < menu_n; i++) {
         menu_item *it = &menu_items[i];
         fputs("\n\r\x1b[2K", stdout);
-        if (i == menu_sel) fputs("\x1b[7m", stdout);
+        if (i == menu_sel) fputs(ANSI_REVERSE, stdout);
         if (it->c2) {
             printf("  %-8s %-16s", it->c1, it->c2);
         } else {
             int cur = strcmp(it->c1, commands_current_model()) == 0;
             printf("%c %s%-25s%s", cur ? '*' : ' ', cur ? ANSI_BOLD : "",
-                   it->c1, cur ? "\x1b[22m" : "");
+                   it->c1, cur ? ANSI_UNBOLD : "");
         }
         if (avail > 0)
-            printf(ANSI_DIM "%.*s\x1b[22m", avail, it->desc);
+            printf(ANSI_DIM "%.*s" ANSI_UNBOLD, avail, it->desc);
         fputs(ANSI_RESET, stdout);
     }
     for (int i = menu_n; i < old; i++) fputs("\n\r\x1b[2K", stdout);
@@ -190,18 +199,22 @@ static int history_hook(struct linenoiseState *l, int dir) {
     return 1;
 }
 
-/* Bare ESC closes the menu; the unchanged buffer must not reopen it, so
- * menu_key stays. */
+/* Bare ESC: close an open menu first; with no menu, cancel a running turn
+ * (the typed line survives, unlike Ctrl-C). The unchanged buffer must not
+ * reopen the menu, so menu_key stays. */
 static void esc_hook(struct linenoiseState *l) {
     (void)l;
-    if (!menu_n) return;
-    menu_n = menu_sel = 0;
-    if (!hidden && menu_rows) {
-        fputs("\x1b[J", stdout); /* clips the input line at the cursor too */
-        fflush(stdout);
-        menu_rows = 0;
-        linenoiseShow(&ls); /* repaint the clipped line */
+    if (menu_n) {
+        menu_n = menu_sel = 0;
+        if (!hidden && menu_rows) {
+            fputs("\x1b[J", stdout); /* clips the input line at the cursor too */
+            fflush(stdout);
+            menu_rows = 0;
+            linenoiseShow(&ls); /* repaint the clipped line */
+        }
+        return;
     }
+    if (!idle_flag) g_interrupt = 1;
 }
 
 /* Erase leftover menu rows once the cursor sits below the input line
@@ -244,6 +257,7 @@ void input_init(void) {
     if (!isatty(0) || !isatty(1)) return;
     if (tcgetattr(0, &cooked) != 0) return;
     hist_path = orc_path("history");
+    linenoiseSetMultiLine(1); /* wrap long input instead of h-scrolling */
     linenoiseHistorySetMaxLen(200);
     linenoiseHistoryLoad(hist_path);
     linenoiseSetCompletionCallback(complete_cb);
@@ -267,7 +281,7 @@ static void spin_tick(void) {
               (now.tv_nsec - spin_last.tv_nsec) / 1000000;
     if (ms < 120) return;
     spin_last = now;
-    spin_i = (spin_i + 1) % 4;
+    spin_i = (spin_i + 1) % SPIN_N;
     ls.prompt = cur_prompt();
     ls.plen = strlen(ls.prompt);
     linenoiseShow(&ls); /* full in-place line redraw */
@@ -368,7 +382,7 @@ void input_drain(void) {
         linenoiseHistoryAdd(line);
         push_line(line);
         if (!idle_flag) {
-            fputs(ANSI_DIM "  ↳ queued" ANSI_RESET "\n", stdout);
+            fputs(DIM("  ↳ queued") "\n", stdout);
             fflush(stdout);
         }
         edit_start();

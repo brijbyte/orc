@@ -16,6 +16,8 @@ Minimal C coding-agent harness. Keep the code and model-facing text terse.
 - `src/provider.h` defines providers. Implement each provider in
   `src/providers/` and register it in `src/provider.c`.
 - `src/agent.c` owns the turn and tool-call loop. Tools are in `src/tools.c`.
+- `src/commands.c` implements slash commands. `src/input.c` owns the REPL
+  line, the `/` menu, and the spinner.
 
 ## Codex invariants
 
@@ -29,6 +31,11 @@ Minimal C coding-agent harness. Keep the code and model-facing text terse.
 ## Conventions
 
 - Use C11 and keep `-Wall -Wextra` clean.
+- `vendor/` is gitignored and fetched at build time. To change vendored
+  linenoise, edit `vendor/linenoise.*` and regenerate
+  `scripts/linenoise-orc.patch` (the Makefile applies it after fetch).
+- Spell ANSI escapes in `src/ansi.h`. Emit styles only when the stream is a
+  TTY. Prompts may contain SGR escapes; linenoise skips them in width math.
 - Terminal output during a turn must use whole lines between `input_erase()`
   and `input_redraw()`.
 - Return tool errors as model output. Do not abort the agent.

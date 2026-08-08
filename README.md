@@ -67,7 +67,9 @@ the `TAP_PUSH_TOKEN` secret (a PAT with push access to
 The REPL stays responsive while the agent works: keep typing and press Enter
 to queue the next prompt (it runs when the current turn finishes, marked
 `↳ queued`), Ctrl-C interrupts the current turn, and lines get editing +
-history (linenoise, persisted at `<orc home>/history`). Shift+Enter (in
+history (linenoise, persisted at `<orc home>/history`). Esc also cancels the
+running turn — keeping the typed line, unlike Ctrl-C — but closes an open
+menu first. Shift+Enter (in
 terminals that send CSI-u or modifyOtherKeys encodings) or Ctrl-J inserts a
 soft line break, shown inline as `[\n]`; multi-line pastes are folded the
 same way.

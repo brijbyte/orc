@@ -165,8 +165,17 @@ int main(int argc, char **argv) {
         int tr = agent_turn(&ag, prompt);
         rc = tr < 0 ? 1 : (tr == 1 ? 130 : 0);
     } else {
-        printf("orc %s — %s (%s effort), session %.8s. Ctrl-D or 'exit' to quit.\n",
-               ORC_VERSION, cfg.model, cfg.effort, cfg.session_id);
+        if (isatty(1))
+            printf(BOLD_CYAN("orc") DIM(" %s") " — " BOLD("%s")
+                   DIM(" (%s effort) · %ssession %.8s · Ctrl-D or 'exit' to quit")
+                   "\n",
+                   ORC_VERSION, cfg.model, cfg.effort,
+                   do_resume ? "resumed " : "", cfg.session_id);
+        else
+            printf("orc %s — %s (%s effort), %ssession %.8s. Ctrl-D or 'exit' to quit.\n",
+                   ORC_VERSION, cfg.model, cfg.effort,
+                   do_resume ? "resumed " : "", cfg.session_id);
+        if (do_resume) agent_replay(&ag);
         input_init();
         if (input_active()) {
             /* Event-loop REPL: lines typed while a turn runs are queued. */
@@ -186,7 +195,7 @@ int main(int argc, char **argv) {
                 }
                 if (queued) { /* replay so it's clear what runs now */
                     input_erase();
-                    printf(ANSI_BOLD "> " ANSI_RESET "%s\n", line);
+                    printf(BOLD_CYAN(">") " %s\n", line);
                     input_redraw();
                 }
                 if (line[0] == '/') {
@@ -206,9 +215,10 @@ int main(int argc, char **argv) {
             }
         } else { /* stdin is a pipe: plain blocking reads */
             char line[65536];
+            int tty = isatty(1);
             for (;;) {
                 g_interrupt = 0;
-                fputs(ANSI_BOLD "> " ANSI_RESET, stdout);
+                fputs(tty ? BOLD_CYAN(">") " " : "> ", stdout);
                 fflush(stdout);
                 if (!fgets(line, sizeof line, stdin)) {
                     if (g_interrupt) {          /* Ctrl-C at prompt */
@@ -240,7 +250,10 @@ cleanup:
     session_close(&sess);
     if (ready && sess.items > 0) {
         fflush(stdout);
-        fprintf(stderr, "orc: resume with `orc --resume %.8s`\n", cfg.session_id);
+        fprintf(stderr,
+                isatty(2) ? DIM("orc: resume with `orc --resume %.8s`") "\n"
+                          : "orc: resume with `orc --resume %.8s`\n",
+                cfg.session_id);
     } else if (ready && !do_resume && sess.path[0]) {
         unlink(sess.path); /* nothing was said; drop the empty session file */
     }

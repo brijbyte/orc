@@ -77,8 +77,11 @@ int command_dispatch(agent *ag, const char *line) {
 
     if (strcmp(cmd->name, "/quit") == 0) return 2;
     if (strcmp(cmd->name, "/help") == 0) {
+        int tty = isatty(1);
         for (const orc_cmd *c = orc_cmds; c->name; c++)
-            printf("  %-8s %-16s %s\n", c->name, c->args, c->desc);
+            printf(tty ? "  " BOLD("%-8s") " %-16s " DIM("%s") "\n"
+                       : "  %-8s %-16s %s\n",
+                   c->name, c->args, c->desc);
         return 1;
     }
     if (strcmp(cmd->name, "/new") == 0) {
