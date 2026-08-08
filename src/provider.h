@@ -27,6 +27,9 @@ typedef struct {
                 const provider_cb *cb, void *ud);
     /* Print auth status for --auth. Returns 0 if usable. */
     int (*auth_status)(void);
+    /* Optional (may be NULL): selectable models as a cJSON array of
+     * {"slug","description"}, caller owns. NULL when unavailable. */
+    cJSON *(*models)(void);
 } provider;
 
 /* Look up by name; NULL or "" returns the default provider. NULL if unknown. */

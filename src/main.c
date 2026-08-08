@@ -1,5 +1,6 @@
 #include "agent.h"
 #include "ansi.h"
+#include "commands.h"
 #include "input.h"
 #include "orc.h"
 #include "provider.h"
@@ -67,6 +68,7 @@ static void usage(void) {
          "  -e <effort>       reasoning effort: low|medium|high (default " ORC_DEFAULT_EFFORT ")\n"
          "  --provider <name> provider (default codex; env ORC_PROVIDER)\n"
          "  --resume [id|path] resume most recent (or given) session\n"
+         "  --list            list sessions, newest first\n"
          "  --auth            show provider auth status\n"
          "  --version         print version\n"
          "  -h                help");
@@ -74,7 +76,7 @@ static void usage(void) {
 
 int main(int argc, char **argv) {
     const char *prompt = NULL, *resume_ref = NULL;
-    int do_resume = 0, do_auth = 0;
+    int do_resume = 0, do_auth = 0, do_list = 0;
 
     orc_cfg cfg = {0};
     cfg.provider = getenv("ORC_PROVIDER");
@@ -91,6 +93,7 @@ int main(int argc, char **argv) {
             do_resume = 1;
             if (i + 1 < argc && argv[i + 1][0] != '-') resume_ref = argv[++i];
         }
+        else if (strcmp(argv[i], "--list") == 0) do_list = 1;
         else if (strcmp(argv[i], "--auth") == 0) do_auth = 1;
         else if (strcmp(argv[i], "--version") == 0) {
             puts("orc " ORC_VERSION);
@@ -107,6 +110,8 @@ int main(int argc, char **argv) {
         }
     }
 
+    if (do_list) return session_list();
+
     const provider *prov = provider_get(cfg.provider);
     if (!prov) {
         fprintf(stderr, "orc: unknown provider '%s'; available:\n", cfg.provider);
@@ -114,6 +119,7 @@ int main(int argc, char **argv) {
         return 2;
     }
     if (!cfg.model) cfg.model = prov->default_model;
+    commands_init(prov, &cfg);
 
     if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
         fprintf(stderr, "orc: cannot initialize HTTP client\n");
@@ -183,6 +189,16 @@ int main(int argc, char **argv) {
                     printf(ANSI_BOLD "> " ANSI_RESET "%s\n", line);
                     input_redraw();
                 }
+                if (line[0] == '/') {
+                    input_erase();
+                    int cd = command_dispatch(&ag, line);
+                    input_redraw();
+                    if (cd) {
+                        free(line);
+                        if (cd == 2) break;
+                        continue;
+                    }
+                }
                 input_set_idle(0);
                 agent_turn(&ag, line);
                 input_set_idle(1);
@@ -206,6 +222,11 @@ int main(int argc, char **argv) {
                 while (n > 0 && (line[n - 1] == '\n' || line[n - 1] == '\r')) line[--n] = '\0';
                 if (n == 0) continue;
                 if (strcmp(line, "exit") == 0 || strcmp(line, "quit") == 0) break;
+                if (line[0] == '/') {
+                    int cd = command_dispatch(&ag, line);
+                    if (cd == 2) break;
+                    if (cd) continue;
+                }
                 g_interrupt = 0;
                 agent_turn(&ag, line);
             }

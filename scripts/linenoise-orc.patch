@@ -1,0 +1,138 @@
+--- vendor/linenoise.h
++++ vendor/linenoise.h
+@@ -100,6 +100,16 @@
+ void linenoiseSetFreeHintsCallback(linenoiseFreeHintsCallback *);
+ void linenoiseAddCompletion(linenoiseCompletions *, const char *);
+ 
++/* History-navigation hook: called before Up/Down (and Ctrl-P/N) move through
++ * history, with dir -1 for previous and 1 for next. Return nonzero to consume
++ * the key. */
++typedef int(linenoiseHistoryHookCallback)(struct linenoiseState *, int dir);
++void linenoiseSetHistoryHook(linenoiseHistoryHookCallback *);
++
++/* Called when the user presses a bare ESC (no escape sequence follows). */
++typedef void(linenoiseEscHookCallback)(struct linenoiseState *);
++void linenoiseSetEscHook(linenoiseEscHookCallback *);
++
+ /* History API. */
+ int linenoiseHistoryAdd(const char *line);
+ int linenoiseHistorySetMaxLen(int len);
+--- vendor/linenoise.c
++++ vendor/linenoise.c
+@@ -116,6 +116,7 @@
+ #include <sys/ioctl.h>
+ #include <unistd.h>
+ #include <stdint.h>
++#include <poll.h>
+ #include "linenoise.h"
+ 
+ #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
+@@ -127,6 +128,16 @@
+ static char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
+ static linenoiseCompletionCallback *completionCallback = NULL;
+ static linenoiseHintsCallback *hintsCallback = NULL;
++static linenoiseHistoryHookCallback *historyHook = NULL;
++static linenoiseEscHookCallback *escHook = NULL;
++
++void linenoiseSetHistoryHook(linenoiseHistoryHookCallback *fn) {
++    historyHook = fn;
++}
++
++void linenoiseSetEscHook(linenoiseEscHookCallback *fn) {
++    escHook = fn;
++}
+ static linenoiseFreeHintsCallback *freeHintsCallback = NULL;
+ static char *linenoiseReadLine(FILE *fp, int *err);
+ static char *linenoiseNoTTY(void);
+@@ -912,7 +923,9 @@
+     size_t lines = foldCountLines(buf + f->start, hidden);
+     int n;
+ 
+-    if (lines > 1)
++    if (hidden == 1 && buf[f->start] == '\n')
++        n = snprintf(f->display,sizeof(f->display),"[\\n]");
++    else if (lines > 1)
+         n = snprintf(f->display,sizeof(f->display),"[... %zu pasted lines ...]",lines);
+     else
+         n = snprintf(f->display,sizeof(f->display),"[... %zu pasted chars ...]",hidden);
+@@ -1573,6 +1586,8 @@
+ #define LINENOISE_HISTORY_NEXT 0
+ #define LINENOISE_HISTORY_PREV 1
+ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
++    if (historyHook &&
++        historyHook(l, dir == LINENOISE_HISTORY_PREV ? -1 : 1)) return;
+     if (history_len > 1) {
+         const char *src;
+         size_t len;
+@@ -1852,6 +1867,22 @@
+     free(buf);
+ }
+ 
++/* Insert a soft line break: a real newline in the buffer, folded in the
++ * rendering (Shift+Enter / Ctrl-J). */
++static void linenoiseEditSoftBreak(struct linenoiseState *l) {
++    size_t start = l->pos;
++    if (!maskmode && l->fold_count == LINENOISE_MAX_FOLDS) {
++        linenoiseBeep();
++        return;
++    }
++    if (linenoiseEditInsertNoRefresh(l,"\n",1) == -1) {
++        linenoiseBeep();
++        return;
++    }
++    if (!maskmode) linenoiseFoldAdd(l,start,start+1);
++    refreshLine(l);
++}
++
+ char *linenoiseEditMore = "If you see this, you are misusing the API: when linenoiseEditFeed() is called, if it returns linenoiseEditMore the user is yet editing the line. See the README file for more information.";
+ 
+ /* This function is part of the multiplexed API of linenoise, see the top
+@@ -1912,6 +1943,9 @@
+             hintsCallback = hc;
+         }
+         return strdup(l->buf);
++    case 10:         /* Ctrl-J / newline: soft line break */
++        linenoiseEditSoftBreak(l);
++        break;
+     case CTRL_C:     /* ctrl-c */
+         errno = EAGAIN;
+         return NULL;
+@@ -1963,6 +1997,15 @@
+         linenoiseEditHistoryNext(l, LINENOISE_HISTORY_NEXT);
+         break;
+     case ESC:    /* escape sequence */
++        /* A bare ESC keypress has no pending bytes; an escape sequence
++         * arrives as a burst. 30ms covers slow terminals. */
++        {
++            struct pollfd pfd = { l->ifd, POLLIN, 0 };
++            if (poll(&pfd,1,30) <= 0) {
++                if (escHook) escHook(l);
++                break;
++            }
++        }
+         /* Read the next two bytes representing the escape sequence.
+          * Use two calls to handle slow terminals returning the two
+          * chars at different times. */
+@@ -1980,7 +2023,7 @@
+                 while (plen < sizeof(param)) {
+                     char p;
+                     if (read(l->ifd,&p,1) != 1) break;
+-                    if (p >= '0' && p <= '9') {
++                    if ((p >= '0' && p <= '9') || p == ';') {
+                         param[plen++] = p;
+                     } else {
+                         final = p;
+@@ -1992,7 +2035,13 @@
+                         linenoiseEditDelete(l);
+                     } else if (plen == 3 && memcmp(param,"200",3) == 0) {
+                         linenoiseEditPaste(l);
++                    } else if (plen == 7 && memcmp(param,"27;2;13",7) == 0) {
++                        /* Shift+Enter, xterm modifyOtherKeys */
++                        linenoiseEditSoftBreak(l);
+                     }
++                } else if (final == 'u') {
++                    if (plen == 4 && memcmp(param,"13;2",4) == 0)
++                        linenoiseEditSoftBreak(l); /* Shift+Enter, CSI-u */
+                 }
+             } else {
+                 switch(seq[1]) {

@@ -139,3 +139,84 @@ void session_close(orc_session *s) {
     if (s->f) fclose(s->f);
     s->f = NULL;
 }
+
+/* One --list row: id + start time from _meta, first user message as title. */
+static void list_one(const char *path) {
+    FILE *f = fopen(path, "r");
+    if (!f) return;
+    char *line = NULL;
+    size_t cap = 0;
+    char id[9] = "", when[17] = "", title[73] = "";
+    for (int ln = 0; ln < 4 && getline(&line, &cap, f) != -1; ln++) {
+        cJSON *item = cJSON_Parse(line);
+        if (!item) continue;
+        cJSON *meta = cJSON_GetObjectItem(item, "_meta");
+        if (meta) {
+            cJSON *v = cJSON_GetObjectItem(meta, "id");
+            if (cJSON_IsString(v)) snprintf(id, sizeof id, "%s", v->valuestring);
+            v = cJSON_GetObjectItem(meta, "t");
+            if (cJSON_IsString(v)) snprintf(when, sizeof when, "%s", v->valuestring);
+        } else {
+            cJSON *role = cJSON_GetObjectItem(item, "role");
+            if (cJSON_IsString(role) && strcmp(role->valuestring, "user") == 0) {
+                cJSON *part = cJSON_GetArrayItem(
+                    cJSON_GetObjectItem(item, "content"), 0);
+                cJSON *txt = part ? cJSON_GetObjectItem(part, "text") : NULL;
+                if (cJSON_IsString(txt)) {
+                    snprintf(title, sizeof title, "%s", txt->valuestring);
+                    for (char *p = title; *p; p++)
+                        if (*p == '\n' || *p == '\t') *p = ' ';
+                }
+                cJSON_Delete(item);
+                break;
+            }
+        }
+        cJSON_Delete(item);
+    }
+    free(line);
+    fclose(f);
+    char *tsep = strchr(when, 'T');
+    if (tsep) *tsep = ' ';
+    printf("%-8s  %-16s  %s\n", id, when, title);
+}
+
+/* ts-prefixed filenames: reverse-lexical order is newest first. */
+static int newest_first(const void *a, const void *b) {
+    return strcmp(*(char *const *)b, *(char *const *)a);
+}
+
+int session_list(void) {
+    char *dir = orc_path("sessions");
+    DIR *d = opendir(dir);
+    char **names = NULL;
+    int n = 0, cap = 0;
+    if (d) {
+        struct dirent *e;
+        while ((e = readdir(d))) {
+            size_t l = strlen(e->d_name);
+            if (l <= 6 || strcmp(e->d_name + l - 6, ".jsonl") != 0) continue;
+            if (n == cap) {
+                cap = cap ? cap * 2 : 32;
+                char **grown = realloc(names, (size_t)cap * sizeof *names);
+                if (!grown) break;
+                names = grown;
+            }
+            names[n++] = strdup(e->d_name);
+        }
+        closedir(d);
+    }
+    if (n == 0) {
+        printf("no sessions\n");
+    } else {
+        qsort(names, (size_t)n, sizeof *names, newest_first);
+        for (int i = 0; i < n; i++) {
+            char path[4096];
+            snprintf(path, sizeof path, "%s/%s", dir, names[i]);
+            list_one(path);
+            free(names[i]);
+        }
+    }
+    free(names);
+    free(dir);
+    return 0;
+}

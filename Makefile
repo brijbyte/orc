@@ -26,7 +26,7 @@ export MACOSX_DEPLOYMENT_TARGET  # vendor sub-builds (mbedTLS, curl) honor it
 endif
 
 OBJS = src/main.o src/agent.o src/provider.o src/providers/codex.o src/http.o \
-       src/tools.o src/session.o src/render.o src/input.o src/util.o \
+       src/tools.o src/session.o src/render.o src/input.o src/commands.o src/util.o \
        vendor/cJSON.o vendor/md4c.o vendor/timestamp_parse.o \
        vendor/timestamp_format.o vendor/timestamp_valid.o vendor/linenoise.o
 
@@ -107,6 +107,9 @@ vendor/linenoise.c vendor/linenoise.h:
 	curl -fsSL -o vendor/linenoise.h $(LN_URL)/linenoise.h
 	# TCSAFLUSH drops type-ahead, TCSADRAIN can block on unread output
 	sed -i.bak 's/TCSAFLUSH/TCSANOW/g' vendor/linenoise.c && rm -f vendor/linenoise.c.bak
+	# orc additions: history-navigation hook (menu selection in src/input.c),
+	# Shift+Enter/Ctrl-J soft line breaks, full CSI parameter parsing
+	patch -p0 < scripts/linenoise-orc.patch
 
 vendor/cJSON.o: vendor/cJSON.c vendor/cJSON.h
 vendor/md4c.o: vendor/md4c.c vendor/md4c.h

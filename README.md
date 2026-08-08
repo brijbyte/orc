@@ -59,6 +59,7 @@ the `TAP_PUSH_TOKEN` secret (a PAT with push access to
 ./bin/orc -p "fix the failing test"  # one-shot, scriptable (exit 130 on Ctrl-C)
 ./bin/orc --resume                 # continue the most recent session
 ./bin/orc --resume <id>            # continue by session id (prefix ok)
+./bin/orc --list                   # list sessions (id, time, first prompt)
 ./bin/orc --auth                   # show Codex auth status
 ./bin/orc -m gpt-5.6-terra -e high # model / reasoning effort (env: ORC_MODEL)
 ```
@@ -66,7 +67,19 @@ the `TAP_PUSH_TOKEN` secret (a PAT with push access to
 The REPL stays responsive while the agent works: keep typing and press Enter
 to queue the next prompt (it runs when the current turn finishes, marked
 `↳ queued`), Ctrl-C interrupts the current turn, and lines get editing +
-history (linenoise, persisted at `<orc home>/history`).
+history (linenoise, persisted at `<orc home>/history`). Shift+Enter (in
+terminals that send CSI-u or modifyOtherKeys encodings) or Ctrl-J inserts a
+soft line break, shown inline as `[\n]`; multi-line pastes are folded the
+same way.
+
+Slash commands: `/model [slug]`, `/effort low|medium|high`, `/new` (fresh
+session), `/help`, `/quit`. Typing `/` shows a live candidate list under the
+input line; Up/Down move the selection, Enter runs it, Tab completes, Esc
+closes the menu (history recall also keeps it closed). Bare
+`/model` lists the provider's models (for
+codex, from `~/.codex/models_cache.json`), and `/model <partial>` completes
+slugs the same way. Lines that only look like paths (`/tmp/x ...`) still go
+to the model.
 
 orc appends user instruction files to the system prompt when they exist:
 `~/.agents/AGENTS.md` (global), then `./AGENTS.md` in the working directory

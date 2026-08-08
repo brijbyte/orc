@@ -351,9 +351,38 @@ static int codex_turn(cJSON *history, cJSON *tools, const orc_cfg *cfg,
     return result;
 }
 
+/* Selectable models from the Codex CLI's cache; best effort, NULL if absent. */
+static cJSON *codex_models(void) {
+    char *path = expand_home("~/.codex/models_cache.json");
+    char *text = read_file(path, NULL);
+    free(path);
+    if (!text) return NULL;
+    cJSON *root = cJSON_Parse(text);
+    free(text);
+    if (!root) return NULL;
+    cJSON *out = cJSON_CreateArray();
+    cJSON *m;
+    cJSON_ArrayForEach(m, cJSON_GetObjectItem(root, "models")) {
+        cJSON *slug = cJSON_GetObjectItem(m, "slug");
+        cJSON *vis = cJSON_GetObjectItem(m, "visibility");
+        if (!cJSON_IsString(slug)) continue;
+        if (cJSON_IsString(vis) && strcmp(vis->valuestring, "list") != 0)
+            continue;
+        cJSON *desc = cJSON_GetObjectItem(m, "description");
+        cJSON *e = cJSON_CreateObject();
+        cJSON_AddStringToObject(e, "slug", slug->valuestring);
+        cJSON_AddStringToObject(e, "description",
+                                cJSON_IsString(desc) ? desc->valuestring : "");
+        cJSON_AddItemToArray(out, e);
+    }
+    cJSON_Delete(root);
+    return out;
+}
+
 const provider provider_codex = {
     .name = "codex",
     .default_model = "gpt-5.6-sol",
     .turn = codex_turn,
     .auth_status = codex_auth_status,
+    .models = codex_models,
 };
