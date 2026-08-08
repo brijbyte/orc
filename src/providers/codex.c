@@ -13,7 +13,9 @@
 #include <timestamp.h>
 #include <unistd.h>
 
+#ifndef CODEX_URL /* overridable for transport tests */
 #define CODEX_URL "https://chatgpt.com/backend-api/codex/responses"
+#endif
 #define ORIGINATOR "orc"
 
 #define AUTH_PATH "~/.codex/auth.json"
@@ -225,6 +227,9 @@ static int codex_auth_status(void) {
 typedef struct {
     const provider_cb *cb;
     void *ud;
+    cJSON *items;          /* completed output items; forwarded to the agent
+                            * only after the whole stream succeeds, so a
+                            * mid-stream retry cannot duplicate them */
     int failed;            /* response.failed / response.incomplete seen */
     char errmsg[512];
 } turn_state;
@@ -246,10 +251,7 @@ static void on_sse_data(const char *data, void *ud) {
             st->cb->on_thinking_delta(d->valuestring, st->ud);
     } else if (strcmp(type, "response.output_item.done") == 0) {
         cJSON *item = cJSON_DetachItemFromObject(ev, "item");
-        if (item && st->cb->on_item_done)
-            st->cb->on_item_done(item, st->ud);
-        else
-            cJSON_Delete(item);
+        if (item) cJSON_AddItemToArray(st->items, item);
     } else if (strcmp(type, "response.failed") == 0 ||
                strcmp(type, "response.incomplete") == 0) {
         st->failed = 1;
@@ -314,34 +316,47 @@ static int codex_turn(cJSON *history, cJSON *tools, const orc_cfg *cfg,
         turn_state st = {0};
         st.cb = cb;
         st.ud = ud;
+        st.items = cJSON_CreateArray();
         strbuf err;
         sb_init(&err);
 
         long status = http_post_sse(CODEX_URL, headers, body, on_sse_data, &st, &err);
 
         if (status == -2 || g_interrupt) {
-            sb_free(&err);
             result = PROVIDER_INTERRUPTED;
-            break;
-        }
-        if (status >= 200 && status < 300) {
+        } else if (status >= 200 && status < 300) {
             if (st.failed) {
                 fprintf(stderr, "\norc: model error: %s\n", st.errmsg);
                 result = PROVIDER_ERROR;
             } else {
+                while (cJSON_GetArraySize(st.items) > 0) {
+                    cJSON *item = cJSON_DetachItemFromArray(st.items, 0);
+                    if (cb->on_item_done) cb->on_item_done(item, ud);
+                    else cJSON_Delete(item);
+                }
                 result = PROVIDER_OK;
             }
-            sb_free(&err);
-            break;
-        }
-        if (status == 429 || status >= 500) {
+        } else if ((status == -1 || status == 429 || status >= 500) &&
+                   attempt < 2) {
+            /* -1: transport died (dropped connection, partial stream). The
+             * response regenerates from scratch; buffered items are dropped. */
             int wait = 2 << attempt;
-            fprintf(stderr, "\norc: HTTP %ld, retrying in %ds...\n", status, wait);
+            if (status == -1)
+                fprintf(stderr, "\norc: connection dropped, retrying in %ds...\n", wait);
+            else
+                fprintf(stderr, "\norc: HTTP %ld, retrying in %ds...\n", status, wait);
+            cJSON_Delete(st.items);
             sb_free(&err);
             sleep((unsigned)wait);
-            continue;
+            if (!g_interrupt) continue;
+            result = PROVIDER_INTERRUPTED;
+            break;
+        } else if (status == -1 || status == 429 || status >= 500) {
+            fprintf(stderr, "\norc: giving up after %d attempts\n", attempt + 1);
+        } else {
+            fprintf(stderr, "\norc: HTTP %ld: %.500s\n", status, err.data ? err.data : "");
         }
-        fprintf(stderr, "\norc: HTTP %ld: %.500s\n", status, err.data ? err.data : "");
+        cJSON_Delete(st.items);
         sb_free(&err);
         break;
     }

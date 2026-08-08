@@ -203,7 +203,8 @@ long http_post_sse(const char *url, const char **headers, const char *body,
     long status = -1;
     if (rc == CURLE_OK) status = r.status ? r.status : -1;
     else if (rc == CURLE_ABORTED_BY_CALLBACK) status = -2;
-    else fprintf(stderr, "orc: http: %s\n", curl_easy_strerror(rc));
+    else /* leading \n: streamed text may have left the line open */
+        fprintf(stderr, "\norc: http: %s\n", curl_easy_strerror(rc));
 
     if (r.sse.debug) fclose(r.sse.debug);
     sb_free(&r.sse.buf);
