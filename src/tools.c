@@ -1,5 +1,5 @@
 #include "tools.h"
-#include "input.h"
+#include "event.h"
 #include "orc.h"
 #include "util.h"
 
@@ -118,10 +118,11 @@ static char *tool_bash(cJSON *args) {
     for (;;) {
         if (g_interrupt) { interrupted = 1; break; }
         if (time(NULL) > deadline) { timed_out = 1; break; }
+        int event_fd = event_source_fd();
         struct pollfd p[2] = {{.fd = pfd[0], .events = POLLIN},
-                              {.fd = input_fd(), .events = POLLIN}};
-        int pr = poll(p, input_fd() >= 0 ? 2 : 1, 200);
-        input_drain(); /* keep typing live while the command runs */
+                              {.fd = event_fd, .events = POLLIN}};
+        int pr = poll(p, event_fd >= 0 ? 2 : 1, 200);
+        event_source_drain();
         if (pr > 0 && (p[0].revents & (POLLIN | POLLHUP))) {
             char buf[8192];
             ssize_t n = read(pfd[0], buf, sizeof buf);

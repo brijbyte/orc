@@ -1,5 +1,4 @@
 #include "session.h"
-#include "ansi.h"
 #include "util.h"
 
 #include <dirent.h>
@@ -7,6 +6,10 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+
+static char last_error[4096];
+
+const char *session_error(void) { return last_error; }
 
 int session_new(orc_session *s, const orc_cfg *cfg) {
     char *dir = orc_path("sessions");
@@ -78,14 +81,14 @@ int session_resume(orc_session *s, const char *ref, cJSON *history, orc_cfg *cfg
     else
         resolved = find_session(ref);
     if (!resolved) {
-        fprintf(stderr, "❌ orc: no session%s%s to resume\n",
-                ref ? " matching " : "", ref ? ref : "");
+        snprintf(last_error, sizeof last_error, "no session%s%s to resume",
+                 ref ? " matching " : "", ref ? ref : "");
         return -1;
     }
     size_t len;
     char *text = read_file(resolved, &len);
     if (!text) {
-        fprintf(stderr, "❌ orc: cannot read %s\n", resolved);
+        snprintf(last_error, sizeof last_error, "cannot read %s", resolved);
         free(resolved);
         return -1;
     }
@@ -127,15 +130,11 @@ int session_resume(orc_session *s, const char *ref, cJSON *history, orc_cfg *cfg
     snprintf(s->path, sizeof s->path, "%s", resolved);
     free(resolved);
     s->f = fopen(s->path, "a");
-    if (!s->f) return -1;
+    if (!s->f) {
+        snprintf(last_error, sizeof last_error, "cannot open %s", s->path);
+        return -1;
+    }
     s->items = items;
-    if (isatty(2))
-        fprintf(stderr,
-                "↩️  orc: resumed " BOLD("%.8s") DIM(" (%d items) %s") "\n",
-                cfg->session_id, items, s->path);
-    else
-        fprintf(stderr, "↩️  orc: resumed %.8s (%d items) %s\n",
-                cfg->session_id, items, s->path);
     return 0;
 }
 
@@ -177,31 +176,32 @@ void session_close(orc_session *s) {
     s->f = NULL;
 }
 
-/* One --list row: id + start time from _meta, first user message as title. */
-static void list_one(const char *path) {
+/* Read one --list row: id, start time, and first user message. */
+static int list_one(const char *path, orc_session_info *info) {
     FILE *f = fopen(path, "r");
-    if (!f) return;
+    if (!f) return -1;
     char *line = NULL;
     size_t cap = 0;
-    char id[9] = "", when[17] = "", title[73] = "";
     for (int ln = 0; ln < 4 && getline(&line, &cap, f) != -1; ln++) {
         cJSON *item = cJSON_Parse(line);
         if (!item) continue;
         cJSON *meta = cJSON_GetObjectItem(item, "_meta");
         if (meta) {
             cJSON *v = cJSON_GetObjectItem(meta, "id");
-            if (cJSON_IsString(v)) snprintf(id, sizeof id, "%s", v->valuestring);
+            if (cJSON_IsString(v))
+                snprintf(info->id, sizeof info->id, "%s", v->valuestring);
             v = cJSON_GetObjectItem(meta, "t");
-            if (cJSON_IsString(v)) snprintf(when, sizeof when, "%s", v->valuestring);
+            if (cJSON_IsString(v))
+                snprintf(info->when, sizeof info->when, "%s", v->valuestring);
         } else {
             cJSON *role = cJSON_GetObjectItem(item, "role");
             if (cJSON_IsString(role) && strcmp(role->valuestring, "user") == 0) {
                 cJSON *part = cJSON_GetArrayItem(
                     cJSON_GetObjectItem(item, "content"), 0);
-                cJSON *txt = part ? cJSON_GetObjectItem(part, "text") : NULL;
-                if (cJSON_IsString(txt)) {
-                    snprintf(title, sizeof title, "%s", txt->valuestring);
-                    for (char *p = title; *p; p++)
+                cJSON *text = part ? cJSON_GetObjectItem(part, "text") : NULL;
+                if (cJSON_IsString(text)) {
+                    snprintf(info->title, sizeof info->title, "%s", text->valuestring);
+                    for (char *p = info->title; *p; p++)
                         if (*p == '\n' || *p == '\t') *p = ' ';
                 }
                 cJSON_Delete(item);
@@ -212,50 +212,54 @@ static void list_one(const char *path) {
     }
     free(line);
     fclose(f);
-    char *tsep = strchr(when, 'T');
-    if (tsep) *tsep = ' ';
-    printf(isatty(1) ? CYAN("%-8s") "  " DIM("%-16s") "  %s\n"
-                     : "%-8s  %-16s  %s\n",
-           id, when, title);
+    char *separator = strchr(info->when, 'T');
+    if (separator) *separator = ' ';
+    return 0;
 }
 
-/* ts-prefixed filenames: reverse-lexical order is newest first. */
 static int newest_first(const void *a, const void *b) {
     return strcmp(*(char *const *)b, *(char *const *)a);
 }
 
-int session_list(void) {
+int session_list(orc_session_info **items, size_t *count) {
+    *items = NULL;
+    *count = 0;
     char *dir = orc_path("sessions");
     DIR *d = opendir(dir);
     char **names = NULL;
-    int n = 0, cap = 0;
+    size_t n = 0, cap = 0;
     if (d) {
-        struct dirent *e;
-        while ((e = readdir(d))) {
-            size_t l = strlen(e->d_name);
-            if (l <= 6 || strcmp(e->d_name + l - 6, ".jsonl") != 0) continue;
+        struct dirent *entry;
+        while ((entry = readdir(d))) {
+            size_t len = strlen(entry->d_name);
+            if (len <= 6 || strcmp(entry->d_name + len - 6, ".jsonl") != 0)
+                continue;
             if (n == cap) {
                 cap = cap ? cap * 2 : 32;
-                char **grown = realloc(names, (size_t)cap * sizeof *names);
+                char **grown = realloc(names, cap * sizeof *names);
                 if (!grown) break;
                 names = grown;
             }
-            names[n++] = strdup(e->d_name);
+            names[n++] = strdup(entry->d_name);
         }
         closedir(d);
     }
-    if (n == 0) {
-        printf("📭 no sessions\n");
-    } else {
-        qsort(names, (size_t)n, sizeof *names, newest_first);
-        for (int i = 0; i < n; i++) {
-            char path[4096];
-            snprintf(path, sizeof path, "%s/%s", dir, names[i]);
-            list_one(path);
-            free(names[i]);
-        }
+    qsort(names, n, sizeof *names, newest_first);
+    orc_session_info *rows = calloc(n, sizeof *rows);
+    size_t used = 0;
+    for (size_t i = 0; i < n; i++) {
+        char path[4096];
+        snprintf(path, sizeof path, "%s/%s", dir, names[i]);
+        if (rows && list_one(path, &rows[used]) == 0) used++;
+        free(names[i]);
     }
     free(names);
     free(dir);
+    if (n && !rows) {
+        snprintf(last_error, sizeof last_error, "out of memory");
+        return -1;
+    }
+    *items = rows;
+    *count = used;
     return 0;
 }

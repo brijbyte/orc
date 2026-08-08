@@ -1,115 +1,48 @@
 #include "agent.h"
-#include "ansi.h"
-#include "commands.h"
-#include "input.h"
-#include "provider.h"
-#include "render.h"
-#include "tools.h"
-#include "util.h"
 
-#include <stdio.h>
+#include "tools.h"
+
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <unistd.h>
 
 typedef struct {
     agent *ag;
-    md_render md;
-    cJSON *pending;   /* items received this request */
-    strbuf think;     /* partial thinking line (emitted per whole line) */
-    int thinking_open;
-    int tty;
-    struct timespec req_start; /* for the "thought for Ns" line */
-} turn_ui;
+    cJSON *pending;
+} turn_state;
 
-/* Emit one whole dim thinking line, keeping the input line below it. */
-static void put_think_line(turn_ui *ui, const char *s, size_t n) {
-    input_erase();
-    if (ui->tty) fputs(ANSI_DIM, stdout);
-    fwrite(s, 1, n, stdout);
-    if (ui->tty) fputs(ANSI_RESET, stdout);
-    fputc('\n', stdout);
-    fflush(stdout);
-    input_redraw();
+static void on_text_delta(const char *text, void *ud) {
+    turn_state *state = ud;
+    state->ag->io->text_delta(state->ag->io_ctx, text);
 }
 
-/* Flush any partial thinking line (turn end or thinking -> text switch). */
-static void think_flush(turn_ui *ui) {
-    if (ui->think.len)
-        put_think_line(ui, ui->think.data, ui->think.len);
-    ui->think.len = 0;
+static void on_thinking_delta(const char *text, void *ud) {
+    turn_state *state = ud;
+    state->ag->io->thinking_delta(state->ag->io_ctx, text);
 }
 
-/* Close an open thinking block: flush it and print the dim duration line. */
-static void think_done(turn_ui *ui) {
-    if (!ui->thinking_open) return;
-    ui->thinking_open = 0;
-    think_flush(ui);
-    struct timespec now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
-    long secs = now.tv_sec - ui->req_start.tv_sec;
-    if (secs < 1) secs = 1;
-    input_erase();
-    printf(ui->tty ? DIM("✻ thought for %lds") "\n" : "\n✻ thought for %lds\n",
-           secs);
-    fflush(stdout);
-    input_redraw();
+static void on_item_done(cJSON *item, void *ud) {
+    turn_state *state = ud;
+    cJSON_AddItemToArray(state->pending, item);
 }
 
-static void ui_text_delta(const char *s, void *ud) {
-    turn_ui *ui = ud;
-    if (ui->thinking_open) {
-        think_done(ui);
-        input_erase();
-        fputs("\n", stdout);
-        input_redraw();
-    }
-    input_erase();
-    md_delta(&ui->md, s);
-    input_redraw();
-}
-
-static void ui_thinking_delta(const char *s, void *ud) {
-    turn_ui *ui = ud;
-    ui->thinking_open = 1;
-    if (!ui->tty) { /* no line editor to protect; stream as-is */
-        fputs(s, stdout);
-        fflush(stdout);
-        return;
-    }
-    sb_append(&ui->think, s, strlen(s));
-    char *nl;
-    while (ui->think.len &&
-           (nl = memchr(ui->think.data, '\n', ui->think.len))) {
-        size_t n = (size_t)(nl - ui->think.data);
-        put_think_line(ui, ui->think.data, n);
-        memmove(ui->think.data, nl + 1, ui->think.len - n - 1);
-        ui->think.len -= n + 1;
-    }
-}
-
-static void ui_item_done(cJSON *item, void *ud) {
-    turn_ui *ui = ud;
-    cJSON_AddItemToArray(ui->pending, item);
-}
-
-static void ui_usage(long long ctx_tokens, void *ud) {
-    turn_ui *ui = ud;
-    commands_ctx_used(ctx_tokens);
-    session_set_ctx(ui->ag->sess, ctx_tokens); /* survives a resume */
+static void on_usage(long long ctx_tokens, void *ud) {
+    turn_state *state = ud;
+    session_set_ctx(state->ag->sess, ctx_tokens);
+    state->ag->io->usage(state->ag->io_ctx, ctx_tokens);
 }
 
 int agent_init(agent *ag, orc_cfg *cfg, const provider *prov,
-               orc_session *sess, cJSON *resumed_history) {
+               orc_session *sess, cJSON *resumed_history,
+               const agent_io *io, void *io_ctx) {
     memset(ag, 0, sizeof *ag);
     ag->cfg = cfg;
     ag->prov = prov;
     ag->sess = sess;
+    ag->io = io;
+    ag->io_ctx = io_ctx;
     ag->history = resumed_history ? resumed_history : cJSON_CreateArray();
     ag->tools = cJSON_Parse(tools_schema_json());
     if (!ag->history || !ag->tools) {
-        fprintf(stderr, "❌ orc: cannot initialize agent\n");
         agent_free(ag);
         return -1;
     }
@@ -145,40 +78,16 @@ static const char *item_str(cJSON *item, const char *key) {
     return cJSON_IsString(v) ? v->valuestring : NULL;
 }
 
-/* Show a tool call: name + first line of the key argument. */
-static void print_call(cJSON *call, int tty) {
-    const char *name = item_str(call, "name");
-    const char *arguments = item_str(call, "arguments");
-    if (!name) return;
-    cJSON *args = arguments ? cJSON_Parse(arguments) : NULL;
-    const char *desc = "";
-    if (args) {
-        cJSON *a = cJSON_GetObjectItem(args, "cmd");
-        if (!a) a = cJSON_GetObjectItem(args, "path");
-        if (cJSON_IsString(a)) desc = a->valuestring;
-    }
-    if (tty)
-        printf(DIM("🔧 %s %.100s") "\n", name, desc);
-    else
-        printf("🔧 %s %.100s\n", name, desc);
-    if (args) cJSON_Delete(args);
-}
-
-static void run_call(agent *ag, cJSON *call, int tty) {
+static void run_call(agent *ag, cJSON *call) {
     const char *name = item_str(call, "name");
     const char *arguments = item_str(call, "arguments");
     const char *call_id = item_str(call, "call_id");
     if (!name || !call_id) return;
 
     cJSON *args = arguments ? cJSON_Parse(arguments) : NULL;
-
-    input_erase();
-    print_call(call, tty);
-    fflush(stdout);
-    input_redraw();
-
+    ag->io->tool_call(ag->io_ctx, call);
     char *output = tool_run(name, args);
-    if (args) cJSON_Delete(args);
+    cJSON_Delete(args);
 
     cJSON *out = cJSON_CreateObject();
     cJSON_AddStringToObject(out, "type", "function_call_output");
@@ -186,18 +95,6 @@ static void run_call(agent *ag, cJSON *call, int tty) {
     cJSON_AddStringToObject(out, "output", output);
     free(output);
     commit(ag, out);
-}
-
-/* Concatenated text parts of a message item; malloc'd, NULL if none. */
-static char *message_text(cJSON *item) {
-    strbuf sb;
-    sb_init(&sb);
-    cJSON *part;
-    cJSON_ArrayForEach(part, cJSON_GetObjectItem(item, "content")) {
-        cJSON *t = cJSON_GetObjectItem(part, "text");
-        if (cJSON_IsString(t)) sb_append_str(&sb, t->valuestring);
-    }
-    return sb.data;
 }
 
 /* Slash command or exit word: runs after the turn, never sent as steering.
@@ -211,122 +108,58 @@ static int is_control_line(const char *s) {
 
 /* Inject lines queued during the turn as user messages, so the model sees
  * them at the next request (pi-style steering between tool rounds). */
-static void steer(agent *ag, int tty) {
-    input_drain();
+static void steer(agent *ag) {
+    ag->io->queue_drain(ag->io_ctx);
     const char *peek;
-    while ((peek = input_peek()) && !is_control_line(peek)) {
-        char *line = input_take(NULL);
-        input_erase();
-        printf(tty ? BOLD_CYAN(">") " " ANSI_CYAN "%s" ANSI_RESET "\n"
-                   : "> %s\n",
-               line);
-        fflush(stdout);
-        input_redraw();
+    while ((peek = ag->io->queue_peek(ag->io_ctx)) && !is_control_line(peek)) {
+        char *line = ag->io->queue_take(ag->io_ctx);
+        ag->io->user_line(ag->io_ctx, line);
         commit(ag, user_message(line));
         free(line);
     }
 }
 
-#define REPLAY_MAX 30
 void agent_replay(agent *ag) {
-    int n = cJSON_GetArraySize(ag->history);
-    if (n == 0) return;
-
-    /* Start at the second-to-last user message: the last full exchange. */
-    int start = 0, users = 0;
-    for (int i = n - 1; i >= 0 && users < 2; i--) {
-        cJSON *it = cJSON_GetArrayItem(ag->history, i);
-        const char *type = item_str(it, "type");
-        const char *role = item_str(it, "role");
-        if (type && strcmp(type, "message") == 0 &&
-            role && strcmp(role, "user") == 0) {
-            start = i;
-            users++;
-        }
-    }
-    if (n - start > REPLAY_MAX) start = n - REPLAY_MAX;
-
-    int tty = isatty(1);
-    if (start > 0)
-        printf(tty ? DIM("📚 %d earlier items") "\n" : "📚 %d earlier items\n",
-               start);
-    for (int i = start; i < n; i++) {
-        cJSON *it = cJSON_GetArrayItem(ag->history, i);
-        const char *type = item_str(it, "type");
-        if (!type) continue;
-        if (strcmp(type, "function_call") == 0) {
-            print_call(it, tty);
-        } else if (strcmp(type, "message") == 0) {
-            char *text = message_text(it);
-            if (!text) continue;
-            const char *role = item_str(it, "role");
-            if (role && strcmp(role, "user") == 0) {
-                printf(tty ? BOLD_CYAN(">") " " ANSI_CYAN "%s" ANSI_RESET "\n"
-                           : "> %s\n",
-                       text);
-            } else {
-                md_render md;
-                md_init(&md);
-                md_set_lead(&md, BOLD("●") " ");
-                md_delta(&md, text);
-                md_flush(&md);
-                md_free(&md);
-                fputs("\n", stdout);
-            }
-            free(text);
-        } /* reasoning and function_call_output items stay silent, as live */
-    }
-    fflush(stdout);
+    ag->io->replay(ag->io_ctx, ag->history);
 }
 
 int agent_turn(agent *ag, const char *user_text) {
     commit(ag, user_message(user_text));
 
     for (;;) {
-        turn_ui ui;
-        ui.ag = ag;
-        md_init(&ui.md);
-        md_set_lead(&ui.md, BOLD("●") " ");
-        ui.pending = cJSON_CreateArray();
-        sb_init(&ui.think);
-        ui.thinking_open = 0;
-        ui.tty = isatty(1);
-        clock_gettime(CLOCK_MONOTONIC, &ui.req_start);
-
-        provider_cb cb = {
-            .on_text_delta = ui_text_delta,
-            .on_thinking_delta = ui_thinking_delta,
-            .on_item_done = ui_item_done,
-            .on_usage = ui_usage,
+        turn_state state = {
+            .ag = ag,
+            .pending = cJSON_CreateArray(),
         };
-        int rc = ag->prov->turn(ag->history, ag->tools, ag->cfg, &cb, &ui);
-
-        think_done(&ui); /* request ended while still thinking (tool call next) */
-        think_flush(&ui);
-        sb_free(&ui.think);
-        input_erase();
-        md_flush(&ui.md);
-        md_free(&ui.md);
-        fputs("\n", stdout);
-        fflush(stdout);
-        input_redraw();
+        if (!state.pending || ag->io->turn_begin(ag->io_ctx) != 0) {
+            cJSON_Delete(state.pending);
+            return -1;
+        }
+        provider_cb cb = {
+            .on_text_delta = on_text_delta,
+            .on_thinking_delta = on_thinking_delta,
+            .on_item_done = on_item_done,
+            .on_usage = on_usage,
+        };
+        int rc = ag->prov->turn(ag->history, ag->tools, ag->cfg, &cb, &state);
+        ag->io->turn_end(ag->io_ctx);
 
         if (rc != PROVIDER_OK) {
-            cJSON_Delete(ui.pending);  /* discard uncommitted turn */
+            cJSON_Delete(state.pending);
             return rc == PROVIDER_INTERRUPTED ? 1 : -1;
         }
 
         /* Commit items in order; collect indices of function calls. */
         int ncalls = 0;
         cJSON *calls[64];
-        while (cJSON_GetArraySize(ui.pending) > 0) {
-            cJSON *item = cJSON_DetachItemFromArray(ui.pending, 0);
+        while (cJSON_GetArraySize(state.pending) > 0) {
+            cJSON *item = cJSON_DetachItemFromArray(state.pending, 0);
             commit(ag, item);
             const char *type = item_str(item, "type");
             if (type && strcmp(type, "function_call") == 0 && ncalls < 64)
                 calls[ncalls++] = item;
         }
-        cJSON_Delete(ui.pending);
+        cJSON_Delete(state.pending);
 
         if (ncalls == 0) return 0;
 
@@ -342,10 +175,10 @@ int agent_turn(agent *ag, const char *user_text) {
                 cJSON_AddStringToObject(out, "output", "[interrupted by user]");
                 commit(ag, out);
             } else {
-                run_call(ag, calls[i], isatty(1));
+                run_call(ag, calls[i]);
             }
         }
         if (interrupted) return 1;
-        steer(ag, isatty(1));
+        steer(ag);
     }
 }

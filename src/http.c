@@ -1,5 +1,5 @@
 #include "http.h"
-#include "input.h"
+#include "event.h"
 #include "orc.h"
 
 #include <curl/curl.h>
@@ -187,10 +187,11 @@ long http_post_sse(const char *url, const char **headers, const char *body,
         while (running) {
             if (curl_multi_perform(m, &running) != CURLM_OK) break;
             if (!running) break;
-            struct curl_waitfd wfd = {.fd = input_fd(), .events = CURL_WAIT_POLLIN};
+            struct curl_waitfd wfd = {
+                .fd = event_source_fd(), .events = CURL_WAIT_POLLIN};
             curl_multi_poll(m, wfd.fd >= 0 ? &wfd : NULL, wfd.fd >= 0 ? 1 : 0,
                             200, NULL);
-            input_drain();
+            event_source_drain();
         }
         CURLMsg *msg;
         int nq;

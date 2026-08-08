@@ -5,9 +5,11 @@
 #include "orc.h"
 #include "provider.h"
 #include "session.h"
+#include "ui.h"
 #include "util.h"
 
 #include <curl/curl.h>
+#include <getopt.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -85,38 +87,74 @@ int main(int argc, char **argv) {
     cfg.effort = ORC_DEFAULT_EFFORT;
     uuid4(cfg.session_id);
 
+    enum { OPT_PROVIDER = 256, OPT_RESUME, OPT_LIST, OPT_LOGIN, OPT_AUTH, OPT_VERSION };
+    static const struct option options[] = {
+        {"provider", required_argument, NULL, OPT_PROVIDER},
+        {"resume", optional_argument, NULL, OPT_RESUME},
+        {"list", no_argument, NULL, OPT_LIST},
+        {"login", no_argument, NULL, OPT_LOGIN},
+        {"auth", no_argument, NULL, OPT_AUTH},
+        {"version", no_argument, NULL, OPT_VERSION},
+        {"help", no_argument, NULL, 'h'},
+        {NULL, 0, NULL, 0},
+    };
+
     int effort_explicit = 0;
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) prompt = argv[++i];
-        else if (strcmp(argv[i], "-m") == 0 && i + 1 < argc) cfg.model = argv[++i];
-        else if (strcmp(argv[i], "-e") == 0 && i + 1 < argc) {
-            cfg.effort = argv[++i];
+    opterr = 0;
+    for (;;) {
+        int opt = getopt_long(argc, argv, ":p:m:e:h", options, NULL);
+        if (opt == -1) break;
+        switch (opt) {
+        case 'p': prompt = optarg; break;
+        case 'm': cfg.model = optarg; break;
+        case 'e':
+            cfg.effort = optarg;
             effort_explicit = 1;
-        }
-        else if (strcmp(argv[i], "--provider") == 0 && i + 1 < argc) cfg.provider = argv[++i];
-        else if (strcmp(argv[i], "--resume") == 0) {
+            break;
+        case OPT_PROVIDER: cfg.provider = optarg; break;
+        case OPT_RESUME:
             do_resume = 1;
-            if (i + 1 < argc && argv[i + 1][0] != '-') resume_ref = argv[++i];
-        }
-        else if (strcmp(argv[i], "--list") == 0) do_list = 1;
-        else if (strcmp(argv[i], "--auth") == 0) do_auth = 1;
-        else if (strcmp(argv[i], "--login") == 0) do_login = 1;
-        else if (strcmp(argv[i], "--version") == 0) {
+            resume_ref = optarg;
+            if (!resume_ref && optind < argc && argv[optind][0] != '-')
+                resume_ref = argv[optind++];
+            break;
+        case OPT_LIST: do_list = 1; break;
+        case OPT_LOGIN: do_login = 1; break;
+        case OPT_AUTH: do_auth = 1; break;
+        case OPT_VERSION:
             puts("orc " ORC_VERSION);
             return 0;
-        }
-        else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+        case 'h':
             usage();
             return 0;
-        }
-        else {
-            fprintf(stderr, "❌ orc: unknown option %s\n", argv[i]);
+        case ':':
+            fprintf(stderr, "❌ orc: option requires an argument: %s\n",
+                    argv[optind - 1]);
+            usage();
+            return 2;
+        default:
+            fprintf(stderr, "❌ orc: unknown option %s\n", argv[optind - 1]);
             usage();
             return 2;
         }
     }
+    if (optind < argc) {
+        fprintf(stderr, "❌ orc: unexpected argument %s\n", argv[optind]);
+        usage();
+        return 2;
+    }
 
-    if (do_list) return session_list();
+    if (do_list) {
+        orc_session_info *sessions;
+        size_t count;
+        if (session_list(&sessions, &count) != 0) {
+            fprintf(stderr, "❌ orc: %s\n", session_error());
+            return 1;
+        }
+        ui_session_list(sessions, count);
+        free(sessions);
+        return 0;
+    }
 
     int model_explicit = cfg.model != NULL; /* -m flag or ORC_MODEL env */
     const provider *prov = provider_get(cfg.provider);
@@ -138,6 +176,7 @@ int main(int argc, char **argv) {
     orc_session sess = {0};
     agent ag = {0};
     cJSON *resumed = NULL;
+    ui *terminal_ui = NULL;
 
     if (do_login) {
         if (!prov->login) {
@@ -163,10 +202,23 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
+    terminal_ui = ui_create();
+    if (!terminal_ui) {
+        fprintf(stderr, "❌ orc: out of memory\n");
+        goto cleanup;
+    }
+
     if (do_resume) {
         resumed = cJSON_CreateArray();
-        if (!resumed || session_resume(&sess, resume_ref, resumed, &cfg) != 0)
+        if (!resumed) {
+            fprintf(stderr, "❌ orc: out of memory\n");
             goto cleanup;
+        }
+        if (session_resume(&sess, resume_ref, resumed, &cfg) != 0) {
+            fprintf(stderr, "❌ orc: %s\n", session_error());
+            goto cleanup;
+        }
+        ui_session_resumed(cfg.session_id, sess.items, sess.path);
         /* Restore the session's model/effort; explicit flags win. */
         if (!model_explicit && sess.model[0]) cfg.model = sess.model;
         if (!effort_explicit && sess.effort[0]) cfg.effort = sess.effort;
@@ -175,9 +227,13 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
-    int init_rc = agent_init(&ag, &cfg, prov, &sess, resumed);
+    int init_rc = agent_init(&ag, &cfg, prov, &sess, resumed,
+                             ui_agent_io(), terminal_ui);
     resumed = NULL; /* agent_init consumes it on both success and failure */
-    if (init_rc != 0) goto cleanup;
+    if (init_rc != 0) {
+        fprintf(stderr, "❌ orc: cannot initialize agent\n");
+        goto cleanup;
+    }
     ready = 1;
     rc = 0;
     if (prompt) {
@@ -269,6 +325,7 @@ int main(int argc, char **argv) {
 cleanup:
     cJSON_Delete(resumed);
     agent_free(&ag);
+    ui_free(terminal_ui);
     session_close(&sess);
     if (ready && sess.items > 0) {
         fflush(stdout);
