@@ -118,6 +118,7 @@ int session_resume(orc_session *s, const char *ref, cJSON *history, orc_cfg *cfg
     free(resolved);
     s->f = fopen(s->path, "a");
     if (!s->f) return -1;
+    s->items = items;
     fprintf(stderr, "orc: resumed %.8s (%d items) %s\n",
             cfg->session_id, items, s->path);
     return 0;
@@ -130,6 +131,7 @@ void session_append(orc_session *s, cJSON *item) {
         fprintf(s->f, "%s\n", line);
         fflush(s->f);
         free(line);
+        s->items++;
     }
 }
 

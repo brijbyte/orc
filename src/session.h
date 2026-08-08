@@ -8,6 +8,7 @@
 typedef struct {
     FILE *f;
     char path[4096];
+    int items; /* conversation items in the file (excludes _meta) */
 } orc_session;
 
 /* Start a new session file under <orc home>/sessions/. Returns 0 on success. */

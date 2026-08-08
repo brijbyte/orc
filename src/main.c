@@ -187,9 +187,11 @@ cleanup:
     cJSON_Delete(resumed);
     agent_free(&ag);
     session_close(&sess);
-    if (ready) {
+    if (ready && sess.items > 0) {
         fflush(stdout);
         fprintf(stderr, "orc: resume with `orc --resume %.8s`\n", cfg.session_id);
+    } else if (ready && !do_resume && sess.path[0]) {
+        unlink(sess.path); /* nothing was said; drop the empty session file */
     }
     free(cfg.instructions);
     curl_global_cleanup();
