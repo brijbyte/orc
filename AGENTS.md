@@ -23,8 +23,10 @@ Minimal C coding-agent harness. Keep the code and model-facing text terse.
 
 - Send `store:false` and the full history. Replay reasoning
   `encrypted_content` without changes.
-- Before token refresh, re-read `~/.codex/auth.json`; write rotated tokens
-  atomically.
+- orc's `auth.json` (src/auth.c) holds one section per provider
+  (`{"codex": {...}}`); the codex section keeps the Codex CLI schema. Load
+  order: orc's store, then flat `~/.codex/auth.json` as fallback. Before token
+  refresh, re-read the active auth file; write rotated tokens atomically.
 - Add a `function_call_output` for every committed `function_call`, including
   interrupted calls, before the next request.
 
