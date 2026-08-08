@@ -1,5 +1,6 @@
 #include "agent.h"
 #include "ansi.h"
+#include "commands.h"
 #include "input.h"
 #include "provider.h"
 #include "render.h"
@@ -9,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 typedef struct {
@@ -17,6 +19,7 @@ typedef struct {
     strbuf think;     /* partial thinking line (emitted per whole line) */
     int thinking_open;
     int tty;
+    struct timespec req_start; /* for the "thought for Ns" line */
 } turn_ui;
 
 /* Emit one whole dim thinking line, keeping the input line below it. */
@@ -37,14 +40,29 @@ static void think_flush(turn_ui *ui) {
     ui->think.len = 0;
 }
 
+/* Close an open thinking block: flush it and print the dim duration line. */
+static void think_done(turn_ui *ui) {
+    if (!ui->thinking_open) return;
+    ui->thinking_open = 0;
+    think_flush(ui);
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    long secs = now.tv_sec - ui->req_start.tv_sec;
+    if (secs < 1) secs = 1;
+    input_erase();
+    printf(ui->tty ? DIM("✻ thought for %lds") "\n" : "\n✻ thought for %lds\n",
+           secs);
+    fflush(stdout);
+    input_redraw();
+}
+
 static void ui_text_delta(const char *s, void *ud) {
     turn_ui *ui = ud;
     if (ui->thinking_open) {
-        think_flush(ui);
+        think_done(ui);
         input_erase();
         fputs("\n", stdout);
         input_redraw();
-        ui->thinking_open = 0;
     }
     input_erase();
     md_delta(&ui->md, s);
@@ -73,6 +91,11 @@ static void ui_thinking_delta(const char *s, void *ud) {
 static void ui_item_done(cJSON *item, void *ud) {
     turn_ui *ui = ud;
     cJSON_AddItemToArray(ui->pending, item);
+}
+
+static void ui_usage(long long ctx_tokens, void *ud) {
+    (void)ud;
+    commands_ctx_used(ctx_tokens);
 }
 
 int agent_init(agent *ag, orc_cfg *cfg, const provider *prov,
@@ -234,14 +257,17 @@ int agent_turn(agent *ag, const char *user_text) {
         sb_init(&ui.think);
         ui.thinking_open = 0;
         ui.tty = isatty(1);
+        clock_gettime(CLOCK_MONOTONIC, &ui.req_start);
 
         provider_cb cb = {
             .on_text_delta = ui_text_delta,
             .on_thinking_delta = ui_thinking_delta,
             .on_item_done = ui_item_done,
+            .on_usage = ui_usage,
         };
         int rc = ag->prov->turn(ag->history, ag->tools, ag->cfg, &cb, &ui);
 
+        think_done(&ui); /* request ended while still thinking (tool call next) */
         think_flush(&ui);
         sb_free(&ui.think);
         input_erase();

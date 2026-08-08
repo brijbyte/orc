@@ -59,9 +59,11 @@ typedef struct {
 static menu_item menu_items[MENU_MAX];
 static int menu_n;         /* candidates in menu_items */
 static int menu_sel;       /* selected row (moved with Up/Down) */
-static int menu_rows;      /* candidate rows currently on screen */
+static int below_rows;     /* rows on screen under the input (menu + status) */
 static char menu_key[64];  /* buffer the menu was drawn for; "" = none */
 static int hist_nav;       /* last buffer change came from history recall */
+static char status_buf[256]; /* dim status line drawn under the input */
+static int last_rows;      /* input rows at the last below_draw */
 
 /* Partial model slug when buf is "/model <partial>" (no trailing space), else
  * NULL. */
@@ -142,12 +144,18 @@ static int menu_collect(const char *buf) {
     return n;
 }
 
-/* Render menu_items (selected row in reverse video) under the input line;
- * SGR 22 ends bold/dim without dropping the reverse. */
-static void menu_draw(void) {
-    int old = menu_rows;
+/* Redraw the area under the input line: menu candidates (selected row in
+ * reverse video; SGR 22 ends bold/dim without dropping the reverse), then
+ * the dim status line. Steps down to the input's last row first (the cursor
+ * may sit on an earlier wrapped row), and ends back at the cursor row. */
+static void below_draw(void) {
+    if (!menu_n && !status_buf[0] && !below_rows) return;
+    int down = (int)ls.oldrows - ls.oldrpos;
+    if (down < 0) down = 0;
+    if (down > 0) printf("\x1b[%dB", down);
+    int n = 0;
     int avail = (int)ls.cols - 28; /* room left for the dim description */
-    for (int i = 0; i < menu_n; i++) {
+    for (int i = 0; i < menu_n; i++, n++) {
         menu_item *it = &menu_items[i];
         fputs("\n\r\x1b[2K", stdout);
         if (i == menu_sel) fputs(ANSI_REVERSE, stdout);
@@ -162,11 +170,16 @@ static void menu_draw(void) {
             printf(ANSI_DIM "%.*s" ANSI_UNBOLD, avail, it->desc);
         fputs(ANSI_RESET, stdout);
     }
-    for (int i = menu_n; i < old; i++) fputs("\n\r\x1b[2K", stdout);
-    int total = menu_n > old ? menu_n : old;
-    menu_rows = menu_n;
-    if (!total) return;
-    printf("\x1b[%dA", total);
+    if (status_buf[0]) {
+        printf("\n\r\x1b[2K" ANSI_DIM "%.*s" ANSI_RESET,
+               (int)ls.cols > 1 ? (int)ls.cols - 1 : 0, status_buf);
+        n++;
+    }
+    if (n == 0) fputs("\n\r", stdout); /* step below to reach the leftovers */
+    fputs("\x1b[J", stdout);           /* clear leftover rows */
+    printf("\x1b[%dA", (n ? n : 1) + down);
+    below_rows = n;
+    last_rows = (int)ls.oldrows;
     fflush(stdout); /* raw writes from linenoiseShow must land after this */
     linenoiseShow(&ls);
 }
@@ -180,11 +193,15 @@ static void menu_update(void) {
     const char *key =
         ((ls.buf[0] == '/' && !strpbrk(ls.buf, " \t")) || model_arg(ls.buf))
             ? ls.buf : "";
-    if (strcmp(key, menu_key) == 0) return;
+    if (strcmp(key, menu_key) == 0) {
+        /* input wrapped or unwrapped: rows below moved, repaint them */
+        if ((int)ls.oldrows != last_rows) below_draw();
+        return;
+    }
     snprintf(menu_key, sizeof menu_key, "%s", key);
     menu_n = from_hist ? 0 : (*key ? menu_collect(ls.buf) : 0);
     menu_sel = 0;
-    if (menu_n || menu_rows) menu_draw();
+    below_draw();
 }
 
 /* Up/Down while the menu is active move the selection, not history. */
@@ -195,7 +212,7 @@ static int history_hook(struct linenoiseState *l, int dir) {
         return 0;
     }
     menu_sel = (menu_sel + dir + menu_n) % menu_n;
-    if (!hidden) menu_draw();
+    if (!hidden) below_draw();
     return 1;
 }
 
@@ -206,12 +223,7 @@ static void esc_hook(struct linenoiseState *l) {
     (void)l;
     if (menu_n) {
         menu_n = menu_sel = 0;
-        if (!hidden && menu_rows) {
-            fputs("\x1b[J", stdout); /* clips the input line at the cursor too */
-            fflush(stdout);
-            menu_rows = 0;
-            linenoiseShow(&ls); /* repaint the clipped line */
-        }
+        if (!hidden) below_draw(); /* clears the rows, keeps the status */
         return;
     }
     if (!idle_flag) g_interrupt = 1;
@@ -220,11 +232,11 @@ static void esc_hook(struct linenoiseState *l) {
 /* Erase leftover menu rows once the cursor sits below the input line
  * (after linenoiseEditStop) or on it (after linenoiseHide). */
 static void menu_discard(void) {
-    if (menu_rows) {
+    if (below_rows) {
         fputs("\x1b[J", stdout);
         fflush(stdout);
     }
-    menu_rows = menu_n = menu_sel = 0;
+    below_rows = menu_n = menu_sel = 0;
     menu_key[0] = '\0';
 }
 
@@ -239,6 +251,7 @@ static void edit_start(void) {
     }
     editing = 1;
     hidden = 0;
+    below_draw(); /* repaint the status line under the fresh prompt */
 }
 
 static void shutdown_input(void) {
@@ -306,10 +319,10 @@ void input_set_idle(int idle) {
 void input_erase(void) {
     if (active && editing && !hidden) {
         linenoiseHide(&ls);
-        if (menu_rows) { /* hide the rows; keep candidates + selection */
+        if (below_rows) { /* hide the rows; keep candidates + selection */
             fputs("\x1b[J", stdout);
             fflush(stdout);
-            menu_rows = 0;
+            below_rows = 0;
         }
         hidden = 1;
     }
@@ -319,8 +332,13 @@ void input_redraw(void) {
     if (active && editing && hidden) {
         linenoiseShow(&ls);
         hidden = 0;
-        if (menu_n) menu_draw(); /* restore the menu the erase hid */
+        below_draw(); /* restore the menu and status the erase hid */
     }
+}
+
+void input_status_set(const char *s) {
+    snprintf(status_buf, sizeof status_buf, "%s", s ? s : "");
+    if (active && editing && !hidden) below_draw();
 }
 
 static void push_line(char *line) {

@@ -9,6 +9,8 @@ typedef struct {
     void (*on_thinking_delta)(const char *s, void *ud);
     /* Complete output item (message / function_call / reasoning). Ownership passes. */
     void (*on_item_done)(cJSON *item, void *ud);
+    /* Optional: tokens now occupying the context (usage total after a request). */
+    void (*on_usage)(long long ctx_tokens, void *ud);
 } provider_cb;
 
 #define PROVIDER_OK 0

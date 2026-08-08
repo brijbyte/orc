@@ -539,6 +539,12 @@ static void on_sse_data(const char *data, void *ud) {
     } else if (strcmp(type, "response.output_item.done") == 0) {
         cJSON *item = cJSON_DetachItemFromObject(ev, "item");
         if (item) cJSON_AddItemToArray(st->items, item);
+    } else if (strcmp(type, "response.completed") == 0) {
+        cJSON *resp = cJSON_GetObjectItem(ev, "response");
+        cJSON *u = resp ? cJSON_GetObjectItem(resp, "usage") : NULL;
+        cJSON *tot = u ? cJSON_GetObjectItem(u, "total_tokens") : NULL;
+        if (cJSON_IsNumber(tot) && st->cb->on_usage)
+            st->cb->on_usage((long long)tot->valuedouble, st->ud);
     } else if (strcmp(type, "response.failed") == 0 ||
                strcmp(type, "response.incomplete") == 0) {
         st->failed = 1;
@@ -675,6 +681,9 @@ static cJSON *codex_models(void) {
         cJSON_AddStringToObject(e, "slug", slug->valuestring);
         cJSON_AddStringToObject(e, "description",
                                 cJSON_IsString(desc) ? desc->valuestring : "");
+        cJSON *win = cJSON_GetObjectItem(m, "context_window");
+        if (cJSON_IsNumber(win))
+            cJSON_AddNumberToObject(e, "context_window", win->valuedouble);
         cJSON_AddItemToArray(out, e);
     }
     cJSON_Delete(root);

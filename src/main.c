@@ -187,6 +187,7 @@ int main(int argc, char **argv) {
                    ORC_VERSION, cfg.model, cfg.effort,
                    do_resume ? "resumed " : "", cfg.session_id);
         if (do_resume) agent_replay(&ag);
+        commands_status_update();
         input_init();
         if (input_active()) {
             /* Event-loop REPL: lines typed while a turn runs are queued. */

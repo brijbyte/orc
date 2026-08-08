@@ -17,5 +17,7 @@ int input_eof(void);            /* Ctrl-D on an empty line */
 void input_set_idle(int idle);  /* 0 while an agent turn runs */
 void input_erase(void);         /* call before writing agent output */
 void input_redraw(void);        /* call after writing agent output */
+void input_status_set(const char *s); /* dim status line under the input;
+                                       * "" or NULL hides it */
 
 #endif

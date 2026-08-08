@@ -25,4 +25,10 @@ cJSON *commands_models(void);
  * 1: handled here, 2: quit. */
 int command_dispatch(agent *ag, const char *line);
 
+/* Recompose the status line under the input (model, effort, dir, context). */
+void commands_status_update(void);
+
+/* Record tokens now in the context (from provider usage) and refresh. */
+void commands_ctx_used(long long tokens);
+
 #endif
