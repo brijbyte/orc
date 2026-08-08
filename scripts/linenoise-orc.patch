@@ -1,6 +1,14 @@
 --- vendor/linenoise.h
 +++ vendor/linenoise.h
-@@ -100,6 +100,16 @@
+@@ -69,6 +69,7 @@
+     size_t cols;        /* Number of columns in terminal. */
+     size_t oldrows;     /* Rows used by last refrehsed line (multiline mode) */
+     int oldrpos;        /* Cursor row from last refresh (for multiline clearing). */
++    int hidden;         /* Line currently hidden (linenoiseHide called). */
+     int history_index;  /* The history index we are currently editing. */
+     int fold_count;    /* Number of folded ranges. */
+     size_t fold_start[LINENOISE_MAX_FOLDS]; /* Folded range start offsets. */
+@@ -100,6 +101,16 @@
  void linenoiseSetFreeHintsCallback(linenoiseFreeHintsCallback *);
  void linenoiseAddCompletion(linenoiseCompletions *, const char *);
  
@@ -55,7 +63,50 @@
          n = snprintf(f->display,sizeof(f->display),"[... %zu pasted lines ...]",lines);
      else
          n = snprintf(f->display,sizeof(f->display),"[... %zu pasted chars ...]",hidden);
-@@ -1573,6 +1586,8 @@
+@@ -1357,6 +1370,17 @@
+     }
+ 
+     if (flags & REFRESH_WRITE) {
++        /* Without a preceding clean the cursor is not at the region start:
++         * shown -> in-place redraw from the cursor row (go back up); hidden ->
++         * a fresh row, just ensure column 0. */
++        if (!(flags & REFRESH_CLEAN)) {
++            if (!l->hidden && rpos > 1) {
++                snprintf(seq,64,"\x1b[%dA", rpos-1);
++                abAppend(&ab,seq,strlen(seq));
++            }
++            abAppend(&ab,"\r",1);
++        }
++
+         /* Write the prompt and the current buffer content */
+         abAppend(&ab,l->prompt,l->plen);
+         if (maskmode == 1) {
+@@ -1433,19 +1457,23 @@
+ 
+ /* Hide the current line, when using the multiplexing API. */
+ void linenoiseHide(struct linenoiseState *l) {
++    if (l->hidden) return; /* a second clean would eat unrelated output */
+     if (mlmode)
+         refreshMultiLine(l,REFRESH_CLEAN);
+     else
+         refreshSingleLine(l,REFRESH_CLEAN);
++    l->hidden = 1;
+ }
+ 
+-/* Show the current line, when using the multiplexing API. */
++/* Show the current line, when using the multiplexing API. Also serves as an
++ * in-place redraw when the line is not hidden (spinner frames, menu). */
+ void linenoiseShow(struct linenoiseState *l) {
+     if (l->in_completion) {
+         refreshLineWithCompletion(l,NULL,REFRESH_WRITE);
+     } else {
+         refreshLineWithFlags(l,REFRESH_WRITE);
+     }
++    l->hidden = 0;
+ }
+ 
+ /* Grow the editing buffer if this state owns a growable buffer. Only the
+@@ -1573,6 +1601,8 @@
  #define LINENOISE_HISTORY_NEXT 0
  #define LINENOISE_HISTORY_PREV 1
  void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
@@ -64,7 +115,15 @@
      if (history_len > 1) {
          const char *src;
          size_t len;
-@@ -1852,6 +1867,22 @@
+@@ -1704,6 +1734,7 @@
+     l->cols = getColumns(stdin_fd, stdout_fd);
+     l->oldrows = 0;
+     l->oldrpos = 1;  /* Cursor starts on row 1. */
++    l->hidden = 0;
+     l->history_index = 0;
+ 
+     /* Buffer starts empty. */
+@@ -1852,6 +1883,22 @@
      free(buf);
  }
  
@@ -87,7 +146,7 @@
  char *linenoiseEditMore = "If you see this, you are misusing the API: when linenoiseEditFeed() is called, if it returns linenoiseEditMore the user is yet editing the line. See the README file for more information.";
  
  /* This function is part of the multiplexed API of linenoise, see the top
-@@ -1912,6 +1943,9 @@
+@@ -1912,6 +1959,9 @@
              hintsCallback = hc;
          }
          return strdup(l->buf);
@@ -97,7 +156,7 @@
      case CTRL_C:     /* ctrl-c */
          errno = EAGAIN;
          return NULL;
-@@ -1963,6 +1997,15 @@
+@@ -1963,6 +2013,15 @@
          linenoiseEditHistoryNext(l, LINENOISE_HISTORY_NEXT);
          break;
      case ESC:    /* escape sequence */
@@ -113,7 +172,7 @@
          /* Read the next two bytes representing the escape sequence.
           * Use two calls to handle slow terminals returning the two
           * chars at different times. */
-@@ -1980,7 +2023,7 @@
+@@ -1980,7 +2039,7 @@
                  while (plen < sizeof(param)) {
                      char p;
                      if (read(l->ifd,&p,1) != 1) break;
@@ -122,7 +181,7 @@
                          param[plen++] = p;
                      } else {
                          final = p;
-@@ -1992,7 +2035,13 @@
+@@ -1992,7 +2051,13 @@
                          linenoiseEditDelete(l);
                      } else if (plen == 3 && memcmp(param,"200",3) == 0) {
                          linenoiseEditPaste(l);
