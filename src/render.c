@@ -148,6 +148,18 @@ static void table_enter(rctx *c, const MD_BLOCK_TABLE_DETAIL *d) {
     c->in_table = 1;
 }
 
+static void table_free(rctx *c) {
+    if (c->cells) {
+        for (int i = 0; i < c->tcols * c->trows; i++) sb_free(&c->cells[i]);
+    }
+    free(c->cells);
+    free(c->cellw);
+    free(c->talign);
+    c->cells = NULL;
+    c->cellw = NULL;
+    c->talign = NULL;
+}
+
 static void pad_cell(const strbuf *cell, int w, int colw, char align) {
     int pad = colw - w, left = 0;
     if (align == MD_ALIGN_RIGHT) left = pad;
@@ -189,14 +201,8 @@ static void table_leave(rctx *c) {
         }
     }
     fputs(ANSI_RESET, stdout);
-    for (int i = 0; i < cols * rows; i++) sb_free(&c->cells[i]);
-    free(c->cells);
-    free(c->cellw);
-    free(c->talign);
+    table_free(c);
     free(colw);
-    c->cells = NULL;
-    c->cellw = NULL;
-    c->talign = NULL;
 }
 
 /* ---- md4c callbacks ---- */
@@ -419,6 +425,7 @@ static void render_block(const char *src, size_t n) {
     sb_init(&c.linktext);
     md_parse(src, (MD_SIZE)n, &parser, &c);
     fputs(ANSI_RESET, stdout);
+    table_free(&c); /* also handles a parser abort before MD_BLOCK_TABLE leave */
     sb_free(&c.href);
     sb_free(&c.linktext);
 }

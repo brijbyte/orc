@@ -44,13 +44,15 @@ static void ui_item_done(cJSON *item, void *ud) {
 
 int agent_init(agent *ag, orc_cfg *cfg, const provider *prov,
                orc_session *sess, cJSON *resumed_history) {
+    memset(ag, 0, sizeof *ag);
     ag->cfg = cfg;
     ag->prov = prov;
     ag->sess = sess;
     ag->history = resumed_history ? resumed_history : cJSON_CreateArray();
     ag->tools = cJSON_Parse(tools_schema_json());
-    if (!ag->tools) {
-        fprintf(stderr, "orc: internal: bad tools schema\n");
+    if (!ag->history || !ag->tools) {
+        fprintf(stderr, "orc: internal: cannot initialize agent\n");
+        agent_free(ag);
         return -1;
     }
     return 0;

@@ -96,7 +96,10 @@ static char *tool_bash(cJSON *args) {
     if (pid == 0) {
         setpgid(0, 0);
         int devnull = open("/dev/null", O_RDONLY);
-        if (devnull >= 0) dup2(devnull, 0);
+        if (devnull >= 0) {
+            dup2(devnull, STDIN_FILENO);
+            if (devnull != STDIN_FILENO) close(devnull);
+        }
         dup2(pfd[1], 1);
         dup2(pfd[1], 2);
         close(pfd[0]); close(pfd[1]);

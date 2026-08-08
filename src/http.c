@@ -97,8 +97,15 @@ static CURL *make_handle(const char *url, const char **headers, const char *body
     const char *ca = ca_bundle();
     if (ca) curl_easy_setopt(h, CURLOPT_CAINFO, ca);
     struct curl_slist *list = NULL;
-    for (int i = 0; headers && headers[i]; i++)
-        list = curl_slist_append(list, headers[i]);
+    for (int i = 0; headers && headers[i]; i++) {
+        struct curl_slist *next = curl_slist_append(list, headers[i]);
+        if (!next) {
+            curl_slist_free_all(list);
+            curl_easy_cleanup(h);
+            return NULL;
+        }
+        list = next;
+    }
     curl_easy_setopt(h, CURLOPT_URL, url);
     curl_easy_setopt(h, CURLOPT_HTTPHEADER, list);
     curl_easy_setopt(h, CURLOPT_POSTFIELDS, body);

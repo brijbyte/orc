@@ -24,6 +24,7 @@ static char *build_instructions(void) {
     struct utsname u;
     uname(&u);
     char *out = malloc(4096);
+    if (!out) return NULL;
     snprintf(out, 4096,
         "You are orc, a terse coding agent running in a terminal at %s on %s %s. "
         "Use the tools to complete the user's task. Prefer acting over asking. "
@@ -83,32 +84,46 @@ int main(int argc, char **argv) {
     }
     if (!cfg.model) cfg.model = prov->default_model;
 
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    if (do_auth) return prov->auth_status() == 0 ? 0 : 1;
+    if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
+        fprintf(stderr, "orc: cannot initialize HTTP client\n");
+        return 1;
+    }
+
+    int rc = 1;
+    int ready = 0;
+    orc_session sess = {0};
+    agent ag = {0};
+    cJSON *resumed = NULL;
+
+    if (do_auth) {
+        rc = prov->auth_status() == 0 ? 0 : 1;
+        goto cleanup;
+    }
 
     struct sigaction sa = {0};
     sa.sa_handler = on_sigint;
     sigaction(SIGINT, &sa, NULL);
 
     cfg.instructions = build_instructions();
-
-    orc_session sess = {0};
-    cJSON *resumed = NULL;
-    if (do_resume) {
-        resumed = cJSON_CreateArray();
-        if (session_resume(&sess, resume_ref, resumed, &cfg) != 0) {
-            cJSON_Delete(resumed);
-            return 1;
-        }
-    } else if (session_new(&sess, &cfg) != 0) {
-        fprintf(stderr, "orc: cannot create session file\n");
-        return 1;
+    if (!cfg.instructions) {
+        fprintf(stderr, "orc: out of memory\n");
+        goto cleanup;
     }
 
-    agent ag;
-    if (agent_init(&ag, &cfg, prov, &sess, resumed) != 0) return 1;
+    if (do_resume) {
+        resumed = cJSON_CreateArray();
+        if (!resumed || session_resume(&sess, resume_ref, resumed, &cfg) != 0)
+            goto cleanup;
+    } else if (session_new(&sess, &cfg) != 0) {
+        fprintf(stderr, "orc: cannot create session file\n");
+        goto cleanup;
+    }
 
-    int rc = 0;
+    int init_rc = agent_init(&ag, &cfg, prov, &sess, resumed);
+    resumed = NULL; /* agent_init consumes it on both success and failure */
+    if (init_rc != 0) goto cleanup;
+    ready = 1;
+    rc = 0;
     if (prompt) {
         int tr = agent_turn(&ag, prompt);
         rc = tr < 0 ? 1 : (tr == 1 ? 130 : 0);
@@ -138,10 +153,14 @@ int main(int argc, char **argv) {
         puts("");
     }
 
+cleanup:
+    cJSON_Delete(resumed);
     agent_free(&ag);
     session_close(&sess);
-    fflush(stdout);
-    fprintf(stderr, "orc: resume with `orc --resume %.8s`\n", cfg.session_id);
+    if (ready) {
+        fflush(stdout);
+        fprintf(stderr, "orc: resume with `orc --resume %.8s`\n", cfg.session_id);
+    }
     free(cfg.instructions);
     curl_global_cleanup();
     return rc;
