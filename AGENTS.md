@@ -1,54 +1,34 @@
 # orc — agent context
 
-Minimal coding-agent harness in C. Goals: simplicity and minimal token usage
-by the harness. See README.md for user-facing docs.
+Minimal C coding-agent harness. Keep the code and model-facing text terse.
 
-## Build & test
+## Build and test
 
-- `make` (first build fetches pinned deps into gitignored `vendor/` and
-  compiles curl+mbedTLS statically — takes minutes once; binary lands at
-  `bin/orc`; `make SYSTEM_CURL=1` links system libcurl for faster iteration)
+- Fast build: `make SYSTEM_CURL=1`
+- Release-style static build: `make`
 - Smoke tests: `./bin/orc --auth`, `./bin/orc -p "say hi"`, `./bin/orc --resume`
-- orc home (`orc_home()` in util.c): `$XDG_CONFIG_HOME/orc`, else
-  `~/.config/orc` when `~/.config` exists, else `~/.orc`
-- `ORC_DEBUG=1` tees raw SSE to `<orc home>/debug.log`
 
 ## Architecture
 
-- **History is one cJSON array of Responses-API input items** — the same
-  format in memory, on the wire, and on disk (session JSONL). Never introduce
-  a translation layer; providers with different wire formats translate only
-  inside their own `turn()`.
-- **Provider seam**: `src/provider.h` defines `provider` (name, default_model,
-  `turn()`, `auth_status()`). Registry in `src/provider.c`. One file per
-  provider under `src/providers/` (currently `codex.c`). To add a provider:
-  new file implementing the struct, add extern + entry to the registry array.
-- `src/agent.c` owns the loop: user msg → `prov->turn()` (streams via
-  callbacks) → commit items → run `function_call`s → send outputs → repeat.
-- Tools (`src/tools.c`): bash/read/write/edit; schemas are one terse compile-time
-  JSON string; all outputs clamped to ~20KB head+tail.
+- History is one cJSON array of Responses-API input items. Use the same format
+  in memory, on the wire, and in session JSONL. Other wire formats translate
+  only inside the provider's `turn()`.
+- `src/provider.h` defines providers. Implement each provider in
+  `src/providers/` and register it in `src/provider.c`.
+- `src/agent.c` owns the turn and tool-call loop. Tools are in `src/tools.c`.
 
-## Codex provider gotchas (src/providers/codex.c)
+## Codex invariants
 
-- Endpoint `chatgpt.com/backend-api/codex/responses`; `store:false` required;
-  full history resent each request; `reasoning` items (`encrypted_content`)
-  must be replayed verbatim or the backend 400s.
-- Auth reuses `~/.codex/auth.json` (Codex CLI). Refresh rotates the
-  refresh_token — always re-read auth.json just before refreshing and
-  atomic-write back, or the user's Codex CLI login breaks permanently.
-- Every committed `function_call` must get a `function_call_output` (even
-  "[interrupted]") before the next request.
-- Model slugs churn; defaults live on the provider struct. Available slugs:
-  `~/.codex/models_cache.json`.
+- Send `store:false` and the full history. Replay reasoning
+  `encrypted_content` without changes.
+- Before token refresh, re-read `~/.codex/auth.json`; write rotated tokens
+  atomically.
+- Add a `function_call_output` for every committed `function_call`, including
+  interrupted calls, before the next request.
 
 ## Conventions
 
-- C11, `-Wall -Wextra` clean. All deps vendored + pinned (cJSON, md4c,
-  c-timestamp, curl+mbedTLS static); no system libs beyond libc/pthread.
-- Tool/model-facing text stays terse (token budget is a feature).
-- System instructions: base prompt + `~/.agents/AGENTS.md` + `./AGENTS.md`
-  (see `build_instructions` in main.c).
-- The REPL input line (src/input.c, linenoise async API) sits below streamed
-  output: any code printing to the terminal mid-turn must emit whole lines
-  wrapped in `input_erase()` / `input_redraw()`.
-- Errors from tools return as output strings for the model, never abort.
+- Use C11 and keep `-Wall -Wextra` clean.
+- Terminal output during a turn must use whole lines between `input_erase()`
+  and `input_redraw()`.
+- Return tool errors as model output. Do not abort the agent.
