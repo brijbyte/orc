@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <timestamp.h>
 #include <unistd.h>
 
 #define CODEX_URL "https://chatgpt.com/backend-api/codex/responses"
@@ -69,47 +70,6 @@ static long long jwt_exp(const char *jwt) {
     long long exp = cJSON_IsNumber(e) ? (long long)e->valuedouble : 0;
     cJSON_Delete(root);
     return exp;
-}
-
-/* Days since 1970-01-01 in the proleptic Gregorian calendar. */
-static long long days_from_civil(int year, unsigned month, unsigned day) {
-    year -= month <= 2;
-    int era = (year >= 0 ? year : year - 399) / 400;
-    unsigned yoe = (unsigned)(year - era * 400);
-    unsigned shifted_month = month > 2 ? month - 3 : month + 9;
-    unsigned doy = (153 * shifted_month + 2) / 5 + day - 1;
-    unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    return (long long)era * 146097 + doe - 719468;
-}
-
-/* Parse an RFC3339 UTC timestamp ("2026-08-01T10:00:00.123Z"). This avoids
- * strptime() and timegm(), whose availability and feature macros vary by OS. */
-static long long parse_rfc3339(const char *s) {
-    int year, month, day, hour, minute, second, used = 0;
-    if (!s || sscanf(s, "%4d-%2d-%2dT%2d:%2d:%2d%n",
-                     &year, &month, &day, &hour, &minute, &second, &used) != 6)
-        return 0;
-    if (used != 19 || year < 1970 || month < 1 || month > 12 || day < 1 ||
-        hour < 0 || hour > 23 || minute < 0 || minute > 59 ||
-        second < 0 || second > 60)
-        return 0;
-
-    static const unsigned char month_days[] =
-        {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-    int leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-    unsigned max_day = month_days[month - 1] + (month == 2 && leap);
-    if ((unsigned)day > max_day) return 0;
-
-    const char *tail = s + used;
-    if (*tail == '.') {
-        tail++;
-        if (*tail < '0' || *tail > '9') return 0;
-        while (*tail >= '0' && *tail <= '9') tail++;
-    }
-    if (*tail != 'Z' || tail[1] != '\0') return 0;
-
-    return days_from_civil(year, (unsigned)month, (unsigned)day) * 86400 +
-           hour * 3600 + minute * 60 + second;
 }
 
 /* Refresh tokens in-place inside root (the parsed auth.json). Returns 0 on success. */
@@ -183,8 +143,10 @@ static int needs_refresh(cJSON *root) {
     }
     const char *lr = jstr(root, "last_refresh");
     if (lr) {
-        long long t = parse_rfc3339(lr);
-        if (t && now - t > STALE_AFTER_S) return 1;
+        timestamp_t ts;
+        if (timestamp_parse(lr, strlen(lr), &ts) == 0 &&
+            now - ts.sec > STALE_AFTER_S)
+            return 1;
     }
     return 0;
 }

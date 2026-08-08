@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <timestamp.h>
 #include <unistd.h>
 
 void sb_init(strbuf *sb) {
@@ -132,13 +133,11 @@ void uuid4(char out[37]) {
 }
 
 void now_rfc3339(char *out, size_t cap) {
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    struct tm tm;
-    gmtime_r(&ts.tv_sec, &tm);
-    snprintf(out, cap, "%04d-%02d-%02dT%02d:%02d:%02d.%03ldZ",
-             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-             tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec / 1000000);
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME, &now);
+    timestamp_t ts = {.sec = now.tv_sec, .nsec = (int32_t)now.tv_nsec, .offset = 0};
+    if (timestamp_format_precision(out, cap, &ts, 3) == 0 && cap > 0)
+        out[0] = '\0';
 }
 
 char *expand_home(const char *path) {

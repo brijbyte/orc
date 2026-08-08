@@ -16,7 +16,8 @@ endif
 
 OBJS = src/main.o src/agent.o src/provider.o src/providers/codex.o src/http.o \
        src/tools.o src/session.o src/render.o src/util.o vendor/cJSON.o \
-       vendor/md4c.o
+       vendor/md4c.o vendor/timestamp_parse.o vendor/timestamp_format.o \
+       vendor/timestamp_valid.o
 
 all: bin/orc
 
@@ -37,9 +38,19 @@ vendor/md4c.c vendor/md4c.h:
 	curl -fsSL -o vendor/md4c.c $(MD4C_URL)/md4c.c
 	curl -fsSL -o vendor/md4c.h $(MD4C_URL)/md4c.h
 
+# c-timestamp: RFC3339 parse/format (no tagged releases; pinned to a commit)
+TS_URL = https://cdn.jsdelivr.net/gh/chansen/c-timestamp@b205c407ae6680d23d74359ac00444b80989792f
+TS_SRCS = timestamp_parse.c timestamp_format.c timestamp_valid.c
+vendor/timestamp.h $(addprefix vendor/,$(TS_SRCS)):
+	mkdir -p vendor
+	for f in timestamp.h $(TS_SRCS); do \
+		curl -fsSL -o vendor/$$f $(TS_URL)/$$f; done
+
 vendor/cJSON.o: vendor/cJSON.c vendor/cJSON.h
 vendor/md4c.o: vendor/md4c.c vendor/md4c.h
-$(OBJS): vendor/cJSON.h vendor/md4c.h
+vendor/timestamp_parse.o vendor/timestamp_format.o vendor/timestamp_valid.o: \
+	vendor/timestamp.h
+$(OBJS): vendor/cJSON.h vendor/md4c.h vendor/timestamp.h
 
 clean:
 	rm -f bin/orc $(OBJS)
