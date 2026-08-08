@@ -39,13 +39,13 @@ static void usage(void) {
          "  -m <model>        model (default: provider's; env ORC_MODEL)\n"
          "  -e <effort>       reasoning effort: low|medium|high (default " ORC_DEFAULT_EFFORT ")\n"
          "  --provider <name> provider (default codex; env ORC_PROVIDER)\n"
-         "  --resume [path]   resume most recent (or given) session\n"
+         "  --resume [id|path] resume most recent (or given) session\n"
          "  --auth            show provider auth status\n"
          "  -h                help");
 }
 
 int main(int argc, char **argv) {
-    const char *prompt = NULL, *resume_path = NULL;
+    const char *prompt = NULL, *resume_ref = NULL;
     int do_resume = 0, do_auth = 0;
 
     orc_cfg cfg = {0};
@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
         else if (strcmp(argv[i], "--provider") == 0 && i + 1 < argc) cfg.provider = argv[++i];
         else if (strcmp(argv[i], "--resume") == 0) {
             do_resume = 1;
-            if (i + 1 < argc && argv[i + 1][0] != '-') resume_path = argv[++i];
+            if (i + 1 < argc && argv[i + 1][0] != '-') resume_ref = argv[++i];
         }
         else if (strcmp(argv[i], "--auth") == 0) do_auth = 1;
         else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
     cJSON *resumed = NULL;
     if (do_resume) {
         resumed = cJSON_CreateArray();
-        if (session_resume(&sess, resume_path, resumed) != 0) {
+        if (session_resume(&sess, resume_ref, resumed, &cfg) != 0) {
             cJSON_Delete(resumed);
             return 1;
         }
@@ -113,8 +113,8 @@ int main(int argc, char **argv) {
         int tr = agent_turn(&ag, prompt);
         rc = tr < 0 ? 1 : (tr == 1 ? 130 : 0);
     } else {
-        printf("orc %s — %s (%s effort). Ctrl-D or 'exit' to quit.\n",
-               ORC_VERSION, cfg.model, cfg.effort);
+        printf("orc %s — %s (%s effort), session %.8s. Ctrl-D or 'exit' to quit.\n",
+               ORC_VERSION, cfg.model, cfg.effort, cfg.session_id);
         char line[65536];
         for (;;) {
             g_interrupt = 0;

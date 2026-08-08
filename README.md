@@ -28,7 +28,7 @@ macOS 13 by default; override with `MACOSX_DEPLOYMENT_TARGET=<version> make`.
 ./bin/orc                          # interactive REPL
 ./bin/orc -p "fix the failing test"  # one-shot, scriptable (exit 130 on Ctrl-C)
 ./bin/orc --resume                 # continue the most recent session
-./bin/orc --resume <path>          # continue a specific session
+./bin/orc --resume <id>            # continue by session id (prefix ok)
 ./bin/orc --auth                   # show Codex auth status
 ./bin/orc -m gpt-5.6-terra -e high # model / reasoning effort (env: ORC_MODEL)
 ```

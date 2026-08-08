@@ -20,6 +20,7 @@ int session_new(orc_session *s, const orc_cfg *cfg) {
     if (!getcwd(cwd, sizeof cwd)) cwd[0] = '\0';
     cJSON *meta = cJSON_CreateObject();
     cJSON *m = cJSON_CreateObject();
+    cJSON_AddStringToObject(m, "id", cfg->session_id);
     cJSON_AddStringToObject(m, "model", cfg->model);
     cJSON_AddStringToObject(m, "cwd", cwd);
     char now[40];
@@ -34,8 +35,18 @@ int session_new(orc_session *s, const orc_cfg *cfg) {
     return 0;
 }
 
-/* Most recent session file (lexically greatest name — ts prefix makes this true). */
-static char *latest_session_path(void) {
+/* Does filename "<ts>-<id8>.jsonl" match session id (prefix, min 1 char)? */
+static int name_matches_id(const char *name, const char *id) {
+    const char *dash = strchr(name, '-');
+    size_t n = strlen(name);
+    if (!dash || n < 7 || strcmp(name + n - 6, ".jsonl") != 0) return 0;
+    size_t idlen = strlen(id), part = (size_t)(name + n - 6 - (dash + 1));
+    return idlen > 0 && strncmp(dash + 1, id, idlen < part ? idlen : part) == 0;
+}
+
+/* Most recent session file, optionally restricted to an id prefix. The ts
+ * filename prefix makes "lexically greatest" mean "most recent". */
+static char *find_session(const char *id) {
     char *dir = orc_path("sessions");
     DIR *d = opendir(dir);
     if (!d) { free(dir); return NULL; }
@@ -44,6 +55,7 @@ static char *latest_session_path(void) {
     while ((e = readdir(d))) {
         size_t n = strlen(e->d_name);
         if (n > 6 && strcmp(e->d_name + n - 6, ".jsonl") == 0 &&
+            (!id || name_matches_id(e->d_name, id)) &&
             strcmp(e->d_name, best) > 0)
             snprintf(best, sizeof best, "%s", e->d_name);
     }
@@ -55,10 +67,17 @@ static char *latest_session_path(void) {
     return out;
 }
 
-int session_resume(orc_session *s, const char *path, cJSON *history) {
-    char *resolved = path ? strdup(path) : latest_session_path();
+int session_resume(orc_session *s, const char *ref, cJSON *history, orc_cfg *cfg) {
+    char *resolved;
+    if (!ref)
+        resolved = find_session(NULL);
+    else if (strchr(ref, '/') || access(ref, R_OK) == 0)
+        resolved = strdup(ref);  /* explicit file path */
+    else
+        resolved = find_session(ref);
     if (!resolved) {
-        fprintf(stderr, "orc: no session to resume\n");
+        fprintf(stderr, "orc: no session%s%s to resume\n",
+                ref ? " matching " : "", ref ? ref : "");
         return -1;
     }
     size_t len;
@@ -77,7 +96,13 @@ int session_resume(orc_session *s, const char *path, cJSON *history) {
         if (*line) {
             cJSON *item = cJSON_Parse(line);
             if (item) {
-                if (cJSON_GetObjectItem(item, "_meta")) {
+                cJSON *meta = cJSON_GetObjectItem(item, "_meta");
+                if (meta) {
+                    /* Restore the id so prompt_cache_key survives resumes. */
+                    cJSON *id = cJSON_GetObjectItem(meta, "id");
+                    if (cJSON_IsString(id))
+                        snprintf(cfg->session_id, sizeof cfg->session_id, "%s",
+                                 id->valuestring);
                     cJSON_Delete(item);
                 } else {
                     cJSON_AddItemToArray(history, item);
@@ -93,7 +118,8 @@ int session_resume(orc_session *s, const char *path, cJSON *history) {
     free(resolved);
     s->f = fopen(s->path, "a");
     if (!s->f) return -1;
-    fprintf(stderr, "orc: resumed %s (%d items)\n", s->path, items);
+    fprintf(stderr, "orc: resumed %.8s (%d items) %s\n",
+            cfg->session_id, items, s->path);
     return 0;
 }
 
