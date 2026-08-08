@@ -121,6 +121,7 @@ static void ui_turn_end(ui_turn *turn) {
 
 static const char *tool_icon(const char *name) {
     if (strcmp(name, "bash") == 0) return "💻";
+    if (strcmp(name, "process") == 0) return "⚙️";
     if (strcmp(name, "read") == 0) return "📖";
     if (strcmp(name, "write") == 0) return "📝";
     if (strcmp(name, "edit") == 0) return "✏️";

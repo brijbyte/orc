@@ -2,12 +2,12 @@
 
 A minimal coding-agent harness in C (~2,200 lines). Talks to the OpenAI Codex
 backend using your ChatGPT subscription — no API key. Optimized for simplicity
-and a small token footprint: 4 terse tools, a ~120-token system prompt, capped
-tool outputs, and server-side prompt caching via `prompt_cache_key`.
+and a small token footprint: terse tools, capped tool outputs, and server-side
+prompt caching via `prompt_cache_key`.
 
 ## Requirements
 
-- macOS or Linux with libcurl (preinstalled on macOS)
+- macOS or Linux with CMake and libcurl (libcurl is preinstalled on macOS)
 - A ChatGPT subscription: sign in once with `orc --login` (browser OAuth;
   credentials go to orc's own config dir). If the Codex CLI is already logged
   in, orc can also reuse `~/.codex/auth.json` as a fallback — tokens are
@@ -39,8 +39,8 @@ make
 ```
 
 The first build fetches pinned deps into `vendor/` (gitignored): cJSON
-v1.7.18, md4c 0.5.2, utf8proc 2.11.3, c-timestamp, and curl 8.11.1 +
-mbedTLS 3.6.2. curl and mbedTLS compile once and link statically, so the binary
+v1.7.18, md4c 0.5.2, utf8proc 2.11.3, c-timestamp, libuv 1.50.0, and curl
+8.11.1 + mbedTLS 3.6.2. Dependencies compile once and link statically, so the binary
 depends only on libc/pthread and the OS CA bundle — no system libcurl needed.
 `make SYSTEM_CURL=1` links the system libcurl instead (faster first build).
 The binary lands at `bin/orc-debug`; `make install` copies it to
@@ -100,10 +100,11 @@ to `<orc home>/debug.log`.
 
 | tool  | behavior                                                              |
 | ----- | --------------------------------------------------------------------- |
-| bash  | `sh -c`, own process group, 60s default timeout, stdout+stderr merged |
-| read  | line numbers, offset/limit, long lines truncated                      |
-| write | atomic write, creates parent dirs                                     |
-| edit  | exact string replace; errors unless exactly one match                 |
+| bash    | `sh -c`; 60s timeout, or `background:true` for a managed process |
+| process | list, inspect logs, or stop managed background processes          |
+| read    | line numbers, offset/limit, long lines truncated                  |
+| write   | atomic write, creates parent dirs                                 |
+| edit    | exact string replace; errors unless exactly one match             |
 
 All tool outputs are clamped to ~20KB (head + tail) before entering history.
 
@@ -121,8 +122,9 @@ All tool outputs are clamped to ~20KB (head + tail) before entering history.
 ## Layout
 
 ```
-src/main.c            CLI, REPL, signals      src/tools.c    bash/read/write/edit
-src/agent.c           agentic loop            src/session.c  JSONL persistence
+src/main.c            CLI and REPL            src/tools.c    tool dispatch
+src/loop.c            central libuv loop       src/process.c  managed processes
+src/agent.c           agentic loop             src/session.c  JSONL persistence
 src/provider.c        provider registry       src/render.c   ANSI markdown
 src/providers/codex.c Codex auth+request+SSE  src/input.c    async line editor
 src/http.c            libcurl + SSE framing   src/util.c     strbuf, base64url, ...

@@ -17,7 +17,7 @@ typedef struct {
     int debug;
 } orc_cfg;
 
-/* Set by SIGINT handler; checked in curl progress callback and tool loops. */
+/* Set by the libuv signal watcher; checked by active operations. */
 extern volatile sig_atomic_t g_interrupt;
 
 #endif

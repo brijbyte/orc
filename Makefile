@@ -27,7 +27,7 @@ export MACOSX_DEPLOYMENT_TARGET  # vendor sub-builds (mbedTLS, curl) honor it
 endif
 
 OBJS = src/main.o src/agent.o src/provider.o src/providers/codex.o src/http.o \
-       src/tools.o src/skills.o src/session.o src/render.o src/input.o src/event.o src/ui.o \
+       src/tools.o src/process.o src/skills.o src/session.o src/render.o src/input.o src/event.o src/loop.o src/ui.o \
        src/commands.o src/util.o src/auth.o src/instructions.o \
        vendor/cJSON.o vendor/md4c.o vendor/timestamp_parse.o \
        vendor/timestamp_format.o vendor/timestamp_valid.o \
@@ -37,10 +37,12 @@ OBJS = src/main.o src/agent.o src/provider.o src/providers/codex.o src/http.o \
 # beyond libc/pthread. `make SYSTEM_CURL=1` links the system libcurl instead.
 CURL_VER = 8.11.1
 MBEDTLS_VER = 3.6.2
+LIBUV_VER = 1.50.0
 VENDOR := $(abspath vendor)
 MBED_A = vendor/mbedtls/lib/libmbedtls.a vendor/mbedtls/lib/libmbedx509.a \
          vendor/mbedtls/lib/libmbedcrypto.a
-CPPFLAGS += -I$(VENDOR)/mbedtls/include
+UV_A = vendor/libuv/lib/libuv.a
+CPPFLAGS += -I$(VENDOR)/mbedtls/include -I$(VENDOR)/libuv/include
 ifeq ($(SYSTEM_CURL),1)
 LDLIBS += -lcurl $(MBED_A) -lpthread
 else
@@ -50,6 +52,10 @@ LDLIBS += $(CURL_A) $(MBED_A) -lpthread
 ifeq ($(UNAME_S),Darwin)
 LDLIBS += -framework CoreFoundation -framework SystemConfiguration
 endif
+endif
+LDLIBS += $(UV_A)
+ifneq ($(UNAME_S),Darwin)
+LDLIBS += -ldl -lrt -lpthread
 endif
 
 DEBUG_BIN = bin/orc-debug
@@ -114,6 +120,15 @@ vendor/mbedtls/lib/libmbedtls.a:
 	cp vendor/mbedtls-$(MBEDTLS_VER)/library/*.a vendor/mbedtls/lib/
 	cp -R vendor/mbedtls-$(MBEDTLS_VER)/include vendor/mbedtls/
 
+LIBUV_URL = https://dist.libuv.org/dist/v$(LIBUV_VER)/libuv-v$(LIBUV_VER).tar.gz
+$(UV_A):
+	mkdir -p vendor
+	curl -fsSL $(LIBUV_URL) | tar xz -C vendor
+	cmake -S vendor/libuv-v$(LIBUV_VER) -B vendor/libuv-build \
+	  -DBUILD_TESTING=OFF -DLIBUV_BUILD_SHARED=OFF \
+	  -DCMAKE_INSTALL_PREFIX=$(VENDOR)/libuv
+	cmake --build vendor/libuv-build --target install -j
+
 CURL_SRC_URL = https://curl.se/download/curl-$(CURL_VER).tar.gz
 vendor/curl/lib/libcurl.a: vendor/mbedtls/lib/libmbedtls.a
 	curl -fsSL $(CURL_SRC_URL) | tar xz -C vendor
@@ -136,7 +151,7 @@ vendor/timestamp_parse.o vendor/timestamp_format.o vendor/timestamp_valid.o: \
 	vendor/timestamp.h
 third_party/linenoise/linenoise.o: CPPFLAGS += -include strings.h  # strcasecmp under POSIX
 $(OBJS): vendor/cJSON.h vendor/md4c.h vendor/utf8proc.h vendor/timestamp.h \
-	third_party/linenoise/linenoise.h $(firstword $(MBED_A)) $(CURL_A)
+	third_party/linenoise/linenoise.h $(firstword $(MBED_A)) $(CURL_A) $(UV_A)
 
 PREFIX ?= /usr/local
 install: $(DEBUG_BIN)

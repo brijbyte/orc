@@ -1,6 +1,7 @@
 #include "tools.h"
-#include "event.h"
+#include "loop.h"
 #include "orc.h"
+#include "process.h"
 #include "skills.h"
 #include "util.h"
 
@@ -26,10 +27,17 @@
 const char *tools_schema_json(void) {
     return
     "[{\"type\":\"function\",\"name\":\"bash\","
-      "\"description\":\"Run shell command. Returns stdout+stderr.\","
+      "\"description\":\"Run a shell command. Set background true for a managed long-running process.\","
       "\"parameters\":{\"type\":\"object\",\"properties\":{"
         "\"cmd\":{\"type\":\"string\"},"
-        "\"timeout_s\":{\"type\":\"integer\"}},\"required\":[\"cmd\"]}},"
+        "\"timeout_s\":{\"type\":\"integer\"},"
+        "\"background\":{\"type\":\"boolean\"}},\"required\":[\"cmd\"]}},"
+     "{\"type\":\"function\",\"name\":\"process\","
+      "\"description\":\"Inspect or stop managed background processes.\","
+      "\"parameters\":{\"type\":\"object\",\"properties\":{"
+        "\"action\":{\"type\":\"string\",\"enum\":[\"list\",\"status\",\"logs\",\"stop\"]},"
+        "\"id\":{\"type\":\"string\"},"
+        "\"offset\":{\"type\":\"integer\"}},\"required\":[\"action\"]}},"
      "{\"type\":\"function\",\"name\":\"read\","
       "\"description\":\"Read file with line numbers.\","
       "\"parameters\":{\"type\":\"object\",\"properties\":{"
@@ -87,78 +95,126 @@ static char *clamp_output(char *s) {
     return out;
 }
 
+typedef struct {
+    uv_process_t process;
+    uv_pipe_t out;
+    uv_pipe_t err;
+    uv_timer_t timer;
+    strbuf output;
+    uint64_t started_at;
+    int timeout_s;
+    int open_pipes;
+    int exited;
+    int killed;
+    int timed_out;
+    int interrupted;
+    int64_t exit_status;
+    int term_signal;
+} bash_run;
+
+static void bash_closed(uv_handle_t *handle) {
+    (void)handle;
+}
+
+static void bash_alloc(uv_handle_t *handle, size_t size, uv_buf_t *buf) {
+    (void)handle;
+    (void)size;
+    buf->base = malloc(8192);
+    buf->len = buf->base ? 8192 : 0;
+}
+
+static void bash_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf) {
+    bash_run *run = stream->data;
+    if (nread > 0) sb_append(&run->output, buf->base, (size_t)nread);
+    free(buf->base);
+    if (nread >= 0) return;
+    uv_read_stop(stream);
+    uv_close((uv_handle_t *)stream, bash_closed);
+    run->open_pipes--;
+}
+
+static void bash_exit(uv_process_t *process, int64_t status, int signal) {
+    bash_run *run = process->data;
+    run->exit_status = status;
+    run->term_signal = signal;
+    run->exited = 1;
+    uv_close((uv_handle_t *)process, bash_closed);
+}
+
+static void bash_tick(uv_timer_t *timer) {
+    bash_run *run = timer->data;
+    if (run->killed) return;
+    uint64_t elapsed = uv_now(loop_get()) - run->started_at;
+    if (g_interrupt) run->interrupted = 1;
+    else if (elapsed >= (uint64_t)run->timeout_s * 1000) run->timed_out = 1;
+    else return;
+    run->killed = 1;
+    kill(-run->process.pid, SIGKILL);
+}
+
 static char *tool_bash(cJSON *args) {
     const char *cmd = astr(args, "cmd");
     if (!cmd) return strdup("error: missing cmd");
-    int timeout_s = aint(args, "timeout_s", BASH_TIMEOUT_S);
+    if (cJSON_IsTrue(cJSON_GetObjectItem(args, "background")))
+        return process_start(cmd);
 
-    int pfd[2];
-    if (pipe(pfd) != 0) return strdup("error: pipe failed");
+    bash_run run = {.timeout_s = aint(args, "timeout_s", BASH_TIMEOUT_S),
+                    .open_pipes = 2};
+    sb_init(&run.output);
+    uv_pipe_init(loop_get(), &run.out, 0);
+    uv_pipe_init(loop_get(), &run.err, 0);
+    run.out.data = run.err.data = &run;
+    run.process.data = &run;
 
-    pid_t pid = fork();
-    if (pid < 0) {
-        close(pfd[0]); close(pfd[1]);
-        return strdup("error: fork failed");
-    }
-    if (pid == 0) {
-        setpgid(0, 0);
-        int devnull = open("/dev/null", O_RDONLY);
-        if (devnull >= 0) {
-            dup2(devnull, STDIN_FILENO);
-            if (devnull != STDIN_FILENO) close(devnull);
-        }
-        dup2(pfd[1], 1);
-        dup2(pfd[1], 2);
-        close(pfd[0]); close(pfd[1]);
-        execl("/bin/sh", "sh", "-c", cmd, (char *)NULL);
-        _exit(127);
-    }
-    close(pfd[1]);
-    fcntl(pfd[0], F_SETFL, O_NONBLOCK);
+    uv_stdio_container_t stdio[3] = {0};
+    stdio[0].flags = UV_IGNORE;
+    stdio[1].flags = UV_CREATE_PIPE | UV_WRITABLE_PIPE;
+    stdio[1].data.stream = (uv_stream_t *)&run.out;
+    stdio[2].flags = UV_CREATE_PIPE | UV_WRITABLE_PIPE;
+    stdio[2].data.stream = (uv_stream_t *)&run.err;
+    char *argv[] = {"sh", "-c", (char *)cmd, NULL};
+    uv_process_options_t options = {0};
+    options.file = "/bin/sh";
+    options.args = argv;
+    options.stdio = stdio;
+    options.stdio_count = 3;
+    options.exit_cb = bash_exit;
+    options.flags = UV_PROCESS_DETACHED;
 
-    strbuf out;
-    sb_init(&out);
-    time_t deadline = time(NULL) + timeout_s;
-    int timed_out = 0, interrupted = 0;
+    int rc = uv_spawn(loop_get(), &run.process, &options);
+    if (rc != 0) {
+        uv_close((uv_handle_t *)&run.out, bash_closed);
+        uv_close((uv_handle_t *)&run.err, bash_closed);
+        uv_run(loop_get(), UV_RUN_NOWAIT);
+        char buf[256];
+        snprintf(buf, sizeof buf, "error: spawn failed: %s", uv_strerror(rc));
+        return strdup(buf);
+    }
 
-    for (;;) {
-        if (g_interrupt) { interrupted = 1; break; }
-        if (time(NULL) > deadline) { timed_out = 1; break; }
-        int event_fd = event_source_fd();
-        struct pollfd p[2] = {{.fd = pfd[0], .events = POLLIN},
-                              {.fd = event_fd, .events = POLLIN}};
-        int pr = poll(p, event_fd >= 0 ? 2 : 1, 200);
-        event_source_drain();
-        if (pr > 0 && (p[0].revents & (POLLIN | POLLHUP))) {
-            char buf[8192];
-            ssize_t n = read(pfd[0], buf, sizeof buf);
-            if (n > 0) sb_append(&out, buf, (size_t)n);
-            else if (n == 0) break;                 /* EOF */
-            else if (errno != EAGAIN && errno != EINTR) break;
-        }
-    }
-    if (timed_out || interrupted) kill(-pid, SIGKILL);
-    /* Drain whatever remains after exit/kill. */
-    for (;;) {
-        char buf[8192];
-        ssize_t n = read(pfd[0], buf, sizeof buf);
-        if (n > 0) sb_append(&out, buf, (size_t)n);
-        else break;
-    }
-    close(pfd[0]);
-    int wstatus = 0;
-    waitpid(pid, &wstatus, 0);
+    uv_read_start((uv_stream_t *)&run.out, bash_alloc, bash_read);
+    uv_read_start((uv_stream_t *)&run.err, bash_alloc, bash_read);
+    uv_timer_init(loop_get(), &run.timer);
+    run.timer.data = &run;
+    uv_update_time(loop_get());
+    run.started_at = uv_now(loop_get());
+    uv_timer_start(&run.timer, bash_tick, 100, 100);
+    while (!run.exited || run.open_pipes > 0) loop_run_once();
+    uv_timer_stop(&run.timer);
+    uv_close((uv_handle_t *)&run.timer, bash_closed);
+    uv_run(loop_get(), UV_RUN_NOWAIT);
 
     char tail[64] = "";
-    if (timed_out)
-        snprintf(tail, sizeof tail, "\n[timed out after %ds]", timeout_s);
-    else if (interrupted)
+    if (run.timed_out)
+        snprintf(tail, sizeof tail, "\n[timed out after %ds]", run.timeout_s);
+    else if (run.interrupted)
         snprintf(tail, sizeof tail, "\n[interrupted]");
-    else if (WIFEXITED(wstatus) && WEXITSTATUS(wstatus) != 0)
-        snprintf(tail, sizeof tail, "\n[exit %d]", WEXITSTATUS(wstatus));
-    if (tail[0]) sb_append_str(&out, tail);
+    else if (run.exit_status != 0)
+        snprintf(tail, sizeof tail, "\n[exit %lld]", (long long)run.exit_status);
+    else if (run.term_signal)
+        snprintf(tail, sizeof tail, "\n[signal %d]", run.term_signal);
+    if (tail[0]) sb_append_str(&run.output, tail);
 
-    char *result = out.data ? out.data : strdup("");
+    char *result = run.output.data ? run.output.data : strdup("");
     return clamp_output(result);
 }
 
@@ -259,6 +315,7 @@ static char *tool_edit(cJSON *args) {
 char *tool_run(const char *name, cJSON *args) {
     if (!args) return strdup("error: bad arguments JSON");
     if (strcmp(name, "bash") == 0) return tool_bash(args);
+    if (strcmp(name, "process") == 0) return clamp_output(process_tool(args));
     if (strcmp(name, "read") == 0) return tool_read(args);
     if (strcmp(name, "write") == 0) return tool_write(args);
     if (strcmp(name, "edit") == 0) return tool_edit(args);

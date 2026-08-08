@@ -1,4 +1,5 @@
 #include "input.h"
+#include "loop.h"
 #include "ansi.h"
 #include "commands.h"
 #include "orc.h"
@@ -398,6 +399,7 @@ void input_drain(void) {
                 continue;
             }
             eof_flag = 1; /* Ctrl-D on empty line */
+            if (!idle_flag) g_interrupt = 1; /* cut the running turn short */
             return;
         }
         if (!*line) { /* empty Enter: redraw in place, no newline scroll */
@@ -439,14 +441,7 @@ void input_drain(void) {
 
 void input_wait(void) {
     if (!active) return;
-    while (!qhead && !eof_flag && !g_interrupt) {
-        struct pollfd p = {.fd = 0, .events = POLLIN};
-        if (poll(&p, 1, -1) < 0) {
-            if (errno == EINTR) return; /* external SIGINT */
-            return;
-        }
-        input_drain();
-    }
+    while (!qhead && !eof_flag && !g_interrupt) loop_run_once();
 }
 
 const char *input_peek(void) { return qhead ? qhead->s : NULL; }

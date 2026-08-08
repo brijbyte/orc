@@ -1,5 +1,5 @@
 #include "http.h"
-#include "event.h"
+#include "loop.h"
 #include "orc.h"
 
 #include <curl/curl.h>
@@ -120,13 +120,139 @@ static CURL *make_handle(const char *url, const char **headers, const char *body
     return h;
 }
 
+typedef struct curl_uv curl_uv;
+
+typedef struct {
+    uv_poll_t poll;
+    curl_socket_t fd;
+    curl_uv *request;
+} curl_socket;
+
+struct curl_uv {
+    CURLM *multi;
+    CURL *easy;
+    uv_timer_t timer;
+    CURLcode result;
+    int done;
+};
+
+static void socket_closed(uv_handle_t *handle) {
+    free(handle->data);
+}
+
+static void check_done(curl_uv *request) {
+    CURLMsg *msg;
+    int queued;
+    while ((msg = curl_multi_info_read(request->multi, &queued))) {
+        if (msg->msg != CURLMSG_DONE || msg->easy_handle != request->easy) continue;
+        request->result = msg->data.result;
+        request->done = 1;
+    }
+}
+
+static void socket_action(curl_uv *request, curl_socket_t fd, int events) {
+    int running;
+    if (curl_multi_socket_action(request->multi, fd, events, &running) != CURLM_OK) {
+        request->result = CURLE_RECV_ERROR;
+        request->done = 1;
+    }
+    check_done(request);
+}
+
+static void on_socket(uv_poll_t *handle, int status, int events) {
+    curl_socket *socket = handle->data;
+    int action = status < 0 ? CURL_CSELECT_ERR : 0;
+    if (events & UV_READABLE) action |= CURL_CSELECT_IN;
+    if (events & UV_WRITABLE) action |= CURL_CSELECT_OUT;
+    socket_action(socket->request, socket->fd, action);
+}
+
+static int on_curl_socket(CURL *easy, curl_socket_t fd, int what,
+                          void *ud, void *socket_ud) {
+    (void)easy;
+    curl_uv *request = ud;
+    curl_socket *socket = socket_ud;
+    if (what == CURL_POLL_REMOVE) {
+        if (socket) {
+            curl_multi_assign(request->multi, fd, NULL);
+            uv_poll_stop(&socket->poll);
+            uv_close((uv_handle_t *)&socket->poll, socket_closed);
+        }
+        return 0;
+    }
+    if (!socket) {
+        socket = calloc(1, sizeof *socket);
+        if (!socket || uv_poll_init_socket(loop_get(), &socket->poll, fd) != 0) {
+            free(socket);
+            return -1;
+        }
+        socket->fd = fd;
+        socket->request = request;
+        socket->poll.data = socket;
+        curl_multi_assign(request->multi, fd, socket);
+    }
+    int events = 0;
+    if (what != CURL_POLL_OUT) events |= UV_READABLE;
+    if (what != CURL_POLL_IN) events |= UV_WRITABLE;
+    return uv_poll_start(&socket->poll, events, on_socket);
+}
+
+static void on_timeout(uv_timer_t *timer) {
+    socket_action(timer->data, CURL_SOCKET_TIMEOUT, 0);
+}
+
+static int on_curl_timeout(CURLM *multi, long timeout_ms, void *ud) {
+    (void)multi;
+    curl_uv *request = ud;
+    uv_timer_stop(&request->timer);
+    if (timeout_ms >= 0)
+        return uv_timer_start(&request->timer, on_timeout,
+                              timeout_ms > 0 ? (uint64_t)timeout_ms : 1, 0);
+    return 0;
+}
+
+static void handle_closed(uv_handle_t *handle) {
+    (void)handle;
+}
+
+static CURLcode perform(CURL *easy) {
+    curl_uv request = {.easy = easy, .result = CURLE_FAILED_INIT};
+    request.multi = curl_multi_init();
+    if (!request.multi || uv_timer_init(loop_get(), &request.timer) != 0) {
+        if (request.multi) curl_multi_cleanup(request.multi);
+        return request.result;
+    }
+    request.timer.data = &request;
+    curl_multi_setopt(request.multi, CURLMOPT_SOCKETFUNCTION, on_curl_socket);
+    curl_multi_setopt(request.multi, CURLMOPT_SOCKETDATA, &request);
+    curl_multi_setopt(request.multi, CURLMOPT_TIMERFUNCTION, on_curl_timeout);
+    curl_multi_setopt(request.multi, CURLMOPT_TIMERDATA, &request);
+    curl_multi_add_handle(request.multi, easy);
+    socket_action(&request, CURL_SOCKET_TIMEOUT, 0);
+
+    while (!request.done) {
+        loop_run_once();
+        if (g_interrupt) {
+            request.result = CURLE_ABORTED_BY_CALLBACK;
+            request.done = 1;
+        }
+    }
+
+    curl_multi_remove_handle(request.multi, easy);
+    curl_multi_cleanup(request.multi);
+    uv_timer_stop(&request.timer);
+    uv_close((uv_handle_t *)&request.timer, handle_closed);
+    uv_run(loop_get(), UV_RUN_NOWAIT);
+    return request.result;
+}
+
 long http_post(const char *url, const char **headers, const char *body, strbuf *out) {
     struct curl_slist *list = NULL;
     CURL *h = make_handle(url, headers, body, &list);
     if (!h) return -1;
     curl_easy_setopt(h, CURLOPT_WRITEFUNCTION, plain_write);
     curl_easy_setopt(h, CURLOPT_WRITEDATA, out);
-    CURLcode rc = curl_easy_perform(h);
+    CURLcode rc = perform(h);
     long status = -1;
     if (rc == CURLE_OK) curl_easy_getinfo(h, CURLINFO_RESPONSE_CODE, &status);
     else if (rc == CURLE_ABORTED_BY_CALLBACK) status = -2;
@@ -143,7 +269,6 @@ typedef struct {
     CURL *handle;
 } sse_router;
 
-/* First bytes decide: 2xx streams to SSE parser, otherwise buffer as error. */
 static size_t route_write(char *ptr, size_t size, size_t nmemb, void *ud) {
     sse_router *r = ud;
     if (r->status == 0)
@@ -174,39 +299,14 @@ long http_post_sse(const char *url, const char **headers, const char *body,
         free(p);
         free(dir);
     }
-
     curl_easy_setopt(h, CURLOPT_WRITEFUNCTION, route_write);
     curl_easy_setopt(h, CURLOPT_WRITEDATA, &r);
 
-    /* Drive the transfer with the multi API, polling stdin alongside the
-     * socket so the user can keep typing while the response streams. */
-    CURLcode rc = CURLE_FAILED_INIT;
-    CURLM *m = curl_multi_init();
-    if (m) {
-        curl_multi_add_handle(m, h);
-        int running = 1;
-        while (running) {
-            if (curl_multi_perform(m, &running) != CURLM_OK) break;
-            if (!running) break;
-            struct curl_waitfd wfd = {
-                .fd = event_source_fd(), .events = CURL_WAIT_POLLIN};
-            curl_multi_poll(m, wfd.fd >= 0 ? &wfd : NULL, wfd.fd >= 0 ? 1 : 0,
-                            200, NULL);
-            event_source_drain();
-        }
-        CURLMsg *msg;
-        int nq;
-        while ((msg = curl_multi_info_read(m, &nq)))
-            if (msg->msg == CURLMSG_DONE) rc = msg->data.result;
-        curl_multi_remove_handle(m, h);
-        curl_multi_cleanup(m);
-    }
-
+    CURLcode rc = perform(h);
     long status = -1;
     if (rc == CURLE_OK) status = r.status ? r.status : -1;
     else if (rc == CURLE_ABORTED_BY_CALLBACK) status = -2;
-    else /* leading \n: streamed text may have left the line open */
-        fprintf(stderr, "\n❌ orc: http: %s\n", curl_easy_strerror(rc));
+    else fprintf(stderr, "\n❌ orc: http: %s\n", curl_easy_strerror(rc));
 
     if (r.sse.debug) fclose(r.sse.debug);
     sb_free(&r.sse.buf);

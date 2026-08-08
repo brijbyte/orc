@@ -2,7 +2,9 @@
 #include "ansi.h"
 #include "commands.h"
 #include "input.h"
+#include "loop.h"
 #include "orc.h"
+#include "process.h"
 #include "provider.h"
 #include "session.h"
 #include "ui.h"
@@ -10,16 +12,10 @@
 
 #include <curl/curl.h>
 #include <getopt.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-static void on_sigint(int sig) {
-    (void)sig;
-    g_interrupt = 1;
-}
 
 static void usage(void) {
     puts("usage: orc [options] [-p \"prompt\"]\n"
@@ -124,8 +120,9 @@ int main(int argc, char **argv) {
     if (!cfg.model) cfg.model = prov->default_model;
     commands_init(prov, &cfg);
 
-    if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
-        fprintf(stderr, "❌ orc: cannot initialize HTTP client\n");
+    if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK || loop_init() != 0) {
+        fprintf(stderr, "❌ orc: cannot initialize event loop\n");
+        curl_global_cleanup();
         return 1;
     }
 
@@ -149,10 +146,6 @@ int main(int argc, char **argv) {
         rc = prov->auth_status() == 0 ? 0 : 1;
         goto cleanup;
     }
-
-    struct sigaction sa = {0};
-    sa.sa_handler = on_sigint;
-    sigaction(SIGINT, &sa, NULL);
 
     terminal_ui = ui_create();
     if (!terminal_ui) {
@@ -206,6 +199,7 @@ int main(int argc, char **argv) {
         if (sess.ctx > 0) commands_ctx_used(sess.ctx);
         commands_status_update();
         input_init();
+        loop_input_start();
         if (input_active()) {
             /* Event-loop REPL: lines typed while a turn runs are queued. */
             for (;;) {
@@ -289,6 +283,8 @@ cleanup:
         unlink(sess.path); /* nothing was said; drop the empty session file */
     }
     free(cfg.instructions);
+    process_cleanup();
+    loop_free();
     curl_global_cleanup();
     return rc;
 }
