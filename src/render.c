@@ -21,6 +21,7 @@ typedef struct {
 #define MAXLIST 16
 
 typedef struct {
+    md_render *r; /* owner; carries the pending lead marker */
     style st[MAXSTYLE];
     int nst;
     struct {
@@ -77,6 +78,14 @@ static void pop_style(rctx *c) {
     sgr(c);
 }
 
+/* Print the pending lead marker (message bullet) before the first output. */
+static void lead_flush(md_render *r) {
+    if (r && r->lead) {
+        fputs(r->lead, stdout);
+        r->lead = NULL;
+    }
+}
+
 static void quote_bars(rctx *c) {
     if (!c->quote) return;
     fputs(ANSI_RESET ANSI_DIM, stdout);
@@ -89,6 +98,7 @@ static void spaces(int n) {
 
 /* Prefix printed at the start of each visual line: quote bars + list indent. */
 static void line_prefix(rctx *c) {
+    lead_flush(c->r);
     quote_bars(c);
     if (c->nlist) spaces(c->list[c->nlist - 1].cont);
     sgr(c);
@@ -188,6 +198,7 @@ static void table_leave(rctx *c) {
 
     for (int r = 0; r < rows; r++) {
         break_line(c);
+        lead_flush(c->r);
         quote_bars(c);
         fputs(r < c->thead ? ANSI_RESET ANSI_BOLD : ANSI_RESET, stdout);
         for (int j = 0; j < cols; j++) {
@@ -235,6 +246,7 @@ static int cb_enter_block(MD_BLOCKTYPE type, void *detail, void *ud) {
     case MD_BLOCK_LI: {
         MD_BLOCK_LI_DETAIL *d = detail;
         break_line(c);
+        lead_flush(c->r);
         quote_bars(c);
         if (c->nlist) {
             int fi = c->nlist - 1;
@@ -417,7 +429,7 @@ static int cb_text(MD_TEXTTYPE type, const MD_CHAR *text, MD_SIZE size, void *ud
     return 0;
 }
 
-static void render_block(const char *src, size_t n) {
+static void render_block(md_render *r, const char *src, size_t n) {
     static const MD_PARSER parser = {
         0,
         MD_FLAG_TABLES | MD_FLAG_STRIKETHROUGH | MD_FLAG_TASKLISTS |
@@ -427,6 +439,7 @@ static void render_block(const char *src, size_t n) {
         cb_text, NULL, NULL,
     };
     rctx c = {0};
+    c.r = r;
     c.at_start = 1;
     sb_init(&c.href);
     sb_init(&c.linktext);
@@ -441,7 +454,7 @@ static void render_block(const char *src, size_t n) {
 
 static void flush_block(md_render *r) {
     if (r->block.len) {
-        render_block(r->block.data, r->block.len);
+        render_block(r, r->block.data, r->block.len);
         r->block.len = 0;
         r->block.data[0] = '\0';
     }
@@ -519,20 +532,21 @@ static void feed_line(md_render *r, const char *s) {
     int len;
     if (fence_open(s, &ch, &len)) {
         flush_block(r);
+        lead_flush(r);
         printf(ANSI_DIM "%s" ANSI_RESET "\n", s);
         r->in_fence = 1;
         r->fence_ch = ch;
         r->fence_len = len;
         return;
     }
-    if (is_blank(s)) {
+    if (is_blank(s)) { /* keeps a pending lead for the first visible line */
         flush_block(r);
         fputc('\n', stdout);
         return;
     }
     if (is_atx_heading(s) || (r->block.len == 0 && is_hr(s))) {
         flush_block(r);
-        render_block(s, strlen(s));
+        render_block(r, s, strlen(s));
         return;
     }
     /* New top-level list item: prior block can't be its parent — stream it. */
@@ -550,7 +564,10 @@ void md_init(md_render *r) {
     r->in_fence = 0;
     r->fence_len = 0;
     r->fence_ch = 0;
+    r->lead = NULL;
 }
+
+void md_set_lead(md_render *r, const char *lead) { r->lead = lead; }
 
 void md_free(md_render *r) {
     sb_free(&r->line);

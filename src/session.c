@@ -104,6 +104,8 @@ int session_resume(orc_session *s, const char *ref, cJSON *history, orc_cfg *cfg
                     if (cJSON_IsString(id))
                         snprintf(cfg->session_id, sizeof cfg->session_id, "%s",
                                  id->valuestring);
+                    cJSON *ctx = cJSON_GetObjectItem(meta, "ctx");
+                    if (cJSON_IsNumber(ctx)) s->ctx = (long long)ctx->valuedouble;
                     cJSON_Delete(item);
                 } else {
                     cJSON_AddItemToArray(history, item);
@@ -139,6 +141,13 @@ void session_append(orc_session *s, cJSON *item) {
         free(line);
         s->items++;
     }
+}
+
+void session_set_ctx(orc_session *s, long long tokens) {
+    if (!s->f) return;
+    s->ctx = tokens;
+    fprintf(s->f, "{\"_meta\":{\"ctx\":%lld}}\n", tokens);
+    fflush(s->f);
 }
 
 void session_close(orc_session *s) {

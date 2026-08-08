@@ -98,9 +98,16 @@ void commands_status_update(void) {
     if (branch[0] && n > 0 && n < (int)sizeof s)
         n += snprintf(s + n, sizeof s - (size_t)n, " (%s)", branch);
     long long win = model_ctx_window();
-    if (ctx_used > 0 && win > 0 && n > 0 && n < (int)sizeof s)
-        snprintf(s + n, sizeof s - (size_t)n, " · ctx %lld%%",
-                 (ctx_used * 100 + win - 1) / win); /* ceil: never show 0% */
+    if (ctx_used > 0 && n > 0 && n < (int)sizeof s) {
+        n += ctx_used < 10000
+                 ? snprintf(s + n, sizeof s - (size_t)n, " · ctx %.1fk",
+                            (double)ctx_used / 1000.0)
+                 : snprintf(s + n, sizeof s - (size_t)n, " · ctx %lldk",
+                            ctx_used / 1000);
+        if (win > 0 && n > 0 && n < (int)sizeof s)
+            snprintf(s + n, sizeof s - (size_t)n, " (%lld%%)",
+                     (ctx_used * 100 + win - 1) / win); /* ceil: never 0% */
+    }
     input_status_set(s);
 }
 

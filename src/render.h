@@ -15,9 +15,11 @@ typedef struct {
     int in_fence;
     int fence_len;
     char fence_ch;
+    const char *lead; /* printed before the first rendered output, then cleared */
 } md_render;
 
 void md_init(md_render *r);
+void md_set_lead(md_render *r, const char *lead); /* e.g. a "● " marker */
 void md_delta(md_render *r, const char *s);  /* feed streamed text */
 void md_flush(md_render *r);                 /* render any pending input */
 void md_free(md_render *r);

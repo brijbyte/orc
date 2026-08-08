@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
@@ -240,7 +241,18 @@ static void menu_discard(void) {
     menu_key[0] = '\0';
 }
 
+/* Dim rule drawn one row above the input line, like a box top border. */
+static void border_draw(void) {
+    struct winsize w;
+    int cols = 80;
+    if (ioctl(1, TIOCGWINSZ, &w) == 0 && w.ws_col > 0) cols = w.ws_col;
+    fputs(ANSI_DIM, stdout);
+    for (int i = 0; i < cols; i++) fputs("─", stdout);
+    fputs(ANSI_RESET "\n\r", stdout);
+}
+
 static void edit_start(void) {
+    border_draw();
     linenoiseEditStart(&ls, -1, -1, lbuf, sizeof lbuf, cur_prompt());
     /* linenoise raw mode clears OPOST; restore it so "\n" still returns the
      * carriage — without this, multi-line agent output staircases. */
@@ -321,15 +333,17 @@ void input_erase(void) {
         linenoiseHide(&ls);
         if (below_rows) { /* hide the rows; keep candidates + selection */
             fputs("\x1b[J", stdout);
-            fflush(stdout);
             below_rows = 0;
         }
+        fputs("\x1b[1A\r\x1b[2K", stdout); /* take the border row too */
+        fflush(stdout);
         hidden = 1;
     }
 }
 
 void input_redraw(void) {
     if (active && editing && hidden) {
+        border_draw();
         linenoiseShow(&ls);
         hidden = 0;
         below_draw(); /* restore the menu and status the erase hid */
@@ -378,7 +392,7 @@ void input_drain(void) {
         }
         if (!*line) { /* empty Enter: redraw in place, no newline scroll */
             free(line);
-            fputs("\r\x1b[2K", stdout);
+            fputs("\r\x1b[2K\x1b[1A\x1b[2K", stdout); /* line + border rows */
             fflush(stdout);
             edit_start();
             continue;
@@ -395,12 +409,18 @@ void input_drain(void) {
                 free(repl);
             }
         }
-        linenoiseEditStop(&ls); /* leaves cooked mode, prints \n */
-        menu_discard();
+        /* Replace the live edit (and its border) with a styled user message.
+         * Raw mode stays on; edit_start below restarts without a Stop, like
+         * the empty-Enter path. */
+        linenoiseHide(&ls);
+        menu_discard(); /* clears the rows below the input */
+        fputs("\x1b[1A\r\x1b[2K", stdout);
+        printf(BOLD_CYAN(">") " " ANSI_CYAN "%s" ANSI_RESET "\n\r", line);
+        fflush(stdout);
         linenoiseHistoryAdd(line);
         push_line(line);
         if (!idle_flag) {
-            fputs(DIM("  ⏳ queued") "\n", stdout);
+            fputs(DIM("  ⏳ queued") "\n\r", stdout);
             fflush(stdout);
         }
         edit_start();

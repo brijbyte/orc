@@ -14,6 +14,7 @@
 #include <unistd.h>
 
 typedef struct {
+    agent *ag;
     md_render md;
     cJSON *pending;   /* items received this request */
     strbuf think;     /* partial thinking line (emitted per whole line) */
@@ -94,8 +95,9 @@ static void ui_item_done(cJSON *item, void *ud) {
 }
 
 static void ui_usage(long long ctx_tokens, void *ud) {
-    (void)ud;
+    turn_ui *ui = ud;
     commands_ctx_used(ctx_tokens);
+    session_set_ctx(ui->ag->sess, ctx_tokens); /* survives a resume */
 }
 
 int agent_init(agent *ag, orc_cfg *cfg, const provider *prov,
@@ -232,10 +234,13 @@ void agent_replay(agent *ag) {
             if (!text) continue;
             const char *role = item_str(it, "role");
             if (role && strcmp(role, "user") == 0) {
-                printf(tty ? BOLD_CYAN(">") " %s\n" : "> %s\n", text);
+                printf(tty ? BOLD_CYAN(">") " " ANSI_CYAN "%s" ANSI_RESET "\n"
+                           : "> %s\n",
+                       text);
             } else {
                 md_render md;
                 md_init(&md);
+                md_set_lead(&md, BOLD("●") " ");
                 md_delta(&md, text);
                 md_flush(&md);
                 md_free(&md);
@@ -252,7 +257,9 @@ int agent_turn(agent *ag, const char *user_text) {
 
     for (;;) {
         turn_ui ui;
+        ui.ag = ag;
         md_init(&ui.md);
+        md_set_lead(&ui.md, BOLD("●") " ");
         ui.pending = cJSON_CreateArray();
         sb_init(&ui.think);
         ui.thinking_open = 0;

@@ -187,6 +187,7 @@ int main(int argc, char **argv) {
                    ORC_VERSION, cfg.model, cfg.effort,
                    do_resume ? "resumed " : "", cfg.session_id);
         if (do_resume) agent_replay(&ag);
+        if (sess.ctx > 0) commands_ctx_used(sess.ctx);
         commands_status_update();
         input_init();
         if (input_active()) {
@@ -207,7 +208,8 @@ int main(int argc, char **argv) {
                 }
                 if (queued) { /* replay so it's clear what runs now */
                     input_erase();
-                    printf(BOLD_CYAN(">") " %s\n", line);
+                    printf(BOLD_CYAN(">") " " ANSI_CYAN "%s" ANSI_RESET "\n",
+                           line);
                     input_redraw();
                 }
                 if (line[0] == '/') {
