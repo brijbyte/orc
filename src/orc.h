@@ -3,7 +3,9 @@
 
 #include <signal.h>
 
+#ifndef ORC_VERSION
 #define ORC_VERSION "0.1"
+#endif
 #define ORC_DEFAULT_EFFORT "medium"
 
 typedef struct {

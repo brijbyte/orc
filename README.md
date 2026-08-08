@@ -12,7 +12,25 @@ tool outputs, and server-side prompt caching via `prompt_cache_key`.
   and refreshes tokens itself (compatible write-back; rotated refresh tokens
   are persisted so the Codex CLI keeps working)
 
-## Build
+## Install
+
+Prebuilt binaries for macOS (arm64, x86_64) and Linux (x86_64, arm64; fully
+static musl — runs on any distro):
+
+```
+curl -fsSL https://raw.githubusercontent.com/brijbyte/orc/main/install.sh | sh
+```
+
+Installs to `/usr/local/bin` when writable, else `~/.local/bin`. Pin a version
+with `ORC_VERSION=0.2`, change the destination with `ORC_INSTALL_DIR=...`.
+
+Or with Homebrew:
+
+```
+brew install brijbyte/orc/orc
+```
+
+## Build from source
 
 ```
 make
@@ -23,8 +41,16 @@ v1.7.18, md4c 0.5.2, c-timestamp, and curl 8.11.1 + mbedTLS 3.6.2. curl and
 mbedTLS compile once (a few minutes) and link statically, so the binary
 depends only on libc/pthread and the OS CA bundle — no system libcurl needed.
 `make SYSTEM_CURL=1` links the system libcurl instead (faster first build).
-The binary lands at `bin/orc`. macOS builds target macOS 13 by default;
-override with `MACOSX_DEPLOYMENT_TARGET=<version> make`.
+The binary lands at `bin/orc`; `make install` copies it to `$PREFIX/bin`
+(default `/usr/local`). macOS builds target macOS 13 by default; override
+with `MACOSX_DEPLOYMENT_TARGET=<version> make`.
+
+## Release (maintainers)
+
+Push a tag: `git tag v0.2 && git push origin v0.2`. CI builds all four
+targets, uploads tarballs + `checksums.txt` to a GitHub Release, and — when
+the `TAP_PUSH_TOKEN` secret (a PAT with push access to
+`brijbyte/homebrew-orc`) is set — regenerates the Homebrew formula.
 
 ## Use
 

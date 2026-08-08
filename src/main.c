@@ -68,6 +68,7 @@ static void usage(void) {
          "  --provider <name> provider (default codex; env ORC_PROVIDER)\n"
          "  --resume [id|path] resume most recent (or given) session\n"
          "  --auth            show provider auth status\n"
+         "  --version         print version\n"
          "  -h                help");
 }
 
@@ -91,6 +92,10 @@ int main(int argc, char **argv) {
             if (i + 1 < argc && argv[i + 1][0] != '-') resume_ref = argv[++i];
         }
         else if (strcmp(argv[i], "--auth") == 0) do_auth = 1;
+        else if (strcmp(argv[i], "--version") == 0) {
+            puts("orc " ORC_VERSION);
+            return 0;
+        }
         else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             usage();
             return 0;

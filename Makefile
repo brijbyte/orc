@@ -3,6 +3,17 @@ CPPFLAGS += -D_POSIX_C_SOURCE=200809L -Ivendor -Isrc
 CFLAGS ?= -O2
 CFLAGS += -std=c11 -Wall -Wextra
 
+# Version from the latest tag (falls back to orc.h default outside a git repo)
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//')
+ifneq ($(VERSION),)
+CPPFLAGS += -DORC_VERSION='"$(VERSION)"'
+endif
+
+# STATIC=1: fully static binary (use on Alpine/musl; glibc static is broken)
+ifeq ($(STATIC),1)
+LDFLAGS += -static
+endif
+
 # Keep macOS releases runnable on supported Apple Silicon systems. These flags
 # are Darwin-only so the same Makefile remains usable on Linux and other POSIX
 # platforms.
@@ -106,7 +117,12 @@ vendor/linenoise.o: vendor/linenoise.c vendor/linenoise.h
 $(OBJS): vendor/cJSON.h vendor/md4c.h vendor/timestamp.h vendor/linenoise.h \
 	$(CURL_A)
 
+PREFIX ?= /usr/local
+install: bin/orc
+	mkdir -p $(DESTDIR)$(PREFIX)/bin
+	install -m 755 bin/orc $(DESTDIR)$(PREFIX)/bin/orc
+
 clean:
 	rm -f bin/orc $(OBJS)
 
-.PHONY: all clean
+.PHONY: all install clean
