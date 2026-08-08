@@ -84,7 +84,7 @@ int agent_init(agent *ag, orc_cfg *cfg, const provider *prov,
     ag->history = resumed_history ? resumed_history : cJSON_CreateArray();
     ag->tools = cJSON_Parse(tools_schema_json());
     if (!ag->history || !ag->tools) {
-        fprintf(stderr, "orc: internal: cannot initialize agent\n");
+        fprintf(stderr, "❌ orc: cannot initialize agent\n");
         agent_free(ag);
         return -1;
     }
@@ -133,9 +133,9 @@ static void print_call(cJSON *call, int tty) {
         if (cJSON_IsString(a)) desc = a->valuestring;
     }
     if (tty)
-        printf(DIM("→ %s %.100s") "\n", name, desc);
+        printf(DIM("🔧 %s %.100s") "\n", name, desc);
     else
-        printf("→ %s %.100s\n", name, desc);
+        printf("🔧 %s %.100s\n", name, desc);
     if (args) cJSON_Delete(args);
 }
 
@@ -196,7 +196,7 @@ void agent_replay(agent *ag) {
 
     int tty = isatty(1);
     if (start > 0)
-        printf(tty ? DIM("··· %d earlier items") "\n" : "··· %d earlier items\n",
+        printf(tty ? DIM("📚 %d earlier items") "\n" : "📚 %d earlier items\n",
                start);
     for (int i = start; i < n; i++) {
         cJSON *it = cJSON_GetArrayItem(ag->history, i);

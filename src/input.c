@@ -382,7 +382,7 @@ void input_drain(void) {
         linenoiseHistoryAdd(line);
         push_line(line);
         if (!idle_flag) {
-            fputs(DIM("  ↳ queued") "\n", stdout);
+            fputs(DIM("  ⏳ queued") "\n", stdout);
             fflush(stdout);
         }
         edit_start();

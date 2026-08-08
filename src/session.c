@@ -77,14 +77,14 @@ int session_resume(orc_session *s, const char *ref, cJSON *history, orc_cfg *cfg
     else
         resolved = find_session(ref);
     if (!resolved) {
-        fprintf(stderr, "orc: no session%s%s to resume\n",
+        fprintf(stderr, "❌ orc: no session%s%s to resume\n",
                 ref ? " matching " : "", ref ? ref : "");
         return -1;
     }
     size_t len;
     char *text = read_file(resolved, &len);
     if (!text) {
-        fprintf(stderr, "orc: cannot read %s\n", resolved);
+        fprintf(stderr, "❌ orc: cannot read %s\n", resolved);
         free(resolved);
         return -1;
     }
@@ -122,10 +122,10 @@ int session_resume(orc_session *s, const char *ref, cJSON *history, orc_cfg *cfg
     s->items = items;
     if (isatty(2))
         fprintf(stderr,
-                "orc: resumed " BOLD("%.8s") DIM(" (%d items) %s") "\n",
+                "↩️  orc: resumed " BOLD("%.8s") DIM(" (%d items) %s") "\n",
                 cfg->session_id, items, s->path);
     else
-        fprintf(stderr, "orc: resumed %.8s (%d items) %s\n",
+        fprintf(stderr, "↩️  orc: resumed %.8s (%d items) %s\n",
                 cfg->session_id, items, s->path);
     return 0;
 }
@@ -214,7 +214,7 @@ int session_list(void) {
         closedir(d);
     }
     if (n == 0) {
-        printf("no sessions\n");
+        printf("📭 no sessions\n");
     } else {
         qsort(names, (size_t)n, sizeof *names, newest_first);
         for (int i = 0; i < n; i++) {

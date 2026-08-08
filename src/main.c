@@ -106,7 +106,7 @@ int main(int argc, char **argv) {
             return 0;
         }
         else {
-            fprintf(stderr, "orc: unknown option %s\n", argv[i]);
+            fprintf(stderr, "❌ orc: unknown option %s\n", argv[i]);
             usage();
             return 2;
         }
@@ -116,7 +116,7 @@ int main(int argc, char **argv) {
 
     const provider *prov = provider_get(cfg.provider);
     if (!prov) {
-        fprintf(stderr, "orc: unknown provider '%s'; available:\n", cfg.provider);
+        fprintf(stderr, "❌ orc: unknown provider '%s'; available:\n", cfg.provider);
         provider_list();
         return 2;
     }
@@ -124,7 +124,7 @@ int main(int argc, char **argv) {
     commands_init(prov, &cfg);
 
     if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
-        fprintf(stderr, "orc: cannot initialize HTTP client\n");
+        fprintf(stderr, "❌ orc: cannot initialize HTTP client\n");
         return 1;
     }
 
@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
 
     if (do_login) {
         if (!prov->login) {
-            fprintf(stderr, "orc: provider '%s' has no login\n", prov->name);
+            fprintf(stderr, "❌ orc: provider '%s' has no login\n", prov->name);
             rc = 2;
         } else {
             rc = prov->login() == 0 ? 0 : 1;
@@ -154,7 +154,7 @@ int main(int argc, char **argv) {
 
     cfg.instructions = build_instructions();
     if (!cfg.instructions) {
-        fprintf(stderr, "orc: out of memory\n");
+        fprintf(stderr, "❌ orc: out of memory\n");
         goto cleanup;
     }
 
@@ -163,7 +163,7 @@ int main(int argc, char **argv) {
         if (!resumed || session_resume(&sess, resume_ref, resumed, &cfg) != 0)
             goto cleanup;
     } else if (session_new(&sess, &cfg) != 0) {
-        fprintf(stderr, "orc: cannot create session file\n");
+        fprintf(stderr, "❌ orc: cannot create session file\n");
         goto cleanup;
     }
 
@@ -177,13 +177,13 @@ int main(int argc, char **argv) {
         rc = tr < 0 ? 1 : (tr == 1 ? 130 : 0);
     } else {
         if (isatty(1))
-            printf(BOLD_CYAN("orc") DIM(" %s") " — " BOLD("%s")
+            printf(BOLD_CYAN("🧌 orc") DIM(" %s") " — " BOLD("%s")
                    DIM(" (%s effort) · %ssession %.8s · Ctrl-D or 'exit' to quit")
                    "\n",
                    ORC_VERSION, cfg.model, cfg.effort,
                    do_resume ? "resumed " : "", cfg.session_id);
         else
-            printf("orc %s — %s (%s effort), %ssession %.8s. Ctrl-D or 'exit' to quit.\n",
+            printf("🧌 orc %s — %s (%s effort), %ssession %.8s. Ctrl-D or 'exit' to quit.\n",
                    ORC_VERSION, cfg.model, cfg.effort,
                    do_resume ? "resumed " : "", cfg.session_id);
         if (do_resume) agent_replay(&ag);
@@ -262,8 +262,8 @@ cleanup:
     if (ready && sess.items > 0) {
         fflush(stdout);
         fprintf(stderr,
-                isatty(2) ? DIM("orc: resume with `orc --resume %.8s`") "\n"
-                          : "orc: resume with `orc --resume %.8s`\n",
+                isatty(2) ? DIM("💡 orc: resume with `orc --resume %.8s`") "\n"
+                          : "💡 orc: resume with `orc --resume %.8s`\n",
                 cfg.session_id);
     } else if (ready && !do_resume && sess.path[0]) {
         unlink(sess.path); /* nothing was said; drop the empty session file */

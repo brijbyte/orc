@@ -129,7 +129,7 @@ long http_post(const char *url, const char **headers, const char *body, strbuf *
     long status = -1;
     if (rc == CURLE_OK) curl_easy_getinfo(h, CURLINFO_RESPONSE_CODE, &status);
     else if (rc == CURLE_ABORTED_BY_CALLBACK) status = -2;
-    else fprintf(stderr, "orc: http: %s\n", curl_easy_strerror(rc));
+    else fprintf(stderr, "❌ orc: http: %s\n", curl_easy_strerror(rc));
     curl_slist_free_all(list);
     curl_easy_cleanup(h);
     return status;
@@ -204,7 +204,7 @@ long http_post_sse(const char *url, const char **headers, const char *body,
     if (rc == CURLE_OK) status = r.status ? r.status : -1;
     else if (rc == CURLE_ABORTED_BY_CALLBACK) status = -2;
     else /* leading \n: streamed text may have left the line open */
-        fprintf(stderr, "\norc: http: %s\n", curl_easy_strerror(rc));
+        fprintf(stderr, "\n❌ orc: http: %s\n", curl_easy_strerror(rc));
 
     if (r.sse.debug) fclose(r.sse.debug);
     sb_free(&r.sse.buf);

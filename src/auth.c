@@ -31,7 +31,7 @@ int auth_store_put(const char *provider, cJSON *section) {
     char *path = orc_path("auth.json");
     char *out = cJSON_Print(root);
     int rc = write_file_atomic(path, out, strlen(out));
-    if (rc != 0) fprintf(stderr, "orc: failed to write %s\n", path);
+    if (rc != 0) fprintf(stderr, "❌ orc: failed to write %s\n", path);
     free(out);
     free(path);
     cJSON_Delete(root);

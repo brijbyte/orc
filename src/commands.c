@@ -53,10 +53,10 @@ static void cmd_new(agent *ag) {
     ag->history = cJSON_CreateArray();
     uuid4(ag->cfg->session_id);
     if (session_new(s, ag->cfg) != 0) {
-        fprintf(stderr, "orc: cannot create session file\n");
+        fprintf(stderr, "❌ orc: cannot create session file\n");
         return;
     }
-    printf("new session %.8s\n", ag->cfg->session_id);
+    printf("✨ new session %.8s\n", ag->cfg->session_id);
 }
 
 int command_dispatch(agent *ag, const char *line) {
@@ -71,7 +71,7 @@ int command_dispatch(agent *ag, const char *line) {
     if (!cmd) {
         /* "/tmp/x ..." is a path, not a typo'd command; hand it to the model */
         if (memchr(line + 1, '/', n - 1)) return 0;
-        printf("unknown command %.*s (try /help)\n", (int)n, line);
+        printf("⚠️  unknown command %.*s (try /help)\n", (int)n, line);
         return 1;
     }
 
@@ -92,7 +92,7 @@ int command_dispatch(agent *ag, const char *line) {
         cJSON *models = commands_models();
         cJSON *m;
         if (!*arg) {
-            printf("model %s (%s effort)\n", ag->cfg->model, ag->cfg->effort);
+            printf("🤖 model %s (%s effort)\n", ag->cfg->model, ag->cfg->effort);
             int tty = isatty(1);
             cJSON_ArrayForEach(m, models) {
                 const char *slug = model_field(m, "slug");
@@ -108,23 +108,23 @@ int command_dispatch(agent *ag, const char *line) {
             if (strcmp(model_field(m, "slug"), arg) == 0) known = 1;
         snprintf(model_buf, sizeof model_buf, "%s", arg);
         ag->cfg->model = model_buf;
-        printf("model set to %s%s\n", model_buf,
+        printf("✅ model set to %s%s\n", model_buf,
                known ? "" : " (not in provider's model list)");
         return 1;
     }
     if (strcmp(cmd->name, "/effort") == 0) {
         if (!*arg) {
-            printf("effort %s\n", ag->cfg->effort);
+            printf("🧠 effort %s\n", ag->cfg->effort);
             return 1;
         }
         if (strcmp(arg, "low") != 0 && strcmp(arg, "medium") != 0 &&
             strcmp(arg, "high") != 0) {
-            printf("effort must be low, medium, or high\n");
+            printf("⚠️  effort must be low, medium, or high\n");
             return 1;
         }
         snprintf(effort_buf, sizeof effort_buf, "%s", arg);
         ag->cfg->effort = effort_buf;
-        printf("effort set to %s\n", effort_buf);
+        printf("✅ effort set to %s\n", effort_buf);
         return 1;
     }
     return 1;

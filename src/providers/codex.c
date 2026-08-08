@@ -76,14 +76,14 @@ static int authfile_load(auth_file *af) {
     af->path = expand_home(CODEX_CLI_AUTH_PATH);
     char *text = read_file(af->path, NULL);
     if (!text) {
-        fprintf(stderr, "orc: no credentials — run `orc --login`\n");
+        fprintf(stderr, "🔐 orc: no credentials — run `orc --login`\n");
         authfile_free(af);
         return -1;
     }
     af->root = cJSON_Parse(text);
     free(text);
     if (!af->root) {
-        fprintf(stderr, "orc: %s is not valid JSON\n", af->path);
+        fprintf(stderr, "❌ orc: %s is not valid JSON\n", af->path);
         authfile_free(af);
         return -1;
     }
@@ -126,7 +126,7 @@ static int do_refresh(auth_file *af) {
     cJSON *tokens = cJSON_GetObjectItem(af->sec, "tokens");
     const char *rt = jstr(tokens, "refresh_token");
     if (!rt) {
-        fprintf(stderr, "orc: no refresh_token in %s\n", af->path);
+        fprintf(stderr, "❌ orc: no refresh_token in %s\n", af->path);
         return -1;
     }
 
@@ -144,7 +144,7 @@ static int do_refresh(auth_file *af) {
     free(body);
 
     if (status != 200) {
-        fprintf(stderr, "orc: token refresh failed (HTTP %ld): %.300s\n",
+        fprintf(stderr, "❌ orc: token refresh failed (HTTP %ld): %.300s\n",
                 status, resp.data ? resp.data : "");
         sb_free(&resp);
         return -1;
@@ -153,7 +153,7 @@ static int do_refresh(auth_file *af) {
     cJSON *nt = cJSON_Parse(resp.data);
     sb_free(&resp);
     if (!nt) {
-        fprintf(stderr, "orc: token refresh: bad response JSON\n");
+        fprintf(stderr, "❌ orc: token refresh: bad response JSON\n");
         return -1;
     }
     const char *keys[] = {"access_token", "id_token", "refresh_token"};
@@ -175,10 +175,10 @@ static int do_refresh(auth_file *af) {
     int rc = write_file_atomic(af->path, out, strlen(out));
     free(out);
     if (rc != 0) {
-        fprintf(stderr, "orc: failed to write %s\n", af->path);
+        fprintf(stderr, "❌ orc: failed to write %s\n", af->path);
         return -1;
     }
-    fprintf(stderr, "orc: refreshed tokens\n");
+    fprintf(stderr, "✅ orc: refreshed tokens\n");
     return 0;
 }
 
@@ -218,7 +218,7 @@ static int auth_load(codex_auth *a) {
     const char *at = jstr(tokens, "access_token");
     const char *acct = jstr(tokens, "account_id");
     if (!at || !acct) {
-        fprintf(stderr, "orc: %s missing access_token/account_id\n", af.path);
+        fprintf(stderr, "❌ orc: %s missing access_token/account_id\n", af.path);
         authfile_free(&af);
         return -1;
     }
@@ -243,23 +243,23 @@ static int codex_auth_status(void) {
     const char *at = jstr(tokens, "access_token");
     const char *lr = jstr(af.sec, "last_refresh");
 
-    printf("provider:     codex\n");
-    printf("auth_file:    %s\n", af.path);
-    printf("auth_mode:    %s\n", mode ? mode : "(none)");
-    printf("account_id:   %s\n", acct ? acct : "(none)");
+    printf("🤖 provider:     codex\n");
+    printf("📄 auth_file:    %s\n", af.path);
+    printf("🔐 auth_mode:    %s\n", mode ? mode : "(none)");
+    printf("🪪 account_id:   %s\n", acct ? acct : "(none)");
     if (at) {
         long long exp = jwt_exp(at);
         long long now = (long long)time(NULL);
         if (exp)
-            printf("token:        %s (expires in %lld min)\n",
+            printf("🔑 token:        %s (expires in %lld min)\n",
                    exp > now ? "valid" : "EXPIRED", (exp - now) / 60);
         else
-            printf("token:        present (no exp claim)\n");
+            printf("🔑 token:        present (no exp claim)\n");
     } else {
-        printf("token:        MISSING\n");
+        printf("🔑 token:        MISSING\n");
     }
-    printf("last_refresh: %s\n", lr ? lr : "(none)");
-    printf("refresh due:  %s\n", needs_refresh(af.sec) ? "yes" : "no");
+    printf("🕒 last_refresh: %s\n", lr ? lr : "(none)");
+    printf("🔄 refresh due:  %s\n", needs_refresh(af.sec) ? "yes" : "no");
     int ok = at && acct;
     authfile_free(&af);
     return ok ? 0 : -1;
@@ -346,7 +346,7 @@ static char *wait_for_code(int srv, const char *state) {
         close(fd);
         curl_free(st);
         if (!ok) {
-            fprintf(stderr, "orc: login callback rejected (%s)\n",
+            fprintf(stderr, "❌ orc: login callback rejected (%s)\n",
                     err ? err : "missing code or bad state");
             curl_free(err);
             curl_free(code);
@@ -372,7 +372,7 @@ static int save_auth(cJSON *grant) {
     const char *at = jstr(grant, "access_token");
     const char *rt = jstr(grant, "refresh_token");
     if (!idt || !at || !rt) {
-        fprintf(stderr, "orc: token response missing fields\n");
+        fprintf(stderr, "❌ orc: token response missing fields\n");
         return -1;
     }
     cJSON *claims = jwt_payload(idt);
@@ -380,7 +380,7 @@ static int save_auth(cJSON *grant) {
         jstr(cJSON_GetObjectItem(claims, "https://api.openai.com/auth"),
              "chatgpt_account_id");
     if (!acct) {
-        fprintf(stderr, "orc: id_token has no chatgpt_account_id\n");
+        fprintf(stderr, "❌ orc: id_token has no chatgpt_account_id\n");
         cJSON_Delete(claims);
         return -1;
     }
@@ -400,7 +400,7 @@ static int save_auth(cJSON *grant) {
     int rc = auth_store_put("codex", sec);
     if (rc == 0) {
         char *path = orc_path("auth.json");
-        printf("orc: logged in; credentials saved to %s\n", path);
+        printf("✅ orc: logged in; credentials saved to %s\n", path);
         free(path);
     }
     return rc;
@@ -409,7 +409,7 @@ static int save_auth(cJSON *grant) {
 static int codex_login(void) {
     unsigned char rnd[32], dig[32];
     if (rand_bytes(rnd, 32) != 0) {
-        fprintf(stderr, "orc: cannot read /dev/urandom\n");
+        fprintf(stderr, "❌ orc: cannot read /dev/urandom\n");
         return -1;
     }
     char *verifier = base64url_encode(rnd, 32); /* 43 chars, PKCE-valid */
@@ -440,7 +440,7 @@ static int codex_login(void) {
     addr.sin_port = htons(LOGIN_PORT);
     if (bind(srv, (struct sockaddr *)&addr, sizeof addr) != 0 ||
         listen(srv, 4) != 0) {
-        fprintf(stderr, "orc: cannot listen on localhost:%d (port in use?)\n",
+        fprintf(stderr, "❌ orc: cannot listen on localhost:%d (port in use?)\n",
                 LOGIN_PORT);
         close(srv);
         free(verifier); free(challenge); free(state);
@@ -456,8 +456,8 @@ static int codex_login(void) {
              "&id_token_add_organizations=true&codex_cli_simplified_flow=true"
              "&state=%s",
              redirect, scope, challenge_q, state_q);
-    printf("Open this URL to sign in with ChatGPT:\n\n  %s\n\n"
-           "Waiting for the browser callback on localhost:%d "
+    printf("🔐 Open this URL to sign in with ChatGPT:\n\n  %s\n\n"
+           "🌐 Waiting for the browser callback on localhost:%d "
            "(Ctrl-C to cancel)...\n", url, LOGIN_PORT);
     fflush(stdout); /* stdout may be a pipe; show the URL before blocking */
     open_browser(url);
@@ -493,7 +493,7 @@ static int codex_login(void) {
     sb_init(&resp);
     long status = http_post(REFRESH_URL, headers, body, &resp);
     if (status != 200) {
-        fprintf(stderr, "orc: code exchange failed (HTTP %ld): %.300s\n",
+        fprintf(stderr, "❌ orc: code exchange failed (HTTP %ld): %.300s\n",
                 status, resp.data ? resp.data : "");
         sb_free(&resp);
         return -1;
@@ -501,7 +501,7 @@ static int codex_login(void) {
     cJSON *grant = cJSON_Parse(resp.data);
     sb_free(&resp);
     if (!grant) {
-        fprintf(stderr, "orc: code exchange: bad response JSON\n");
+        fprintf(stderr, "❌ orc: code exchange: bad response JSON\n");
         return -1;
     }
     int rc = save_auth(grant);
@@ -613,7 +613,7 @@ static int codex_turn(cJSON *history, cJSON *tools, const orc_cfg *cfg,
             result = PROVIDER_INTERRUPTED;
         } else if (status >= 200 && status < 300) {
             if (st.failed) {
-                fprintf(stderr, "\norc: model error: %s\n", st.errmsg);
+                fprintf(stderr, "\n❌ orc: model error: %s\n", st.errmsg);
                 result = PROVIDER_ERROR;
             } else {
                 while (cJSON_GetArraySize(st.items) > 0) {
@@ -629,9 +629,9 @@ static int codex_turn(cJSON *history, cJSON *tools, const orc_cfg *cfg,
              * response regenerates from scratch; buffered items are dropped. */
             int wait = 2 << attempt;
             if (status == -1)
-                fprintf(stderr, "\norc: connection dropped, retrying in %ds...\n", wait);
+                fprintf(stderr, "\n🔄 orc: connection dropped, retrying in %ds...\n", wait);
             else
-                fprintf(stderr, "\norc: HTTP %ld, retrying in %ds...\n", status, wait);
+                fprintf(stderr, "\n🔄 orc: HTTP %ld, retrying in %ds...\n", status, wait);
             cJSON_Delete(st.items);
             sb_free(&err);
             sleep((unsigned)wait);
@@ -639,9 +639,9 @@ static int codex_turn(cJSON *history, cJSON *tools, const orc_cfg *cfg,
             result = PROVIDER_INTERRUPTED;
             break;
         } else if (status == -1 || status == 429 || status >= 500) {
-            fprintf(stderr, "\norc: giving up after %d attempts\n", attempt + 1);
+            fprintf(stderr, "\n❌ orc: giving up after %d attempts\n", attempt + 1);
         } else {
-            fprintf(stderr, "\norc: HTTP %ld: %.500s\n", status, err.data ? err.data : "");
+            fprintf(stderr, "\n❌ orc: HTTP %ld: %.500s\n", status, err.data ? err.data : "");
         }
         cJSON_Delete(st.items);
         sb_free(&err);
