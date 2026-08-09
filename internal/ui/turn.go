@@ -154,6 +154,10 @@ func displayPath(path string) string {
 	return path
 }
 
+// descMax clamps the tool one-liner; a clamped bash command gets the full
+// text as an expandable preview instead.
+const descMax = 100
+
 // ToolDesc summarizes a tool call's arguments (command or path).
 func ToolDesc(name, argsJSON string) string {
 	var args struct {
@@ -165,8 +169,8 @@ func ToolDesc(name, argsJSON string) string {
 	if desc == "" && args.Path != "" {
 		desc = displayPath(args.Path)
 	}
-	if len(desc) > 100 {
-		desc = desc[:100]
+	if r := []rune(desc); len(r) > descMax {
+		desc = string(r[:descMax]) + "…"
 	}
 	return desc
 }
@@ -243,8 +247,28 @@ func diffHalf(out *[]string, marker, fg, bg, text, path string, start int) {
 	}
 }
 
+// codeLines renders content as numbered lines, syntax-highlighted by the
+// file's language on a terminal.
+func codeLines(path, content string, tty bool) []string {
+	content = strings.TrimRight(content, "\n")
+	if content == "" {
+		return nil
+	}
+	body := strings.Split(content, "\n")
+	if tty {
+		if hl := highlightTermLines(path, content); len(hl) == len(body) {
+			body = hl
+		}
+	}
+	var lines []string
+	for i, l := range body {
+		lines = append(lines, gutter(i+1, tty)+l)
+	}
+	return lines
+}
+
 func toolPreviewLines(name, argsJSON string, tty bool) []string {
-	var a struct{ Old, New, Content, Path string }
+	var a struct{ Old, New, Content, Path, Cmd string }
 	if json.Unmarshal([]byte(argsJSON), &a) != nil {
 		return nil
 	}
@@ -273,17 +297,11 @@ func toolPreviewLines(name, argsJSON string, tty bool) []string {
 		add("+", a.New, styleGreen, start)
 	case "write":
 		// new content, not a diff: numbered lines without ± markers
-		if a.Content == "" {
-			return nil
-		}
-		body := strings.Split(strings.TrimRight(a.Content, "\n"), "\n")
-		if tty {
-			if hl := highlightTermLines(a.Path, strings.TrimRight(a.Content, "\n")); hl != nil {
-				body = hl
-			}
-		}
-		for i, l := range body {
-			lines = append(lines, gutter(i+1, tty)+l)
+		return codeLines(a.Path, a.Content, tty)
+	case "bash":
+		// the one-liner clamps long commands; preview the full text
+		if len([]rune(a.Cmd)) > descMax {
+			return codeLines("command.sh", a.Cmd, tty)
 		}
 	}
 	return lines

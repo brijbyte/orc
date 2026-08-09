@@ -51,18 +51,25 @@ func highlightTermLines(path, content string) []string {
 	return formatLines(tl, formatters.Get("terminal256"))
 }
 
-// WritePreviewHTML pre-highlights a write call's content into per-line HTML
-// with inline styles, so browsers need no highlighter. nil when not a write
-// call or the language is unknown.
-func WritePreviewHTML(name, argsJSON string) []string {
-	if name != "write" {
+// PreviewHTML pre-highlights a tool call's code preview into per-line HTML
+// with inline styles, so browsers need no highlighter: write content by its
+// path, clamped bash commands as shell. nil otherwise or when the language
+// is unknown.
+func PreviewHTML(name, argsJSON string) []string {
+	var a struct{ Path, Content, Cmd string }
+	if json.Unmarshal([]byte(argsJSON), &a) != nil {
 		return nil
 	}
-	var a struct{ Path, Content string }
-	if json.Unmarshal([]byte(argsJSON), &a) != nil || a.Content == "" {
+	var path, src string
+	switch {
+	case name == "write" && a.Content != "":
+		path, src = a.Path, a.Content
+	case name == "bash" && len([]rune(a.Cmd)) > descMax:
+		path, src = "command.sh", a.Cmd
+	default:
 		return nil
 	}
-	tl := tokenLines(a.Path, strings.TrimRight(a.Content, "\n"))
+	tl := tokenLines(path, strings.TrimRight(src, "\n"))
 	if tl == nil {
 		return nil
 	}

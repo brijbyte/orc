@@ -54,6 +54,24 @@ func stripDiffPaint(s string) string {
 	return s
 }
 
+// Long bash commands clamp in the one-liner and expand via the preview;
+// short ones get neither.
+func TestBashCommandPreview(t *testing.T) {
+	long := "echo " + strings.Repeat("x", 120)
+	args, _ := json.Marshal(map[string]string{"cmd": long})
+	if desc := ToolDesc("bash", string(args)); !strings.HasSuffix(desc, "…") {
+		t.Errorf("clamped desc must end with ellipsis: %q", desc)
+	}
+	_, full := ToolPreview("bash", string(args), false, "")
+	if !strings.Contains(full, "echo") || !strings.Contains(full, "   1 ") {
+		t.Errorf("expected numbered full-command preview: %q", full)
+	}
+	short, _ := json.Marshal(map[string]string{"cmd": "ls -la"})
+	if s, _ := ToolPreview("bash", string(short), false, ""); s != "" {
+		t.Errorf("short command must have no preview: %q", s)
+	}
+}
+
 // The truncation marker is metadata: no diff backgrounds, no token colors.
 func TestPreviewMarkerNotHighlighted(t *testing.T) {
 	var old strings.Builder

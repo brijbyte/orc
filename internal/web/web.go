@@ -57,7 +57,7 @@ func (w *IO) ToolCall(name, argsJSON string) {
 		"desc":    ui.ToolDesc(name, argsJSON),
 		"preview": full,
 	}
-	if hl := ui.WritePreviewHTML(name, argsJSON); hl != nil {
+	if hl := ui.PreviewHTML(name, argsJSON); hl != nil {
 		data["html"] = hl
 	}
 	w.hub.emit("tool", data)
