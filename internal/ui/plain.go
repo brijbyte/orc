@@ -3,7 +3,9 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 
 	"github.com/brijbyte/orc/internal/commands"
 	"github.com/brijbyte/orc/internal/config"
@@ -82,21 +84,47 @@ func PrintSessionResumed(id string, items int, path string) {
 	}
 }
 
+// page writes through $PAGER (default `less -RFX`: ANSI ok, quit if it fits)
+// when stdout is a TTY; straight to stdout otherwise.
+func page(write func(w io.Writer)) {
+	if !stdoutTTY() {
+		write(os.Stdout)
+		return
+	}
+	pager := os.Getenv("PAGER")
+	if pager == "" {
+		pager = "less -RFX"
+	}
+	cmd := exec.Command("/bin/sh", "-c", pager)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	pipe, err := cmd.StdinPipe()
+	if err != nil || cmd.Start() != nil {
+		write(os.Stdout)
+		return
+	}
+	write(pipe) // quitting the pager early closes the pipe; writes just error
+	pipe.Close()
+	cmd.Wait()
+}
+
 func PrintSessionList(rows []session.Info) {
 	if len(rows) == 0 {
 		fmt.Println("📭 no sessions")
 		return
 	}
 	tty := stdoutTTY()
-	for _, r := range rows {
-		if tty {
-			fmt.Printf("%s  %s  %s\n",
-				styleCyan.Render(fmt.Sprintf("%-8s", r.ID[:min(8, len(r.ID))])),
-				styleDim.Render(fmt.Sprintf("%-16s", r.When)), r.Title)
-		} else {
-			fmt.Printf("%-8s  %-16s  %s\n", r.ID[:min(8, len(r.ID))], r.When, r.Title)
+	page(func(w io.Writer) {
+		for _, r := range rows {
+			if tty {
+				fmt.Fprintf(w, "%s  %s  %s\n",
+					styleCyan.Render(fmt.Sprintf("%-8s", r.ID[:min(8, len(r.ID))])),
+					styleDim.Render(fmt.Sprintf("%-16s", r.When)), r.Title)
+			} else {
+				fmt.Fprintf(w, "%-8s  %-16s  %s\n", r.ID[:min(8, len(r.ID))], r.When, r.Title)
+			}
 		}
-	}
+	})
 }
 
 // Banner prints the startup line.
