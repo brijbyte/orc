@@ -216,6 +216,19 @@ footer .statSel:hover {
   padding: 2rem;
   color: var(--dim);
 }
+.loader {
+  padding: 2rem;
+  color: var(--dim);
+  animation: pulse 0.9s ease-in-out infinite alternate;
+}
+@keyframes pulse {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
 
 /* Light scheme, selected via <html data-theme> (theme.ts resolves the
    "system" preference). Last so the overrides win their equal-specificity
