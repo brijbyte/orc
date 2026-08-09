@@ -105,9 +105,9 @@ function Preview({ text, html }: { text: string; html?: string[] }) {
         ),
       )}
       {lines.length > previewMax && (
-        <div className="expander" onClick={() => setOpen(!open)}>
+        <button type="button" className="expander" onClick={() => setOpen(!open)}>
           {open ? "     collapse" : `     … ${lines.length - previewMax} more lines · click to expand`}
-        </div>
+        </button>
       )}
     </pre>
   );

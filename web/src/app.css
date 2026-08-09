@@ -78,6 +78,13 @@ main > div {
   color: var(--fg); /* unstyled tokens; chroma spans carry their own colors */
 }
 .preview .expander {
+  display: block;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  white-space: pre;
+  text-align: left;
   color: var(--dim);
   cursor: pointer;
   user-select: none;
