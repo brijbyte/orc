@@ -4,6 +4,8 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/brijbyte/orc/internal/config"
@@ -11,6 +13,7 @@ import (
 	"github.com/brijbyte/orc/internal/provider"
 	"github.com/brijbyte/orc/internal/session"
 	"github.com/brijbyte/orc/internal/tools"
+	"github.com/google/uuid"
 )
 
 // IO is the interface the UI supplies for agent events and queued input.
@@ -123,11 +126,84 @@ func (ag *Agent) steer() {
 
 func (ag *Agent) Replay() { ag.IO.Replay(ag.History) }
 
+const compactPrompt = "Summarize this conversation so a fresh instance can " +
+	"continue the work. Include the user's goals and constraints, what was " +
+	"done, key file paths and code details, the current state, and next " +
+	"steps. Do not restate your instructions. Output only the summary."
+
+// compactRatio of the model's context window triggers auto-compaction.
+const compactRatio = 0.8
+
+// ctxWindow is the current model's context window, 0 when unknown.
+func (ag *Agent) ctxWindow() int64 {
+	for _, m := range ag.Prov.Models() {
+		if m.Slug == ag.Cfg.Model {
+			return m.ContextWindow
+		}
+	}
+	return 0
+}
+
+// Compact summarizes the history into a fresh session seeded with the
+// summary. The old session file stays on disk as the archive.
+func (ag *Agent) Compact(ctx context.Context) error {
+	if len(ag.History) == 0 {
+		ag.IO.Notice("📭 nothing to compact")
+		return nil
+	}
+	if err := ag.IO.TurnBegin(); err != nil {
+		return err
+	}
+	var sb strings.Builder
+	req := append(append([]json.RawMessage{}, ag.History...), userMessage(compactPrompt))
+	cb := &provider.Callbacks{
+		OnTextDelta:     func(s string) { sb.WriteString(s); ag.IO.TextDelta(s) },
+		OnThinkingDelta: ag.IO.ThinkingDelta,
+		OnNotice:        ag.IO.Notice,
+	}
+	err := ag.Prov.Turn(ctx, req, json.RawMessage("[]"), ag.Cfg, cb)
+	ag.IO.TurnEnd()
+	if err != nil {
+		return err
+	}
+	summary := strings.TrimSpace(sb.String())
+	if summary == "" {
+		return errors.New("compaction returned an empty summary")
+	}
+
+	ag.Sess.Close()
+	ag.Cfg.SessionID = uuid.NewString()
+	next, err := session.New(ag.Cfg)
+	if err != nil {
+		return errors.New("cannot create session file")
+	}
+	*ag.Sess = *next
+	ag.History = nil
+	ag.commit(userMessage(
+		"Summary of the conversation so far (earlier history was compacted):\n\n" + summary))
+	ag.IO.Usage(0) // real usage lands after the next request
+	ag.IO.Notice(fmt.Sprintf("🗜️  compacted into session %.8s", ag.Cfg.SessionID))
+	return nil
+}
+
+// maybeCompact auto-compacts when usage crosses the window threshold.
+func (ag *Agent) maybeCompact(ctx context.Context) {
+	win := ag.ctxWindow()
+	if win <= 0 || float64(ag.Sess.Ctx) < compactRatio*float64(win) {
+		return
+	}
+	ag.IO.Notice(fmt.Sprintf("🗜️  context at %d%% — compacting", ag.Sess.Ctx*100/win))
+	if err := ag.Compact(ctx); err != nil && !errors.Is(err, provider.ErrInterrupted) {
+		ag.IO.Notice(fmt.Sprintf("⚠️  compaction failed: %v", err))
+	}
+}
+
 // Turn runs one user turn to completion (including tool rounds).
 func (ag *Agent) Turn(ctx context.Context, userText string) error {
 	if ag.Cfg.Instructions == "" {
 		ag.Cfg.Instructions = instructions.Build()
 	}
+	ag.maybeCompact(ctx)
 	ag.commit(userMessage(userText))
 
 	for {
@@ -179,5 +255,6 @@ func (ag *Agent) Turn(ctx context.Context, userText string) error {
 			return provider.ErrInterrupted
 		}
 		ag.steer()
+		ag.maybeCompact(ctx) // history is consistent between tool rounds
 	}
 }

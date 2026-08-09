@@ -21,6 +21,7 @@ var Cmds = []Cmd{
 	{"/model", "[slug]", "set or show the model"},
 	{"/effort", "low|medium|high", "set reasoning effort"},
 	{"/new", "", "start a fresh session"},
+	{"/compact", "", "summarize history into a fresh context"},
 	{"/resume", "[id]", "switch to another session"},
 	{"/status", "", "show session status"},
 	{"/login", "", "sign in to the provider (browser OAuth)"},
@@ -179,6 +180,8 @@ func (c *Commands) Dispatch(ag *agent.Agent, line string) (handled, quit bool, p
 		}
 	case "/new":
 		c.cmdNew(ag)
+	case "/compact": // interactive drivers intercept this before Dispatch
+		c.ui.Printf("⚠️  /compact is unavailable in this mode")
 	case "/resume":
 		c.cmdResume(ag, arg)
 	case "/status":

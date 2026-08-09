@@ -237,6 +237,14 @@ func runPipe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 			stop()
 			continue
 		}
+		if strings.TrimSpace(line) == "/compact" {
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+			if err := ag.Compact(ctx); err != nil && !errors.Is(err, provider.ErrInterrupted) {
+				fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
+			}
+			stop()
+			continue
+		}
 		if strings.HasPrefix(line, "/") {
 			handled, quit, prompt := cmds.Dispatch(ag, line)
 			if quit {
@@ -299,6 +307,19 @@ func runTUI(cfg *config.Config, prov provider.Provider, sess *session.Session,
 				t.SetCancel(nil)
 				cancel()
 				if err != nil {
+					t.Printf("❌ orc: %v", err)
+				}
+				continue
+			}
+			if strings.TrimSpace(line) == "/compact" {
+				ctx, cancel := context.WithCancel(context.Background())
+				t.SetCancel(cancel)
+				t.SetBusy(true)
+				err := ag.Compact(ctx)
+				t.SetBusy(false)
+				t.SetCancel(nil)
+				cancel()
+				if err != nil && !errors.Is(err, provider.ErrInterrupted) {
 					t.Printf("❌ orc: %v", err)
 				}
 				continue
