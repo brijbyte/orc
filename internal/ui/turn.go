@@ -17,6 +17,8 @@ var (
 	styleCyan     = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
 	styleBoldCyan = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
 	styleReverse  = lipgloss.NewStyle().Reverse(true)
+	styleRed      = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	styleGreen    = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
 )
 
 // turn renders one streaming model turn: thinking lines, then markdown text.
@@ -173,6 +175,41 @@ func toolLine(name, argsJSON string, tty bool) string {
 	return line
 }
 
+const diffMax = 20
+
+// editDiff renders a ±preview for the edit tool; "" for other tools.
+func editDiff(name, argsJSON string, tty bool) string {
+	if name != "edit" {
+		return ""
+	}
+	var a struct{ Old, New string }
+	if json.Unmarshal([]byte(argsJSON), &a) != nil || a.Old == "" {
+		return ""
+	}
+	var lines []string
+	add := func(prefix, text string, style lipgloss.Style) {
+		for _, l := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
+			line := prefix + l
+			if tty {
+				line = style.Render(line)
+			}
+			lines = append(lines, line)
+		}
+	}
+	add("  - ", a.Old, styleRed)
+	if a.New != "" {
+		add("  + ", a.New, styleGreen)
+	}
+	if len(lines) > diffMax {
+		more := fmt.Sprintf("  … %d more lines", len(lines)-diffMax)
+		if tty {
+			more = styleDim.Render(more)
+		}
+		lines = append(lines[:diffMax], more)
+	}
+	return strings.Join(lines, "\n")
+}
+
 // userEcho formats a user line for the scrollback.
 func userEcho(line string, tty bool) string {
 	if tty {
@@ -237,6 +274,9 @@ func replay(history []json.RawMessage, println func(string), width func() int, t
 		switch probe.Type {
 		case "function_call":
 			println(toolLine(probe.Name, probe.Arguments, tty))
+			if d := editDiff(probe.Name, probe.Arguments, tty); d != "" {
+				println(d)
+			}
 		case "message":
 			role, text := messageText(history[i])
 			if text == "" {

@@ -238,13 +238,14 @@ func runPipe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 			continue
 		}
 		if strings.HasPrefix(line, "/") {
-			handled, quit := cmds.Dispatch(ag, line)
+			handled, quit, prompt := cmds.Dispatch(ag, line)
 			if quit {
 				break
 			}
-			if handled {
+			if prompt == "" && handled {
 				continue
 			}
+			line = prompt // custom command: run its prompt as the turn
 		}
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 		if err := ag.Turn(ctx, line); err != nil && !errors.Is(err, provider.ErrInterrupted) {
@@ -303,13 +304,14 @@ func runTUI(cfg *config.Config, prov provider.Provider, sess *session.Session,
 				continue
 			}
 			if strings.HasPrefix(line, "/") {
-				handled, quit := cmds.Dispatch(ag, line)
+				handled, quit, prompt := cmds.Dispatch(ag, line)
 				if quit {
 					return
 				}
-				if handled {
+				if prompt == "" && handled {
 					continue
 				}
+				line = prompt // custom command: run its prompt as the turn
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			t.SetCancel(cancel)

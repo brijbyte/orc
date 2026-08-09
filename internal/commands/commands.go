@@ -2,6 +2,7 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,6 +21,8 @@ var Cmds = []Cmd{
 	{"/model", "[slug]", "set or show the model"},
 	{"/effort", "low|medium|high", "set reasoning effort"},
 	{"/new", "", "start a fresh session"},
+	{"/resume", "[id]", "switch to another session"},
+	{"/status", "", "show session status"},
 	{"/login", "", "sign in to the provider (browser OAuth)"},
 	{"/help", "", "list commands"},
 	{"/quit", "", "exit orc"},
@@ -134,10 +137,11 @@ func (c *Commands) cmdNew(ag *agent.Agent) {
 	c.CtxUsed(0) // empty history: reset the context gauge
 }
 
-// Dispatch handles a slash command. Returns handled and quit.
-func (c *Commands) Dispatch(ag *agent.Agent, line string) (handled, quit bool) {
+// Dispatch handles a slash command. Returns handled and quit; a non-empty
+// prompt (from a custom command) must be run as a model turn by the caller.
+func (c *Commands) Dispatch(ag *agent.Agent, line string) (handled, quit bool, prompt string) {
 	if !strings.HasPrefix(line, "/") {
-		return false, false
+		return false, false, ""
 	}
 	word, rest, _ := strings.Cut(line, " ")
 	if w, r, found := strings.Cut(word, "\t"); found {
@@ -153,25 +157,110 @@ func (c *Commands) Dispatch(ag *agent.Agent, line string) (handled, quit bool) {
 	}
 	// Slash lines are never sent to the model; unknown ones just warn.
 	if cmd == nil {
+		if p, err := c.customPrompt(word, arg); err == nil {
+			return true, false, p
+		} else if !errors.Is(err, errNoCustom) {
+			c.ui.Printf("❌ %s: %v", word, err)
+			return true, false, ""
+		}
 		c.ui.Printf("⚠️  unknown command %s (try /help)", word)
-		return true, false
+		return true, false, ""
 	}
 
 	switch cmd.Name {
 	case "/quit":
-		return true, true
+		return true, true, ""
 	case "/help":
 		for _, cc := range Cmds {
 			c.ui.Printf("  %-8s %-16s %s", cc.Name, cc.Args, cc.Desc)
 		}
+		for _, cc := range c.CustomCmds() {
+			c.ui.Printf("  %-25s %s", cc.Name, cc.Desc)
+		}
 	case "/new":
 		c.cmdNew(ag)
+	case "/resume":
+		c.cmdResume(ag, arg)
+	case "/status":
+		c.cmdStatus(ag)
 	case "/model":
 		c.cmdModel(ag, arg)
 	case "/effort":
 		c.cmdEffort(ag, arg)
 	}
-	return true, false
+	return true, false, ""
+}
+
+// cmdResume switches the live agent to another session; no arg lists them.
+func (c *Commands) cmdResume(ag *agent.Agent, arg string) {
+	if arg == "" {
+		rows, err := session.List()
+		if err != nil || len(rows) == 0 {
+			c.ui.Printf("📭 no sessions")
+			return
+		}
+		for _, r := range rows {
+			marker := ' '
+			if strings.HasPrefix(c.cfg.SessionID, r.ID) || strings.HasPrefix(r.ID, c.cfg.SessionID) {
+				marker = '*'
+			}
+			c.ui.Printf("%c %-8.8s %-16s %s", marker, r.ID, r.When, r.Title)
+		}
+		return
+	}
+	prevID := c.cfg.SessionID
+	next, resumed, err := session.Resume(arg, c.cfg)
+	if err != nil {
+		c.cfg.SessionID = prevID
+		c.ui.Printf("❌ %v", err)
+		return
+	}
+	old := ag.Sess
+	old.Close()
+	if old.Items == 0 && old.Path != next.Path {
+		os.Remove(old.Path)
+	}
+	*ag.Sess = *next
+	ag.History = resumed
+	if next.Model != "" {
+		c.cfg.Model = next.Model
+	}
+	if next.Effort != "" {
+		c.cfg.Effort = next.Effort
+	}
+	c.ui.Printf("↩️  resumed %.8s (%d items)", c.cfg.SessionID, next.Items)
+	ag.Replay()
+	c.CtxUsed(next.Ctx)
+}
+
+func (c *Commands) cmdStatus(ag *agent.Agent) {
+	c.ui.Printf("🧌 orc %s · session %.8s (%d items)", config.Version, c.cfg.SessionID, ag.Sess.Items)
+	c.ui.Printf("📄 %s", ag.Sess.Path)
+	c.ui.Printf("🤖 %s (%s effort) · provider %s", c.cfg.Model, c.cfg.Effort, c.prov.Name())
+	if c.ctxUsed > 0 {
+		s := fmt.Sprintf("📊 ctx %d tokens", c.ctxUsed)
+		if win := c.modelCtxWindow(); win > 0 {
+			s += fmt.Sprintf(" of %dk (%d%%)", win/1000, (c.ctxUsed*100+win-1)/win)
+		}
+		c.ui.Printf("%s", s)
+	}
+	cwd, _ := os.Getwd()
+	if branch := gitBranch(); branch != "" {
+		cwd += fmt.Sprintf(" (%s)", branch)
+	}
+	c.ui.Printf("📁 %s", cwd)
+}
+
+// Sessions lists resumable sessions for the menu, current one excluded.
+func (c *Commands) Sessions() []session.Info {
+	rows, _ := session.List()
+	out := rows[:0]
+	for _, r := range rows {
+		if !strings.HasPrefix(c.cfg.SessionID, r.ID) && !strings.HasPrefix(r.ID, c.cfg.SessionID) {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 func (c *Commands) cmdModel(ag *agent.Agent, arg string) {

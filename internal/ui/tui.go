@@ -115,13 +115,24 @@ func (t *TUI) TurnEnd() {
 	}
 }
 
-func (t *TUI) ToolCall(name, argsJSON string) { t.println(toolLine(name, argsJSON, true)) }
-func (t *TUI) UserLine(line string)           { t.println(userEcho(line, true)) }
-func (t *TUI) Notice(line string)             { t.println(line) }
+func (t *TUI) ToolCall(name, argsJSON string) {
+	t.println(toolLine(name, argsJSON, true))
+	if d := editDiff(name, argsJSON, true); d != "" {
+		t.println(d)
+	}
+}
 
-// Replay runs before the program starts; plain prints land in scrollback.
+func (t *TUI) UserLine(line string) { t.println(userEcho(line, true)) }
+func (t *TUI) Notice(line string)   { t.println(line) }
+
+// Replay before the program starts prints plainly; later (in-session
+// /resume) it must go through the program to keep the input line intact.
 func (t *TUI) Replay(history []json.RawMessage) {
-	replay(history, func(s string) { fmt.Println(s) }, t.widthFn, true)
+	out := func(s string) { fmt.Println(s) }
+	if t.running.Load() {
+		out = t.println
+	}
+	replay(history, out, t.widthFn, true)
 }
 
 func (t *TUI) Usage(tokens int64) {
@@ -398,9 +409,9 @@ func (m *uiModel) submit() tea.Cmd {
 	return tea.Println(echo)
 }
 
-// modelArg returns the partial argument of "/model <partial>" or ok=false.
-func modelArg(value string) (string, bool) {
-	rest, ok := strings.CutPrefix(value, "/model ")
+// cmdArg returns the partial argument of "<cmd> <partial>" or ok=false.
+func cmdArg(value, cmd string) (string, bool) {
+	rest, ok := strings.CutPrefix(value, cmd+" ")
 	if !ok {
 		return "", false
 	}
@@ -417,13 +428,24 @@ func (m *uiModel) refreshMenu() {
 	m.menu = nil
 	m.menuSel = 0
 	value := m.input.Value()
-	if marg, ok := modelArg(value); ok && m.t.cmds != nil {
+	if marg, ok := cmdArg(value, "/model"); ok && m.t.cmds != nil {
 		for _, mod := range m.t.cmds.Models() {
 			if len(m.menu) >= menuMax || !strings.HasPrefix(mod.Slug, marg) {
 				continue
 			}
 			m.menu = append(m.menu, menuItem{name: mod.Slug, desc: mod.Description,
 				insert: "/model " + mod.Slug, isModel: true})
+		}
+		return
+	}
+	if sarg, ok := cmdArg(value, "/resume"); ok && m.t.cmds != nil {
+		for _, s := range m.t.cmds.Sessions() {
+			id := s.ID[:min(8, len(s.ID))]
+			if len(m.menu) >= menuMax || !strings.HasPrefix(id, sarg) {
+				continue
+			}
+			m.menu = append(m.menu, menuItem{name: id,
+				desc: strings.TrimSpace(s.When + "  " + s.Title), insert: "/resume " + id})
 		}
 		return
 	}
@@ -434,6 +456,15 @@ func (m *uiModel) refreshMenu() {
 			}
 			m.menu = append(m.menu, menuItem{name: c.Name, args: c.Args,
 				desc: c.Desc, insert: c.Name})
+		}
+		if m.t.cmds == nil {
+			return
+		}
+		for _, c := range m.t.cmds.CustomCmds() {
+			if len(m.menu) >= menuMax || !strings.HasPrefix(c.Name, value) {
+				continue
+			}
+			m.menu = append(m.menu, menuItem{name: c.Name, desc: c.Desc, insert: c.Name})
 		}
 	}
 }

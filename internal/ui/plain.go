@@ -44,7 +44,11 @@ func (p *Plain) TurnEnd() {
 }
 
 func (p *Plain) ToolCall(name, argsJSON string) {
-	fmt.Println(toolLine(name, argsJSON, stdoutTTY()))
+	tty := stdoutTTY()
+	fmt.Println(toolLine(name, argsJSON, tty))
+	if d := editDiff(name, argsJSON, tty); d != "" {
+		fmt.Println(d)
+	}
 }
 
 func (p *Plain) UserLine(line string) { fmt.Println(userEcho(line, stdoutTTY())) }
