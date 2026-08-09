@@ -1,3 +1,7 @@
+import { useCallback, useSyncExternalStore } from "react";
+import { Link } from "react-router";
+import { tokenHash } from "./api";
+import * as store from "./store";
 import type { SessionRow } from "./types";
 import { TipBtn } from "./ui";
 
@@ -11,29 +15,34 @@ function Row({
   row,
   active,
   open,
-  onOpen,
   onStop,
   onDelete,
 }: {
   row: SessionRow;
   active: boolean;
   open: boolean;
-  onOpen: () => void;
   onStop: () => void;
   onDelete: () => void;
 }) {
+  const sid = row.rid ?? row.id;
+  // open tabs stream: their busy state is live, not 5s-poll delayed
+  const streamed = useSyncExternalStore(
+    useCallback((fn: () => void) => store.subscribe(sid, fn), [sid]),
+    useCallback(() => store.snapshot(sid), [sid]),
+  );
+  const busy = streamed.busy || row.busy;
   return (
     <div className={"srow" + (active ? " active" : "")}>
-      <button
+      <Link
         className="sopen"
-        onClick={onOpen}
+        to={`/s/${sid}` + tokenHash()}
         title={`${row.id.slice(0, 8)} · ${row.when}`}
       >
         <span className="sdot">
-          {row.busy ? <span className="busydot">●</span> : row.live ? "●" : "○"}
+          {busy ? <span className="busydot">●</span> : row.live ? "●" : "○"}
         </span>
         <span className="stitle">{row.title || row.id.slice(0, 8)}</span>
-      </button>
+      </Link>
       {open && row.live && (
         <TipBtn tip="close (stop) this session" className="sstop" onClick={onStop}>
           ✕
@@ -54,7 +63,6 @@ export function Sidebar({
   home,
   active,
   openIds,
-  onOpen,
   onStop,
   onDelete,
   onNew,
@@ -64,7 +72,6 @@ export function Sidebar({
   home: string;
   active: string;
   openIds: string[];
-  onOpen: (row: SessionRow) => void;
   onStop: (row: SessionRow) => void;
   onDelete: (row: SessionRow) => void;
   onNew: () => void;
@@ -93,7 +100,6 @@ export function Sidebar({
           row={r}
           active={isActive(r)}
           open={isOpen(r)}
-          onOpen={() => onOpen(r)}
           onStop={() => onStop(r)}
           onDelete={() => onDelete(r)}
         />

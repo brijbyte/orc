@@ -16,7 +16,7 @@ type Entry = {
   state: SessionState;
   es?: EventSource;
   subs: Set<() => void>;
-  opened: boolean;
+  ready?: Promise<void>; // resolves once the seed from /state is applied
 };
 
 const entries = new Map<string, Entry>();
@@ -25,7 +25,7 @@ const initial: SessionState = { blocks: null, busy: false, status: "", err: "" }
 function entry(sid: string): Entry {
   let e = entries.get(sid);
   if (!e) {
-    e = { state: initial, subs: new Set(), opened: false };
+    e = { state: initial, subs: new Set() };
     entries.set(sid, e);
   }
   return e;
@@ -37,10 +37,11 @@ function set(e: Entry, patch: Partial<SessionState>) {
 }
 
 // ensure revives the session on the server and starts its stream, once.
-export function ensure(sid: string, onOpened?: () => void) {
+// The returned promise settles when the seed is applied (never rejects:
+// failures land in state.err), so route loaders can await it.
+export function ensure(sid: string, onOpened?: () => void): Promise<void> {
   const e = entry(sid);
-  if (e.opened) return;
-  e.opened = true;
+  if (e.ready) return e.ready;
   let lastID = 0;
   const onEvent = (ev: Ev) => {
     lastID = ev.id;
@@ -48,7 +49,7 @@ export function ensure(sid: string, onOpened?: () => void) {
     else if (ev.type === "status") set(e, { status: ev.data.text });
     else set(e, { blocks: apply([...(e.state.blocks ?? [])], ev) });
   };
-  api
+  e.ready = api
     .open(sid)
     .then(() => {
       onOpened?.();
@@ -65,6 +66,7 @@ export function ensure(sid: string, onOpened?: () => void) {
       e.es.onmessage = (m) => onEvent(JSON.parse(m.data));
     })
     .catch(() => set(e, { err: "cannot open this session" }));
+  return e.ready;
 }
 
 // drop closes the stream and forgets the state (tab closed, not the runtime).
@@ -92,5 +94,5 @@ export function subscribe(sid: string, fn: () => void): () => void {
 }
 
 export function snapshot(sid: string): SessionState {
-  return entry(sid).state;
+  return entries.get(sid)?.state ?? initial;
 }

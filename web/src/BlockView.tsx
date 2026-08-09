@@ -1,4 +1,4 @@
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   BookOpen,
@@ -22,8 +22,21 @@ const toolIcons: Record<string, typeof Wrench> = {
   skill: Brain,
 };
 
+// wide tables scroll in their own container instead of widening the column
+const mdComponents: Components = {
+  table: ({ node: _, ...props }) => (
+    <div className="tblwrap">
+      <table {...props} />
+    </div>
+  ),
+};
+
 function Markdown({ text }: { text: string }) {
-  return <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>;
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+      {text}
+    </ReactMarkdown>
+  );
 }
 
 export function BlockView({ b }: { b: Block }) {

@@ -1,107 +1,122 @@
 import { useCallback, useEffect, useState } from "react";
+import {
+  Outlet,
+  useLoaderData,
+  useNavigate,
+  useParams,
+  useRevalidator,
+} from "react-router";
 import { AlertDialog } from "@base-ui/react/alert-dialog";
-import { api, hashSession, setHashSession } from "./api";
+import { api, legacySession, tokenHash } from "./api";
+import { revalidateSoon } from "./revalidate";
 import * as store from "./store";
 import type { Model, SessionRow } from "./types";
-import { SessionView } from "./SessionView";
 import { Sidebar } from "./Sidebar";
 import { DirPicker } from "./DirPicker";
 
+export type RootData = {
+  dead: boolean;
+  rows: SessionRow[];
+  cwd: string;
+  home: string;
+  models: Model[];
+};
+
+// models are static per server run: fetch once, not on every revalidation
+let modelsOnce: Promise<{ models: Model[] }> | null = null;
+const loadModels = () =>
+  (modelsOnce ??= api.models().catch(() => {
+    modelsOnce = null; // retry on the next revalidation
+    return { models: [] };
+  }));
+
+// rootLoader fetches the session list and models before the shell renders.
+// A dead server is data, not an error, so the poll can keep retrying.
+export async function rootLoader(): Promise<RootData> {
+  const [s, m] = await Promise.all([
+    api.sessions().catch(() => null),
+    loadModels(),
+  ]);
+  return {
+    dead: !s,
+    rows: s?.sessions ?? [],
+    cwd: s?.cwd ?? "",
+    home: s?.home ?? "",
+    models: m.models ?? [],
+  };
+}
+
 // Open tabs survive a reload in this browser tab.
-function loadTabs(): { open: string[]; active: string } {
+function loadOpen(): string[] {
   try {
     const t = JSON.parse(sessionStorage.getItem("orc-tabs") ?? "");
-    if (Array.isArray(t.open)) return { open: t.open, active: t.active ?? "" };
+    if (Array.isArray(t.open)) return t.open;
   } catch {
     /* first visit */
   }
-  return { open: [], active: "" };
+  return [];
 }
 
-// App manages the session list, the set of open (mounted) sessions, and the
-// directory picker for new sessions. Each open session keeps its own SSE
-// stream; the sidebar switches which one is visible.
+// App is the layout route: sidebar plus the routed session (Outlet). The
+// active session is /s/:sid; every open tab streams via the store.
 export default function App() {
-  const [rows, setRows] = useState<SessionRow[]>([]);
-  const [serverCwd, setServerCwd] = useState("");
-  const [home, setHome] = useState("");
-  const [dead, setDead] = useState(false);
-  const [models, setModels] = useState<Model[]>([]);
-  const [tabs, setTabs] = useState(() => {
-    const t = loadTabs();
-    const h = hashSession();
-    if (h && !t.open.includes(h)) t.open = [...t.open, h];
-    if (h) t.active = h;
-    return t;
-  });
+  const { dead, rows, cwd: serverCwd, home, models } = useLoaderData<RootData>();
+  const { sid = "" } = useParams();
+  const navigate = useNavigate();
+  const { revalidate } = useRevalidator();
+  const [open, setOpen] = useState<string[]>(loadOpen);
   const [picking, setPicking] = useState(false);
   const [doomed, setDoomed] = useState<SessionRow | null>(null);
 
-  const refresh = useCallback(() => {
-    api
-      .sessions()
-      .then((d) => {
-        setRows(d.sessions ?? []);
-        setServerCwd(d.cwd ?? "");
-        setHome(d.home ?? "");
-        setDead(false);
-      })
-      .catch(() => setDead(true));
-  }, []);
+  // navigations keep the #token fragment
+  const go = useCallback(
+    (path: string, replace = false) =>
+      navigate(path + tokenHash(), { replace }),
+    [navigate],
+  );
 
+  // migrate legacy "#token/session" links onto the /s/:sid route
   useEffect(() => {
-    refresh();
-    const iv = setInterval(refresh, 5000);
+    const legacy = legacySession();
+    if (legacy) go(`/s/${legacy}`, true);
+  }, [go]);
+
+  // keep the sidebar fresh
+  useEffect(() => {
+    const iv = setInterval(revalidate, 5000);
     return () => clearInterval(iv);
-  }, [refresh]);
+  }, [revalidate]);
+
+  // the routed session is an open tab
+  useEffect(() => {
+    if (sid) setOpen((o) => (o.includes(sid) ? o : [...o, sid]));
+  }, [sid]);
 
   useEffect(() => {
-    api
-      .models()
-      .then((d) => setModels(d.models ?? []))
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    sessionStorage.setItem("orc-tabs", JSON.stringify(tabs));
-    setHashSession(tabs.active);
-  }, [tabs]);
+    sessionStorage.setItem("orc-tabs", JSON.stringify({ open }));
+  }, [open]);
 
   // every open tab streams, mounted or not; the view only subscribes
   useEffect(() => {
-    for (const sid of tabs.open) store.ensure(sid, refresh);
-  }, [tabs.open, refresh]);
-
-  const activate = useCallback((id: string) => {
-    setTabs((t) => ({
-      open: t.open.includes(id) ? t.open : [...t.open, id],
-      active: id,
-    }));
-  }, []);
-
-  const onOpen = (row: SessionRow) => {
-    // A live runtime may already hold this session under its own handle.
-    activate(row.rid ?? row.id);
-  };
+    for (const s of open) store.ensure(s, revalidateSoon);
+  }, [open]);
 
   const closeTab = (row: SessionRow) => {
     store.drop(row.id);
     if (row.rid) store.drop(row.rid);
-    setTabs((t) => {
-      const open = t.open.filter((x) => x !== row.id && x !== row.rid);
-      const gone = t.active === row.id || t.active === row.rid;
-      return { open, active: gone ? (open[0] ?? "") : t.active };
-    });
+    const next = open.filter((x) => x !== row.id && x !== row.rid);
+    setOpen(next);
+    if (sid === row.id || sid === row.rid) go(next[0] ? `/s/${next[0]}` : "/");
   };
 
   const onStop = (row: SessionRow) => {
-    api.stop(row.rid ?? row.id).finally(refresh);
+    api.stop(row.rid ?? row.id).finally(revalidate);
     closeTab(row);
   };
 
   const doDelete = (row: SessionRow) => {
     setDoomed(null);
-    api.remove(row.id).finally(refresh);
+    api.remove(row.id).finally(revalidate);
     closeTab(row);
   };
 
@@ -109,10 +124,7 @@ export default function App() {
     setPicking(false);
     api
       .create(cwd)
-      .then((d) => {
-        activate(d.id);
-        refresh();
-      })
+      .then((d) => go(`/s/${d.id}`))
       .catch(() => {});
   };
 
@@ -129,18 +141,13 @@ export default function App() {
         rows={rows}
         serverCwd={serverCwd}
         home={home}
-        active={tabs.active}
-        openIds={tabs.open}
-        onOpen={onOpen}
+        active={sid}
+        openIds={open}
         onStop={onStop}
         onDelete={setDoomed}
         onNew={() => setPicking(true)}
       />
-      {tabs.active ? (
-        <SessionView key={tabs.active} sid={tabs.active} models={models} />
-      ) : (
-        <div className="empty">🧌 pick a session on the left, or start one</div>
-      )}
+      <Outlet context={models} />
       {picking && (
         <DirPicker
           start={serverCwd}

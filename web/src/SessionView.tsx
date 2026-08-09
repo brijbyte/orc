@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { useOutletContext, useParams } from "react-router";
 import * as store from "./store";
 
 const fileMax = 16 << 20; // per-file cap, matches the server's request cap
@@ -6,6 +7,14 @@ import type { Model } from "./types";
 import { Transcript } from "./Transcript";
 import { InputBar } from "./InputBar";
 import { StatusBar } from "./StatusBar";
+
+// SessionRoute adapts /s/:sid: the loader has already seeded the store,
+// the key remounts the view (and its local state) per session.
+export function SessionRoute() {
+  const { sid = "" } = useParams();
+  const models = useOutletContext<Model[]>();
+  return <SessionView key={sid} sid={sid} models={models} />;
+}
 
 // SessionView renders the active session from the store. Only the active
 // view is mounted; streams live in store.ts and keep running across

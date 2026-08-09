@@ -1,6 +1,8 @@
 export type AttachedFile = { name: string; type: string; data: string };
 
-// Hash is "#<token>" or "#<token>/<session id>".
+// The hash carries only the auth token ("#<token>"), so it never reaches
+// the server; the active session lives in the path (/s/:sid). Legacy
+// "#<token>/<session>" links still parse — App migrates them.
 const token = window.location.hash.slice(1).split("/")[0];
 
 const auth = { Authorization: `Bearer ${token}` };
@@ -42,12 +44,12 @@ export const api = {
     new EventSource(`/api/sessions/${id}/events?token=${token}&after=${after}`),
 };
 
-// hashSession reads the active session id from the URL hash.
-export function hashSession(): string {
+// legacySession reads a session id from an old-style "#token/session" hash.
+export function legacySession(): string {
   return window.location.hash.slice(1).split("/")[1] ?? "";
 }
 
-// setHashSession records the active session in the hash (token kept).
-export function setHashSession(id: string) {
-  history.replaceState(null, "", `#${token}${id ? "/" + id : ""}`);
+// tokenHash is the fragment every in-app navigation must carry along.
+export function tokenHash(): string {
+  return token ? "#" + token : "";
 }

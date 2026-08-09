@@ -484,12 +484,21 @@ main > div:hover .copy,
 .md pre code {
   padding: 0;
 }
+.md .tblwrap {
+  overflow-x: auto;
+  margin: 0 0 0.6rem;
+}
 .md table {
   border-collapse: collapse;
+  margin: 0;
 }
 .md :is(td, th) {
   border: 1px solid var(--line);
   padding: 0.2rem 0.5rem;
+}
+/* long unbreakable tokens (URLs) wrap instead of widening the column */
+.md :is(p, li, td, th) {
+  overflow-wrap: break-word;
 }
 .composer {
   border-top: 1px solid var(--line);
@@ -509,6 +518,9 @@ main > div:hover .copy,
 .prompt {
   color: var(--cyan);
   font-weight: bold;
+  flex: none;
+  width: 1.25ch; /* same slot for ">" and the wider spinner glyphs */
+  text-align: center;
 }
 .prompt.busy {
   color: var(--dim);
@@ -543,6 +555,9 @@ main > div:hover .copy,
 }
 .composer button.attach svg {
   display: block;
+}
+.composer button.stop.hide {
+  visibility: hidden;
 }
 footer {
   color: var(--dim);

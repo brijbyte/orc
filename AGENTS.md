@@ -57,7 +57,16 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   display form for a line + its 📎 names — pending echoes must match later
   user echoes. Bearer-token auth on
   every route; plain HTTP binds loopback only, `--domain` adds autocert TLS.
-  Frontend lives in `web/` (React 19 + Vite): `api`/`events`/`types` plus
+  Frontend lives in `web/` (React 19 + Vite + react-router data router):
+  the root layout route loads sessions+models (`rootLoader`; models are
+  fetched once per page load, and a dead server is loader data so the 5s
+  `useRevalidator` poll can recover), and the `/s/:sid` route's loader
+  awaits `store.ensure` so the view mounts pre-seeded (no loading flash).
+  Post-open sidebar refreshes coalesce through `revalidate.ts`
+  (`revalidateSoon`, debounced router.revalidate). The server falls back to index.html for
+  unknown paths; the auth token stays in the `#token` fragment, which
+  never reaches the server — every navigation appends `tokenHash()`, and
+  legacy `#token/<session>` links migrate on load. `api`/`events`/`types` plus
   `store.ts` (per-open-tab SSE streams, block state, and scroll positions
   outside the render tree; App `ensure`s every open tab, `drop` on tab
   close), `Sidebar`

@@ -177,11 +177,14 @@ export function InputBar({
         >
           <Paperclip size={14} strokeWidth={1.8} aria-hidden />
         </TipBtn>
-        {busy && (
-          <button type="button" onClick={() => api.interrupt(sid)}>
-            stop
-          </button>
-        )}
+        {/* always in the layout so the textarea width never shifts */}
+        <button
+          type="button"
+          className={busy ? "stop" : "stop hide"}
+          onClick={() => api.interrupt(sid)}
+        >
+          stop
+        </button>
       </div>
     </form>
   );
