@@ -285,6 +285,9 @@ func runServe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 		ag.Replay() // seed the event log so browsers render the history
 	}
 	cmds.Models() // prefetch: /api/models reads the cached list
+	if sess.Ctx > 0 {
+		cmds.CtxUsed(sess.Ctx) // resumed session: seed the context gauge
+	}
 	cmds.StatusUpdate()
 
 	srv := &web.Server{IO: w, Addr: opts.serveAddr, Domain: opts.domain}
