@@ -17,7 +17,7 @@ type Ev = { id: number; type: string; data: any };
 type Block =
   | { kind: "user" | "pending" | "notice" | "think"; text: string }
   | { kind: "assistant"; text: string; open: boolean }
-  | { kind: "tool"; name: string; desc: string; diff: string };
+  | { kind: "tool"; name: string; desc: string; preview: string; html?: string[] };
 
 const toolIcons: Record<string, typeof Wrench> = {
   bash: SquareTerminal,
@@ -59,7 +59,8 @@ function apply(blocks: Block[], ev: Ev): Block[] {
         kind: "tool",
         name: ev.data.name,
         desc: ev.data.desc,
-        diff: ev.data.diff,
+        preview: ev.data.preview,
+        html: ev.data.html,
       });
       break;
     case "notice":
@@ -69,14 +70,34 @@ function apply(blocks: Block[], ev: Ev): Block[] {
   return blocks;
 }
 
-function Diff({ diff }: { diff: string }) {
+const previewMax = 20;
+
+// Preview shows an edit diff or write content, truncated to previewMax
+// lines; the marker line toggles the full text. html lines arrive
+// pre-highlighted from the server.
+function Preview({ text, html }: { text: string; html?: string[] }) {
+  const [open, setOpen] = useState(false);
+  const lines = html ?? text.split("\n");
+  const shown = open ? lines : lines.slice(0, previewMax);
   return (
-    <pre className="diff">
-      {diff.split("\n").map((l, i) => (
-        <div key={i} className={l.startsWith("  +") ? "add" : l.startsWith("  -") ? "del" : "ctx"}>
-          {l}
+    <pre className="preview">
+      {shown.map((l, i) =>
+        html ? (
+          <div key={i} className="hl">
+            <span className="add">{"  + "}</span>
+            <span dangerouslySetInnerHTML={{ __html: l }} />
+          </div>
+        ) : (
+          <div key={i} className={l.startsWith("  +") ? "add" : l.startsWith("  -") ? "del" : "ctx"}>
+            {l}
+          </div>
+        ),
+      )}
+      {lines.length > previewMax && (
+        <div className="expander" onClick={() => setOpen(!open)}>
+          {open ? "  collapse" : `  … ${lines.length - previewMax} more lines · click to expand`}
         </div>
-      ))}
+      )}
     </pre>
   );
 }
@@ -101,7 +122,7 @@ function BlockView({ b }: { b: Block }) {
               {b.name} {b.desc}
             </span>
           </div>
-          {b.diff && <Diff diff={b.diff} />}
+          {(b.preview || b.html) && <Preview text={b.preview} html={b.html} />}
         </div>
       );
     }

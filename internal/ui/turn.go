@@ -180,19 +180,20 @@ func ToolLine(name, argsJSON string, tty bool) string {
 	return line
 }
 
-const diffMax = 20
+const previewMax = 20
 
-// EditDiff renders a ±preview for the edit tool; "" for other tools.
-func EditDiff(name, argsJSON string, tty bool) string {
-	if name != "edit" {
-		return ""
-	}
-	var a struct{ Old, New string }
-	if json.Unmarshal([]byte(argsJSON), &a) != nil || a.Old == "" {
-		return ""
+// toolPreviewLines builds the uncapped body preview: ± diff for edit, new
+// content for write; nil for other tools.
+func toolPreviewLines(name, argsJSON string, tty bool) []string {
+	var a struct{ Old, New, Content, Path string }
+	if json.Unmarshal([]byte(argsJSON), &a) != nil {
+		return nil
 	}
 	var lines []string
 	add := func(prefix, text string, style lipgloss.Style) {
+		if text == "" {
+			return
+		}
 		for _, l := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
 			line := prefix + l
 			if tty {
@@ -201,18 +202,45 @@ func EditDiff(name, argsJSON string, tty bool) string {
 			lines = append(lines, line)
 		}
 	}
-	add("  - ", a.Old, styleRed)
-	if a.New != "" {
+	switch name {
+	case "edit":
+		add("  - ", a.Old, styleRed)
 		add("  + ", a.New, styleGreen)
-	}
-	if len(lines) > diffMax {
-		more := fmt.Sprintf("  … %d more lines", len(lines)-diffMax)
+	case "write":
 		if tty {
-			more = styleDim.Render(more)
+			if hl := highlightTermLines(a.Path, strings.TrimRight(a.Content, "\n")); hl != nil {
+				for _, l := range hl {
+					lines = append(lines, styleGreen.Render("  + ")+l)
+				}
+				return lines
+			}
 		}
-		lines = append(lines[:diffMax], more)
+		add("  + ", a.Content, styleGreen)
 	}
-	return strings.Join(lines, "\n")
+	return lines
+}
+
+// ToolPreview renders an edit/write call body. short caps at previewMax
+// lines with a truncation marker (hint appended when given); full is
+// uncapped. Both empty for other tools.
+func ToolPreview(name, argsJSON string, tty bool, hint string) (short, full string) {
+	lines := toolPreviewLines(name, argsJSON, tty)
+	if len(lines) == 0 {
+		return "", ""
+	}
+	full = strings.Join(lines, "\n")
+	if len(lines) <= previewMax {
+		return full, full
+	}
+	marker := fmt.Sprintf("  … %d more lines", len(lines)-previewMax)
+	if hint != "" {
+		marker += " · " + hint
+	}
+	if tty {
+		marker = styleDim.Render(marker)
+	}
+	short = strings.Join(append(lines[:previewMax:previewMax], marker), "\n")
+	return short, full
 }
 
 // userEcho formats a user line for the scrollback.
@@ -279,8 +307,8 @@ func replay(history []json.RawMessage, println func(string), width func() int, t
 		switch probe.Type {
 		case "function_call":
 			println(ToolLine(probe.Name, probe.Arguments, tty))
-			if d := EditDiff(probe.Name, probe.Arguments, tty); d != "" {
-				println(d)
+			if short, _ := ToolPreview(probe.Name, probe.Arguments, tty, ""); short != "" {
+				println(short)
 			}
 		case "message":
 			role, text := messageText(history[i])

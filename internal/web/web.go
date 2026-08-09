@@ -49,11 +49,18 @@ func (w *IO) ThinkingDelta(s string) { w.hub.emit("think", text(s)) }
 func (w *IO) TurnEnd()               { w.hub.emit("turn_end", struct{}{}) }
 
 func (w *IO) ToolCall(name, argsJSON string) {
-	w.hub.emit("tool", map[string]string{
-		"name": name,
-		"desc": ui.ToolDesc(name, argsJSON),
-		"diff": ui.EditDiff(name, argsJSON, false),
-	})
+	// full preview: the frontend truncates and expands client-side; write
+	// content is pre-highlighted to HTML lines so the browser needs no lexer
+	_, full := ui.ToolPreview(name, argsJSON, false, "")
+	data := map[string]any{
+		"name":    name,
+		"desc":    ui.ToolDesc(name, argsJSON),
+		"preview": full,
+	}
+	if hl := ui.WritePreviewHTML(name, argsJSON); hl != nil {
+		data["html"] = hl
+	}
+	w.hub.emit("tool", data)
 }
 
 func (w *IO) UserLine(line string) { w.hub.emit("user", text(line)) }

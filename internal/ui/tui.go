@@ -29,10 +29,11 @@ type TUI struct {
 	width atomic.Int32
 	turn  *turn
 
-	mu      sync.Mutex
-	cancel  context.CancelFunc
-	running atomic.Bool
-	pending string // status set before the program loop runs
+	mu          sync.Mutex
+	cancel      context.CancelFunc
+	running     atomic.Bool
+	pending     string // status set before the program loop runs
+	lastPreview string // full text of the last truncated preview (ctrl+o)
 
 	history     []string
 	histPos     int
@@ -117,9 +118,27 @@ func (t *TUI) TurnEnd() {
 
 func (t *TUI) ToolCall(name, argsJSON string) {
 	t.println(ToolLine(name, argsJSON, true))
-	if d := EditDiff(name, argsJSON, true); d != "" {
-		t.println(d)
+	short, full := ToolPreview(name, argsJSON, true, "ctrl+o expands")
+	if short == "" {
+		return
 	}
+	t.println(short)
+	t.mu.Lock()
+	if full != short {
+		t.lastPreview = full
+	} else {
+		t.lastPreview = ""
+	}
+	t.mu.Unlock()
+}
+
+// takePreview returns and clears the pending full preview.
+func (t *TUI) takePreview() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	full := t.lastPreview
+	t.lastPreview = ""
+	return full
 }
 
 func (t *TUI) UserLine(line string) { t.println(userEcho(line, true)) }
@@ -351,6 +370,11 @@ func (m *uiModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.menu = nil
 		if m.busy {
 			m.t.Interrupt()
+		}
+		return m, nil
+	case "ctrl+o":
+		if full := m.t.takePreview(); full != "" {
+			return m, tea.Println(full)
 		}
 		return m, nil
 	case "ctrl+d":

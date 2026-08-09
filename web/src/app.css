@@ -61,18 +61,29 @@ main > div {
 .tool-line svg {
   flex-shrink: 0;
 }
-.diff {
+.preview {
   margin: 0.2rem 0 0;
   overflow-x: auto;
 }
-.diff .add {
+.preview .add {
   color: var(--green);
 }
-.diff .del {
+.preview .del {
   color: var(--red);
 }
-.diff .ctx {
+.preview .ctx {
   color: var(--dim);
+}
+.preview .hl {
+  color: var(--fg); /* unstyled tokens; chroma spans carry their own colors */
+}
+.preview .expander {
+  color: var(--dim);
+  cursor: pointer;
+  user-select: none;
+}
+.preview .expander:hover {
+  text-decoration: underline;
 }
 .assistant {
   border-left: 2px solid var(--line);

@@ -46,8 +46,8 @@ func (p *Plain) TurnEnd() {
 func (p *Plain) ToolCall(name, argsJSON string) {
 	tty := stdoutTTY()
 	fmt.Println(ToolLine(name, argsJSON, tty))
-	if d := EditDiff(name, argsJSON, tty); d != "" {
-		fmt.Println(d)
+	if short, _ := ToolPreview(name, argsJSON, tty, ""); short != "" {
+		fmt.Println(short)
 	}
 }
 
