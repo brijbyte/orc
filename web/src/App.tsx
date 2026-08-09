@@ -72,9 +72,16 @@ function apply(blocks: Block[], ev: Ev): Block[] {
 
 const previewMax = 20;
 
-// lineClass reads the ± marker after the line-number gutter.
+// lineClass reads the ± marker after the line-number gutter; numbered
+// lines without a marker are write content (plain code).
 const lineClass = (l: string) =>
-  /^\s*\d+ \+ /.test(l) ? "add" : /^\s*\d+ - /.test(l) ? "del" : "ctx";
+  /^\s*\d+ \+ /.test(l)
+    ? "add"
+    : /^\s*\d+ - /.test(l)
+      ? "del"
+      : /^\s*\d+ /.test(l)
+        ? "hl"
+        : "ctx";
 
 // Preview shows an edit diff or write content, truncated to previewMax
 // lines; the marker line toggles the full text. html lines arrive
@@ -89,7 +96,6 @@ function Preview({ text, html }: { text: string; html?: string[] }) {
         html ? (
           <div key={i} className="hl">
             <span className="ctx">{String(i + 1).padStart(4) + " "}</span>
-            <span className="add">{"+ "}</span>
             <span dangerouslySetInnerHTML={{ __html: l }} />
           </div>
         ) : (

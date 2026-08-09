@@ -233,15 +233,19 @@ func toolPreviewLines(name, argsJSON string, tty bool) []string {
 		add("-", a.Old, styleRed, start)
 		add("+", a.New, styleGreen, start)
 	case "write":
+		// new content, not a diff: numbered lines without ± markers
+		if a.Content == "" {
+			return nil
+		}
+		body := strings.Split(strings.TrimRight(a.Content, "\n"), "\n")
 		if tty {
 			if hl := highlightTermLines(a.Path, strings.TrimRight(a.Content, "\n")); hl != nil {
-				for i, l := range hl {
-					lines = append(lines, gutter(i+1, true)+styleGreen.Render("+ ")+l)
-				}
-				return lines
+				body = hl
 			}
 		}
-		add("+", a.Content, styleGreen, 1)
+		for i, l := range body {
+			lines = append(lines, gutter(i+1, tty)+l)
+		}
 	}
 	return lines
 }
