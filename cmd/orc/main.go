@@ -20,22 +20,9 @@ import (
 	"github.com/brijbyte/orc/internal/tools"
 	"github.com/brijbyte/orc/internal/ui"
 	"github.com/google/uuid"
+	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
-
-func usage() {
-	fmt.Println(`usage: orc [options] [-p "prompt"]
-  -p <prompt>       one-shot: run a single task and exit
-  -m <model>        model (default: provider's; env ORC_MODEL)
-  -e <effort>       reasoning effort: low|medium|high (default ` + config.DefaultEffort + `)
-  --provider <name> provider (default codex; env ORC_PROVIDER)
-  --resume [id|path] resume most recent (or given) session
-  --list            list sessions for this directory, newest first
-  --login           sign in to the provider (browser OAuth)
-  --auth            show provider auth status
-  --version         print version
-  -h                help`)
-}
 
 type options struct {
 	prompt    string
@@ -46,76 +33,67 @@ type options struct {
 	doAuth    bool
 }
 
-func parseArgs(cfg *config.Config, opts *options) (modelExplicit, effortExplicit bool, err error) {
-	args := os.Args[1:]
-	need := func(i int, flag string) (string, error) {
-		if i+1 >= len(args) {
-			return "", fmt.Errorf("option requires an argument: %s", flag)
-		}
-		return args[i+1], nil
+func main() {
+	var opts options
+	var model, effort, providerName string
+
+	root := &cobra.Command{
+		Use:           "orc [--resume [id|path]]",
+		Short:         "Minimal coding-agent harness",
+		Version:       config.Version,
+		Args:          cobra.MaximumNArgs(1),
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			opts.doResume = cmd.Flags().Changed("resume")
+			// `--resume abc` parses the ref as a positional argument.
+			if len(args) == 1 {
+				if !opts.doResume || opts.resumeRef != "most-recent" {
+					return fmt.Errorf("unexpected argument %s", args[0])
+				}
+				opts.resumeRef = args[0]
+			}
+			os.Exit(run(&opts, model, effort, providerName,
+				cmd.Flags().Changed("effort")))
+			return nil
+		},
 	}
-	for i := 0; i < len(args); i++ {
-		var v string
-		switch a := args[i]; a {
-		case "-p", "-m", "-e", "--provider":
-			if v, err = need(i, a); err != nil {
-				return
-			}
-			i++
-			switch a {
-			case "-p":
-				opts.prompt = v
-			case "-m":
-				cfg.Model = v
-				modelExplicit = true
-			case "-e":
-				cfg.Effort = v
-				effortExplicit = true
-			case "--provider":
-				cfg.Provider = v
-			}
-		case "--resume":
-			opts.doResume = true
-			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
-				opts.resumeRef = args[i+1]
-				i++
-			}
-		case "--list":
-			opts.doList = true
-		case "--login":
-			opts.doLogin = true
-		case "--auth":
-			opts.doAuth = true
-		case "--version":
-			fmt.Println("orc " + config.Version)
-			os.Exit(0)
-		case "-h", "--help":
-			usage()
-			os.Exit(0)
-		default:
-			return false, false, fmt.Errorf("unknown option %s", a)
-		}
+	f := root.Flags()
+	f.StringVarP(&opts.prompt, "prompt", "p", "", "one-shot: run a single task and exit")
+	f.StringVarP(&model, "model", "m", "", "model (default: provider's; env ORC_MODEL)")
+	f.StringVarP(&effort, "effort", "e", config.DefaultEffort, "reasoning effort: low|medium|high")
+	f.StringVar(&providerName, "provider", "", "provider (default codex; env ORC_PROVIDER)")
+	f.StringVar(&opts.resumeRef, "resume", "", "resume most recent (or given) session")
+	f.Lookup("resume").NoOptDefVal = "most-recent"
+	f.BoolVar(&opts.doList, "list", false, "list sessions for this directory, newest first")
+	f.BoolVar(&opts.doLogin, "login", false, "sign in to the provider (browser OAuth)")
+	f.BoolVar(&opts.doAuth, "auth", false, "show provider auth status")
+	root.CompletionOptions.DisableDefaultCmd = true
+	root.SetVersionTemplate("orc {{.Version}}\n")
+
+	if err := root.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
+		os.Exit(2)
 	}
-	return
 }
 
-func main() { os.Exit(run()) }
-
-func run() int {
+func run(opts *options, model, effort, providerName string, effortExplicit bool) int {
 	cfg := &config.Config{
 		Provider:  os.Getenv("ORC_PROVIDER"),
 		Model:     os.Getenv("ORC_MODEL"),
-		Effort:    config.DefaultEffort,
+		Effort:    effort,
 		SessionID: uuid.NewString(),
 	}
-	var opts options
-	modelExplicit, effortExplicit, err := parseArgs(cfg, &opts)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
-		usage()
-		return 2
+	if providerName != "" {
+		cfg.Provider = providerName
 	}
-	modelExplicit = modelExplicit || cfg.Model != ""
+	if model != "" {
+		cfg.Model = model
+	}
+	modelExplicit := cfg.Model != ""
+	if opts.resumeRef == "most-recent" {
+		opts.resumeRef = ""
+	}
 
 	if opts.doList {
 		rows, err := session.List()
@@ -153,6 +131,7 @@ func run() int {
 
 	var sess *session.Session
 	var resumed []json.RawMessage
+	var err error
 	if opts.doResume {
 		sess, resumed, err = session.Resume(opts.resumeRef, cfg)
 		if err != nil {
