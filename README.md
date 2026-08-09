@@ -79,6 +79,10 @@ orc appends user instruction files to the system prompt when they exist:
 `~/.agents/AGENTS.md` (global), then `./AGENTS.md` in the working directory
 (project). Each file is clamped to 32 KB.
 
+`/model` and `/effort` also persist their values to `<orc home>/config.json`
+as the defaults for new sessions; `-m`/`-e` flags and a resumed session's own
+settings take precedence.
+
 The orc home is `$XDG_CONFIG_HOME/orc` (or `~/.config/orc` when `~/.config`
 exists), falling back to `~/.orc`. Sessions are append-only JSONL under
 `<orc home>/sessions/` — one Responses-API input item per line, so a session

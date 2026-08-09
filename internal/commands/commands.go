@@ -202,7 +202,13 @@ func (c *Commands) cmdModel(ag *agent.Agent, arg string) {
 	}
 	c.ui.Printf("✅ model set to %s%s", arg, note)
 	ag.Sess.SetCfg(c.cfg)
+	c.saveDefaults()
 	c.StatusUpdate()
+}
+
+// saveDefaults makes the current model/effort the defaults for new sessions.
+func (c *Commands) saveDefaults() {
+	config.SaveSettings(config.Settings{Model: c.cfg.Model, Effort: c.cfg.Effort})
 }
 
 func (c *Commands) cmdEffort(ag *agent.Agent, arg string) {
@@ -217,5 +223,6 @@ func (c *Commands) cmdEffort(ag *agent.Agent, arg string) {
 	c.cfg.Effort = arg
 	c.ui.Printf("✅ effort set to %s", arg)
 	ag.Sess.SetCfg(c.cfg)
+	c.saveDefaults()
 	c.StatusUpdate()
 }

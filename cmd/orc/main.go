@@ -94,6 +94,14 @@ func run(opts *options, model, effort, providerName string, effortExplicit bool)
 	if opts.resumeRef == "most-recent" {
 		opts.resumeRef = ""
 	}
+	// Saved defaults (written by /model and /effort) fill unset values.
+	saved := config.LoadSettings()
+	if cfg.Model == "" {
+		cfg.Model = saved.Model
+	}
+	if !effortExplicit && saved.Effort != "" {
+		cfg.Effort = saved.Effort
+	}
 
 	if opts.doList {
 		rows, err := session.List()
