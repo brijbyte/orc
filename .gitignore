@@ -1,7 +1,7 @@
 *.o
 out/
 bin/
-orc
+/orc
 .DS_Store
 vendor/
-orc
+dist/

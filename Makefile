@@ -5,11 +5,12 @@ CPPFLAGS += -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700 \
 CFLAGS ?= -O2
 CFLAGS += -std=c11 -Wall -Wextra
 
-# Version from the latest tag (falls back to orc.h default outside a git repo)
+# Version from the latest tag; CI overrides with `make dist VERSION=x.y`
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//')
-ifneq ($(VERSION),)
-CPPFLAGS += -DORC_VERSION='"$(VERSION)"'
+ifeq ($(VERSION),)
+VERSION = dev
 endif
+CPPFLAGS += -DORC_VERSION='"$(VERSION)"'
 
 # STATIC=1: fully static binary (use on Alpine/musl; glibc static is broken)
 ifeq ($(STATIC),1)
@@ -65,17 +66,36 @@ endif
 DEBUG_BIN = bin/orc-debug
 RELEASE_BIN = bin/orc
 
-all: $(DEBUG_BIN)
+# Primary build: the Go implementation. The C targets below are legacy.
+GO_LDFLAGS = -X github.com/brijbyte/orc/internal/config.Version=$(VERSION)
+.PHONY: go release dist
+go:
+	go build -mod=mod -ldflags '$(GO_LDFLAGS)' -o bin/orc ./cmd/orc
+
+release:
+	go build -mod=mod -trimpath -ldflags '-s -w $(GO_LDFLAGS)' -o bin/orc ./cmd/orc
+
+# Cross-compile every release target into dist/ tarballs (pure Go, CGO off).
+DIST_TARGETS = darwin-arm64 darwin-x86_64 linux-x86_64 linux-arm64
+dist:
+	@mkdir -p dist
+	@for target in $(DIST_TARGETS); do \
+		goos=$${target%%-*}; arch=$${target#*-}; \
+		case $$arch in x86_64) goarch=amd64 ;; *) goarch=$$arch ;; esac; \
+		echo "  GO    $$target"; \
+		CGO_ENABLED=0 GOOS=$$goos GOARCH=$$goarch \
+		go build -mod=mod -trimpath -ldflags '-s -w $(GO_LDFLAGS)' \
+			-o dist/$$target/orc ./cmd/orc || exit 1; \
+		tar -C dist/$$target -czf dist/orc-$$target.tar.gz orc; \
+	done
+
+all: go
+
+c: $(DEBUG_BIN)
 
 $(DEBUG_BIN): $(OBJS)
 	mkdir -p bin
 	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
-
-release: $(RELEASE_BIN)
-
-$(RELEASE_BIN): $(DEBUG_BIN)
-	cp $< $@
-	$(STRIP) $@
 
 # vendor/ is gitignored; fetch pinned deps on first build
 CJSON_URL = https://cdn.jsdelivr.net/gh/DaveGamble/cJSON@v1.7.18
@@ -157,11 +177,12 @@ $(OBJS): vendor/cJSON.h vendor/md4c.h vendor/utf8proc.h vendor/timestamp.h \
 	$(firstword $(MBED_A)) $(CURL_A) $(UV_A)
 
 PREFIX ?= /usr/local
-install: $(DEBUG_BIN)
+install: release
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
-	install -m 755 $(DEBUG_BIN) $(DESTDIR)$(PREFIX)/bin/orc
+	install -m 755 bin/orc $(DESTDIR)$(PREFIX)/bin/orc
 
 clean:
 	rm -f $(DEBUG_BIN) $(RELEASE_BIN) $(OBJS)
+	rm -rf dist
 
 .PHONY: all release install clean

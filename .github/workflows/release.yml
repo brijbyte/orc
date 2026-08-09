@@ -9,62 +9,27 @@ permissions:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        include:
-          - os: macos-14
-            target: darwin-arm64
-          - os: macos-15-intel
-            target: darwin-x86_64
-          - os: ubuntu-latest
-            target: linux-x86_64
-          - os: ubuntu-24.04-arm
-            target: linux-arm64
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          fetch-depth: 0 # tags, for git describe
+          go-version-file: go.mod
 
-      - name: Cache vendor libraries
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: vendor
-          key: vendor-${{ matrix.target }}-${{ hashFiles('Makefile') }}
-
-      - name: Cache build objects
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: |
-            **/*.o
-            **/*.a
-          key: objects-${{ matrix.target }}-${{ hashFiles('Makefile', 'src/**', 'third_party/**') }}
-
-      - name: Build (macOS)
-        if: startsWith(matrix.target, 'darwin')
-        run: make -j4 release
-
-      # musl static: one binary that runs on every distro
-      - name: Build (Linux, musl static)
-        if: startsWith(matrix.target, 'linux')
-        run: |
-          docker run --rm -v "$PWD:/src" -w /src alpine:3.21 sh -euc '
-            apk add --no-cache build-base cmake curl tar bzip2 git ncurses-dev ncurses-static
-            git config --global --add safe.directory /src
-            make -j4 STATIC=1 release'
+      # Pure Go, CGO off: one runner cross-compiles all four targets.
+      - name: Build
+        run: make dist VERSION="${GITHUB_REF_NAME#v}"
 
       - name: Smoke test
         run: |
-          ./bin/orc --version
-          ./bin/orc -h
-
-      - name: Package
-        run: tar -C bin -czf orc-${{ matrix.target }}.tar.gz orc
+          ./dist/linux-x86_64/orc --version
+          ./dist/linux-x86_64/orc -h
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: orc-${{ matrix.target }}
-          path: orc-*.tar.gz
+          name: orc-tarballs
+          path: dist/orc-*.tar.gz
 
   release:
     needs: build
