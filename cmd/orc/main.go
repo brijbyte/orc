@@ -124,7 +124,10 @@ func run(opts *options, model, effort, providerName string, effortExplicit bool)
 	}
 
 	if opts.doLogin {
-		if err := prov.Login(); err != nil {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer stop()
+		err := prov.Login(ctx, func(s string) { fmt.Println(s) })
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
 			return 1
 		}
@@ -226,6 +229,14 @@ func runPipe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 		if line == "exit" || line == "quit" {
 			break
 		}
+		if strings.TrimSpace(line) == "/login" {
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+			if err := prov.Login(ctx, func(s string) { fmt.Println(s) }); err != nil {
+				fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
+			}
+			stop()
+			continue
+		}
 		if strings.HasPrefix(line, "/") {
 			handled, quit := cmds.Dispatch(ag, line)
 			if quit {
@@ -276,6 +287,20 @@ func runTUI(cfg *config.Config, prov provider.Provider, sess *session.Session,
 			}
 			if queued { // replay so it's clear what runs now
 				t.EchoQueued(line)
+			}
+			if strings.TrimSpace(line) == "/login" {
+				// Busy state animates the wait and lets Esc/Ctrl-C cancel.
+				ctx, cancel := context.WithCancel(context.Background())
+				t.SetCancel(cancel)
+				t.SetBusy(true)
+				err := prov.Login(ctx, t.Notice)
+				t.SetBusy(false)
+				t.SetCancel(nil)
+				cancel()
+				if err != nil {
+					t.Printf("❌ orc: %v", err)
+				}
+				continue
 			}
 			if strings.HasPrefix(line, "/") {
 				handled, quit := cmds.Dispatch(ag, line)

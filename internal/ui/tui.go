@@ -78,7 +78,25 @@ func (t *TUI) widthFn() int {
 	return 80
 }
 
-func (t *TUI) println(s string) { t.prog.Println(s) }
+// println prints one scrollback block. Long styled lines are pre-wrapped
+// (glamour); long plain lines (e.g. the login URL) hard-wrap here because
+// the renderer clips anything wider than the terminal.
+func (t *TUI) println(s string) {
+	if !strings.Contains(s, "\x1b") {
+		width := t.widthFn() - 1
+		var wrapped []string
+		for _, line := range strings.Split(s, "\n") {
+			r := []rune(line)
+			for len(r) > width && width > 0 {
+				wrapped = append(wrapped, string(r[:width]))
+				r = r[width:]
+			}
+			wrapped = append(wrapped, string(r))
+		}
+		s = strings.Join(wrapped, "\n")
+	}
+	t.prog.Println(s)
+}
 
 // --- agent.IO (called from the driver goroutine) ---
 

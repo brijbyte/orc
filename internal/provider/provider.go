@@ -42,8 +42,9 @@ type Provider interface {
 	AuthStatus() error
 	// Authenticated quietly reports whether usable credentials exist.
 	Authenticated() bool
-	// Login runs interactive login for --login; nil when unsupported.
-	Login() error
+	// Login runs the OAuth flow, reporting progress via notify; ctx cancels
+	// the wait for the browser callback.
+	Login(ctx context.Context, notify func(string)) error
 	// Models lists selectable models; nil when unavailable.
 	Models() []Model
 }

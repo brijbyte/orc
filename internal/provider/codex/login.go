@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -41,7 +42,7 @@ func openBrowser(u string) {
 	exec.Command(cmd, u).Start()
 }
 
-func (p *Codex) Login() error {
+func (p *Codex) Login(ctx context.Context, notify func(string)) error {
 	verifier := randB64(32) // 43 chars, PKCE-valid
 	sum := sha256.Sum256([]byte(verifier))
 	challenge := base64.RawURLEncoding.EncodeToString(sum[:])
@@ -64,9 +65,9 @@ func (p *Codex) Login() error {
 		"state":                      {state},
 	}
 	authURL := authorizeURL + "?" + q.Encode()
-	fmt.Printf("🔐 Open this URL to sign in with ChatGPT:\n\n  %s\n\n"+
-		"🌐 Waiting for the browser callback on localhost:%d (Ctrl-C to cancel)...\n",
-		authURL, loginPort)
+	notify(fmt.Sprintf("🔐 Open this URL to sign in with ChatGPT:\n\n%s\n\n"+
+		"🌐 Waiting for the browser callback on localhost:%d (Ctrl-C to cancel)...",
+		authURL, loginPort))
 	openBrowser(authURL)
 
 	type result struct {
@@ -98,7 +99,13 @@ func (p *Codex) Login() error {
 			done <- result{code: code}
 		})}
 	go server.Serve(listener)
-	res := <-done
+	var res result
+	select {
+	case res = <-done:
+	case <-ctx.Done():
+		server.Close()
+		return fmt.Errorf("login canceled")
+	}
 	server.Close()
 	if res.err != nil {
 		return res.err
@@ -124,10 +131,10 @@ func (p *Codex) Login() error {
 	if json.Unmarshal(resp, &grant) != nil {
 		return fmt.Errorf("code exchange: bad response JSON")
 	}
-	return saveAuth(grant.IDToken, grant.AccessToken, grant.RefreshToken)
+	return saveAuth(grant.IDToken, grant.AccessToken, grant.RefreshToken, notify)
 }
 
-func saveAuth(idToken, accessToken, refreshToken string) error {
+func saveAuth(idToken, accessToken, refreshToken string, notify func(string)) error {
 	if idToken == "" || accessToken == "" || refreshToken == "" {
 		return fmt.Errorf("token response missing fields")
 	}
@@ -150,6 +157,6 @@ func saveAuth(idToken, accessToken, refreshToken string) error {
 	if err := storePut("codex", section); err != nil {
 		return fmt.Errorf("failed to write %s", config.Path("auth.json"))
 	}
-	fmt.Printf("✅ orc: logged in; credentials saved to %s\n", config.Path("auth.json"))
+	notify("✅ orc: logged in; credentials saved to " + config.Path("auth.json"))
 	return nil
 }

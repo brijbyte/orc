@@ -65,12 +65,13 @@ to queue the next prompt (it runs when the current turn finishes, marked
 (Bubble Tea, persisted at `<orc home>/history`). Esc also cancels the running
 turn — keeping the typed line, unlike Ctrl-C — but closes an open menu first.
 Slash commands: `/model [slug]`, `/effort low|medium|high`, `/new` (fresh
-session), `/help`, `/quit`. Typing `/` shows a live candidate list under the
-input line; Up/Down move the selection, Enter runs it, Tab completes, Esc
-closes the menu (history recall also keeps it closed). Bare `/model` lists
-the provider's models (for codex, from `~/.codex/models_cache.json`), and
-`/model <partial>` completes slugs the same way. Lines that only look like
-paths (`/tmp/x ...`) still go to the model.
+session), `/login` (browser OAuth, Esc cancels), `/help`, `/quit`. Typing `/`
+shows a live candidate list under the input line; Up/Down move the selection,
+Enter runs it, Tab completes, Esc closes the menu (history recall also keeps
+it closed). Bare `/model` lists the provider's models (for codex, from
+`~/.codex/models_cache.json`), and `/model <partial>` completes slugs the
+same way. Lines starting with `/` are never sent to the model; unknown
+commands just warn.
 
 orc appends user instruction files to the system prompt when they exist:
 `~/.agents/AGENTS.md` (global), then `./AGENTS.md` in the working directory

@@ -101,17 +101,9 @@ func (ag *Agent) runCall(ctx context.Context, call item) {
 }
 
 // isControlLine reports a slash command or exit word: runs after the turn,
-// never sent as steering. Mirrors Dispatch: "/tmp/x" is a path, not a command.
+// never sent as steering. Slash lines are never model input.
 func isControlLine(s string) bool {
-	if s == "exit" || s == "quit" {
-		return true
-	}
-	if !strings.HasPrefix(s, "/") {
-		return false
-	}
-	word, _, _ := strings.Cut(s, " ")
-	word, _, _ = strings.Cut(word, "\t")
-	return !strings.Contains(word[1:], "/")
+	return s == "exit" || s == "quit" || strings.HasPrefix(s, "/")
 }
 
 // steer injects lines queued during the turn as user messages, so the model

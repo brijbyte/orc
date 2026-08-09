@@ -20,6 +20,7 @@ var Cmds = []Cmd{
 	{"/model", "[slug]", "set or show the model"},
 	{"/effort", "low|medium|high", "set reasoning effort"},
 	{"/new", "", "start a fresh session"},
+	{"/login", "", "sign in to the provider (browser OAuth)"},
 	{"/help", "", "list commands"},
 	{"/quit", "", "exit orc"},
 }
@@ -150,11 +151,8 @@ func (c *Commands) Dispatch(ag *agent.Agent, line string) (handled, quit bool) {
 			cmd = &Cmds[i]
 		}
 	}
+	// Slash lines are never sent to the model; unknown ones just warn.
 	if cmd == nil {
-		// "/tmp/x ..." is a path, not a typo'd command; hand it to the model
-		if strings.Contains(word[1:], "/") {
-			return false, false
-		}
 		c.ui.Printf("⚠️  unknown command %s (try /help)", word)
 		return true, false
 	}
