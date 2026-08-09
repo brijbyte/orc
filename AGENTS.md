@@ -4,13 +4,19 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
 
 ## Build and test
 
-- Build: `make` (Go, writes `bin/orc`)
-- Smoke tests: `./bin/orc --auth`, `./bin/orc -p "say hi"`,
-  `./bin/orc --resume`, `./bin/orc --list`
-- Lint: `go vet -mod=mod ./...`
-- The C implementation still lives in `src/` (`make c` builds
-  `bin/orc-debug`); it is legacy, pending removal. `vendor/` belongs to the C
-  build, so Go commands need `-mod=mod`.
+- Build: `make` (Go, writes `bin/orc`). Web UI: `make web` (Vite build into
+  `internal/web/dist`, embedded via go:embed; without it the server shows a
+  placeholder page). Rebuild both after web changes.
+- Tests: `go test -mod=mod ./internal/ui/`. Lint: `go vet -mod=mod ./...`.
+- Smoke: `./bin/orc --auth`, `./bin/orc -p "say hi"`, `--resume`, `--list`,
+  `--serve=127.0.0.1:7799` (curl the printed `#token` against `/api/state`).
+- Legacy C implementation in `src/` (`make c`) pending removal; `vendor/`
+  belongs to it, which is why Go commands need `-mod=mod`.
+- Zero-token UI check: hand-write a session file
+  `<orc home>/sessions/<unix-ts>-<id8>.jsonl` (a `{"_meta":{"id":...}}` line,
+  then one Responses-API item per line) and `orc --resume <id8>` — replay
+  renders previews and markdown without any API call. Drive the web UI with
+  playwright-core plus a headless Chromium-family browser.
 
 ## Architecture
 
@@ -19,19 +25,32 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   translate only inside the provider's `Turn()`.
 - `internal/provider` defines providers. Implement each provider in its own
   package under `internal/provider/` and register it from `init()`.
-- `internal/agent` owns the turn and tool-call loop. Tools are in
-  `internal/tools`. `internal/skills` discovers and searches skills for the
-  `skill` tool.
-- `internal/instructions` builds agent instructions on the first turn, not at
-  startup.
-- `internal/commands` implements slash commands. `internal/ui` owns the Bubble
-  Tea input line, the `/` menu, input queues, agent output (scrollback via
-  `tea.Println`), and glamour markdown rendering; `Plain` serves `-p` and
-  piped stdin.
-- `cmd/orc` is the Cobra CLI and REPL driver. `/model` and `/effort` persist
-  defaults for new sessions to `<orc home>/config.json`
-  (`internal/config/settings.go`); flags and resumed-session meta win over
-  them.
+- `internal/agent` owns the turn and tool-call loop, plus `Compact`
+  (summarize into a fresh session file; auto-runs at 80% of the model's
+  context window, at turn entry and between tool rounds — the points where
+  every committed `function_call` has its output).
+- Tools are in `internal/tools`; `internal/skills` backs the `skill` tool;
+  `internal/instructions` builds agent instructions on the first turn.
+- `internal/commands` implements slash commands (/model /effort /new /compact
+  /resume /status /login /help /quit) and custom ones from
+  `.agents/commands/*.md` (cwd, then home; body becomes the turn prompt,
+  `$ARGUMENTS` substituted). `Dispatch` returns that prompt; drivers run it.
+  Drivers intercept `/login` and `/compact` before `Dispatch` (they need
+  ctx/busy handling).
+- `internal/ui` owns the Bubble Tea TUI (scrollback via `tea.Println`, `/`
+  menu, queue), glamour markdown, `Plain` for `-p`/pipe, and the shared
+  render helpers: `ToolLine`/`ToolDesc`/`ToolPreview` (edit = ± diff with
+  chroma tokens over red/green backgrounds; write and clamped bash = numbered
+  highlighted code; truncation at 20 lines, ctrl+o expands the last one).
+- `internal/web` is `--serve`: `IO` mirrors `agent.IO` onto an append-only
+  SSE event log (hub) and a TUI-style input queue; bearer-token auth on every
+  route; plain HTTP binds loopback only, `--domain` adds autocert TLS.
+  Frontend lives in `web/` (React 19 + Vite): `api`/`events`/`types` plus
+  `Transcript`/`BlockView`/`Preview`/`InputBar`/`StatusBar`; `theme.ts`
+  resolves light/dark/system onto `<html data-theme>`.
+- `cmd/orc` is the Cobra CLI and the four drivers (TUI, pipe, one-shot,
+  serve). `/model` and `/effort` persist defaults to `<orc home>/config.json`;
+  flags and resumed-session meta win over them.
 
 ## Codex invariants
 
@@ -47,9 +66,13 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
 ## Conventions
 
 - Keep `go vet` clean; style via lipgloss, emitted only when the stream is a
-  TTY.
+  TTY (so also absent in tests — assert on chroma/raw ANSI, which emit
+  unconditionally).
 - Interrupts travel as `context.Context` cancellation: provider requests and
   bash tool runs take ctx; a canceled turn returns `provider.ErrInterrupted`.
 - `tea.Program.Send`/`Println` block until the program loop runs; never call
   them before `Run()` (park state and deliver from `Init`).
 - Return tool errors as model output. Do not abort the agent.
+- Release: push a `vX.Y.Z` tag. CI builds the web UI, cross-compiles, uploads
+  tarballs + `checksums.txt` + `install.sh` as release assets, and updates
+  the Homebrew tap.
