@@ -64,8 +64,19 @@
   animation: spin 750ms linear infinite;
   will-change: transform;
 }
-.composer textarea {
+/* holds the textarea and the floating stop button */
+.field {
+  position: relative;
   flex: 1;
+  min-width: 0;
+}
+/* while a turn runs, keep queued text clear of the stop button */
+.field.busy textarea {
+  padding-right: 4rem;
+}
+.composer textarea {
+  display: block;
+  width: 100%;
   background: none;
   border: none;
   outline: none;
@@ -95,8 +106,12 @@
 .composer button.attach svg {
   display: block;
 }
-.composer button.stop.hide {
-  visibility: hidden;
+/* out of flow: the textarea never resizes when a turn starts or ends */
+.composer button.stop {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  background: var(--bg);
 }
 
 @keyframes spin {

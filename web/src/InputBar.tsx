@@ -125,27 +125,40 @@ export function InputBar({
             ">"
           )}
         </span>
-        <textarea
-          ref={inputRef}
-          rows={1}
-          value={input}
-          onChange={(e) => {
-            setInput(e.target.value);
-            autosize();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            } else if (e.key === "Escape" && busy) {
-              api.interrupt(sid);
+        {/* the stop button floats over this box, so the textarea keeps the
+            full width whether a turn runs or not */}
+        <div className={busy ? `${s.field} ${s.busy}` : s.field}>
+          <textarea
+            ref={inputRef}
+            rows={1}
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              autosize();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              } else if (e.key === "Escape" && busy) {
+                api.interrupt(sid);
+              }
+            }}
+            placeholder={
+              busy ? "queue a message… (Esc interrupts)" : "message orc"
             }
-          }}
-          placeholder={
-            busy ? "queue a message… (Esc interrupts)" : "message orc"
-          }
-          autoFocus
-        />
+            autoFocus
+          />
+          {busy && (
+            <button
+              type="button"
+              className={s.stop}
+              onClick={() => api.interrupt(sid)}
+            >
+              stop
+            </button>
+          )}
+        </div>
         <input
           ref={pickRef}
           type="file"
@@ -156,14 +169,6 @@ export function InputBar({
             e.target.value = "";
           }}
         />
-        {/* always in the layout so the textarea width never shifts */}
-        <button
-          type="button"
-          className={busy ? s.stop : `${s.stop} ${s.hide}`}
-          onClick={() => api.interrupt(sid)}
-        >
-          stop
-        </button>
         <TipBtn
           tip="attach files"
           className={s.attach}
