@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- orc: green skin, torn pointed ears, amber scowl, jutting tusks -->
+  <path d="M7 34 L1 13 L12 19 L15 24 Z" fill="#46652f"/>
+  <path d="M57 34 L63 13 L52 19 L49 24 Z" fill="#46652f"/>
+  <path d="M32 5 C15 5 9 19 11 34 C13 49 21 59 32 59 C43 59 51 49 53 34 C55 19 49 5 32 5 Z" fill="#5c8a44"/>
+  <path d="M32 5 C15 5 9 19 11 34 L13 35 C12 21 18 9 32 9 C46 9 52 21 51 35 L53 34 C55 19 49 5 32 5 Z" fill="#6fa055"/>
+  <!-- scar -->
+  <path d="M44 10 L48 22 L46 23 L42 11 Z" fill="#3d5c2a"/>
+  <!-- brow -->
+  <path d="M13 25 L30 30 L29 34 L15 30 Z" fill="#2f4a22"/>
+  <path d="M51 25 L34 30 L35 34 L49 30 Z" fill="#2f4a22"/>
+  <!-- eyes -->
+  <path d="M17 33 L28 34 L26 39 L19 37 Z" fill="#f5b82e"/>
+  <path d="M47 33 L36 34 L38 39 L45 37 Z" fill="#f5b82e"/>
+  <circle cx="23" cy="36" r="1.8" fill="#1d1508"/>
+  <circle cx="41" cy="36" r="1.8" fill="#1d1508"/>
+  <!-- nostrils -->
+  <path d="M29 43 L31 40 L31 44 Z" fill="#2f4a22"/>
+  <path d="M35 43 L33 40 L33 44 Z" fill="#2f4a22"/>
+  <!-- mouth -->
+  <path d="M19 47 Q32 52 45 47 L44 52 Q32 56 20 52 Z" fill="#26361c"/>
+  <!-- tusks -->
+  <path d="M22 49 L19 40 L27 47 Z" fill="#eae4cd"/>
+  <path d="M42 49 L45 40 L37 47 Z" fill="#eae4cd"/>
+</svg>
