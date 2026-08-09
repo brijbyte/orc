@@ -117,7 +117,8 @@ func processTool(a args) string {
 		}
 		var out strings.Builder
 		for _, j := range jobs {
-			out.WriteString(j.statusLine() + "\n")
+			out.WriteString(j.statusLine())
+			out.WriteString("\n")
 		}
 		return out.String()
 	}
