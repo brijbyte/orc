@@ -1,9 +1,14 @@
 package web
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/brijbyte/orc/internal/agent"
+)
 
 type qitem struct {
 	line   string
+	atts   []agent.Attachment
 	queued bool // submitted while a turn was running
 }
 
@@ -25,9 +30,9 @@ func (q *queue) signal() {
 	}
 }
 
-func (q *queue) push(line string, queued bool) {
+func (q *queue) push(line string, atts []agent.Attachment, queued bool) {
 	q.mu.Lock()
-	q.items = append(q.items, qitem{line, queued})
+	q.items = append(q.items, qitem{line, atts, queued})
 	q.mu.Unlock()
 	q.signal()
 }

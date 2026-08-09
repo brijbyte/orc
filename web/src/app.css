@@ -51,6 +51,52 @@ body {
   display: flex;
   flex-direction: column;
   height: 100dvh;
+  position: relative; /* anchors the drag-drop overlay */
+}
+.dropzone {
+  position: absolute;
+  inset: 0.5rem;
+  border: 2px dashed var(--dim);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg);
+  pointer-events: none;
+  z-index: 5;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  max-width: 60rem;
+  margin: 0 auto 0.5rem;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.1rem 0.5rem;
+  font-size: 12px;
+}
+.chip em {
+  font-style: normal;
+  color: var(--dim);
+}
+.chip button {
+  background: none;
+  border: none;
+  color: var(--dim);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.chip button:hover {
+  color: var(--red);
 }
 .empty {
   flex: 1;
@@ -315,6 +361,7 @@ main > div:hover .copy,
   margin: 0.4rem 0 0;
   overflow-x: auto;
   background: var(--code-bg);
+  color: var(--code-fg);
   padding: 0.5rem 0.6rem;
   border-radius: 6px;
 }
@@ -327,8 +374,8 @@ main > div:hover .copy,
 .preview .ctx {
   color: var(--dim);
 }
-.preview .hl {
-  color: var(--fg); /* unstyled tokens; chroma spans carry their own colors */
+.preview .row {
+  color: var(--code-fg); /* unstyled tokens; chroma classes carry the rest */
 }
 .preview.nogut .expander {
   margin-left: 0;
@@ -482,9 +529,8 @@ footer .statSel:hover {
 }
 
 /* Light scheme, selected via <html data-theme> (theme.ts resolves the
-   "system" preference). Last so the overrides win their equal-specificity
-   base rules. Code stays a dark island: server-side chroma colors are
-   dark-tuned. */
+   "system" preference). Code previews follow the theme too: /hl.css ships
+   a light chroma palette scoped to [data-theme="light"]. */
 :root[data-theme="light"] {
   color-scheme: light;
   --bg: #fafaf8;
@@ -495,31 +541,6 @@ footer .statSel:hover {
   --green: #1a7f37;
   --line: #d1d9e0;
   --panel: #e9ecef;
-}
-:root[data-theme="light"] .preview {
-  color: var(--code-fg); /* code stays a dark island */
-}
-:root[data-theme="light"] .preview .add {
-  color: #98c379;
-}
-:root[data-theme="light"] .preview .del {
-  color: #e06c75;
-}
-:root[data-theme="light"] .preview .ctx {
-  color: #7a7f8e;
-}
-:root[data-theme="light"] .preview .hl {
-  color: var(--code-fg);
-}
-:root[data-theme="light"] .preview .expander {
-  border-color: #2a2c38;
-  color: #7a7f8e;
-}
-:root[data-theme="light"] .preview .expander:hover {
-  color: #d8dae2;
-  border-color: #7a7f8e;
-}
-:root[data-theme="light"] .md pre,
-:root[data-theme="light"] .md code {
-  color: var(--code-fg);
+  --code-bg: #f0f2f4;
+  --code-fg: #1f2328;
 }

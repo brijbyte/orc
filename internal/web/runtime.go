@@ -64,7 +64,7 @@ func (rt *Runtime) loop() {
 		}
 	}
 	for {
-		line, queued, ok := w.WaitTake()
+		line, atts, queued, ok := w.WaitTake()
 		if !ok {
 			break
 		}
@@ -72,7 +72,7 @@ func (rt *Runtime) loop() {
 			break
 		}
 		if queued {
-			w.EchoQueued(line)
+			w.EchoQueued(agent.Echo(line, atts))
 		}
 		switch strings.TrimSpace(line) {
 		case "/login":
@@ -94,7 +94,7 @@ func (rt *Runtime) loop() {
 			}
 			line = prompt // custom command: run its prompt as the turn
 		}
-		run(func(ctx context.Context) error { return ag.Turn(ctx, line) })
+		run(func(ctx context.Context) error { return ag.Turn(ctx, line, atts) })
 	}
 	w.Close()
 	sess := ag.Sess

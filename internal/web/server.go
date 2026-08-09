@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"crypto/subtle"
 	"crypto/tls"
 	"embed"
@@ -20,15 +21,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/brijbyte/orc/internal/agent"
 	"github.com/brijbyte/orc/internal/config"
 	"github.com/brijbyte/orc/internal/provider"
 	"github.com/brijbyte/orc/internal/session"
+	"github.com/brijbyte/orc/internal/ui"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/acme/autocert"
 )
 
 //go:embed all:dist
 var distFS embed.FS
+
+var hlCSS = sync.OnceValue(ui.HighlightCSS)
 
 const placeholder = `<!doctype html><meta charset="utf-8"><title>orc</title>
 <body style="font-family:monospace;background:#111;color:#ddd;padding:2em">
@@ -276,23 +281,46 @@ func (s *Server) handleEvents(rw http.ResponseWriter, r *http.Request, rt *Runti
 	}
 }
 
+// inputMax caps one input request (base64 attachments included).
+const inputMax = 24 << 20
+
 func (s *Server) handleInput(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
 	var in struct {
-		Text string `json:"text"`
+		Text  string `json:"text"`
+		Files []struct {
+			Name string `json:"name"`
+			Type string `json:"type"`
+			Data string `json:"data"` // base64
+		} `json:"files"`
 	}
-	if json.NewDecoder(r.Body).Decode(&in) != nil || strings.TrimSpace(in.Text) == "" {
+	r.Body = http.MaxBytesReader(rw, r.Body, inputMax)
+	if json.NewDecoder(r.Body).Decode(&in) != nil {
 		http.Error(rw, "bad input", http.StatusBadRequest)
 		return
 	}
 	line := strings.TrimSpace(in.Text)
+	var atts []agent.Attachment
+	for _, f := range in.Files {
+		data, err := base64.StdEncoding.DecodeString(f.Data)
+		if err != nil || f.Name == "" {
+			http.Error(rw, "bad attachment", http.StatusBadRequest)
+			return
+		}
+		atts = append(atts, agent.Attachment{Name: f.Name, Mime: f.Type, Data: data})
+	}
+	if line == "" && len(atts) == 0 {
+		http.Error(rw, "bad input", http.StatusBadRequest)
+		return
+	}
+	display := agent.Echo(line, atts)
 	w := rt.IO
 	busy := w.Busy()
 	if busy {
-		w.hub.emit("pending", text(line))
+		w.hub.emit("pending", text(display))
 	} else {
-		w.UserLine(line)
+		w.UserLine(display)
 	}
-	w.q.push(line, busy)
+	w.q.push(line, atts, busy)
 	rw.WriteHeader(http.StatusNoContent)
 }
 
@@ -394,6 +422,11 @@ func (s *Server) mux() *http.ServeMux {
 	mux.HandleFunc("GET /api/models", s.auth(s.handleModels))
 	mux.HandleFunc("GET /api/dirs", s.auth(s.handleDirs))
 	mux.HandleFunc("POST /api/dirs", s.auth(s.handleMkdir))
+	// chroma palettes for preview spans; colors only, no auth needed
+	mux.HandleFunc("GET /hl.css", func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Content-Type", "text/css")
+		fmt.Fprint(rw, hlCSS())
+	})
 	mux.HandleFunc("/", handleStatic)
 	return mux
 }

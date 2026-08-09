@@ -50,7 +50,12 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   an append-only SSE event log (hub) and a TUI-style input queue. Routes are
   session-scoped: `/api/sessions` (list all + create),
   `/api/sessions/{id}/open|state|events|input|interrupt`, `DELETE` to stop,
-  plus `/api/models` and `/api/dirs` (directory picker). Bearer-token auth on
+  plus `/api/models` and `/api/dirs` (directory picker, POST creates).
+  `input` accepts `{text, files:[{name,type,data(base64)}]}` (24MB cap);
+  `agent.userMessage` turns attachments into `input_image` data-URL parts
+  (images) or inlined `input_text` (text files), and `agent.Echo` is the one
+  display form for a line + its 📎 names — pending echoes must match later
+  user echoes. Bearer-token auth on
   every route; plain HTTP binds loopback only, `--domain` adds autocert TLS.
   Frontend lives in `web/` (React 19 + Vite): `api`/`events`/`types` plus
   `Sidebar` (session list grouped by cwd), `SessionView` (one mounted view +

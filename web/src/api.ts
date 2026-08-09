@@ -1,3 +1,5 @@
+export type AttachedFile = { name: string; type: string; data: string };
+
 // Hash is "#<token>" or "#<token>/<session id>".
 const token = window.location.hash.slice(1).split("/")[0];
 
@@ -32,8 +34,8 @@ export const api = {
   dirs: (path?: string) =>
     get(`/api/dirs${path ? `?path=${encodeURIComponent(path)}` : ""}`),
   mkdir: (path: string) => post("/api/dirs", { path }),
-  send: (id: string, text: string) =>
-    post(`/api/sessions/${id}/input`, { text }),
+  send: (id: string, text: string, files?: AttachedFile[]) =>
+    post(`/api/sessions/${id}/input`, files?.length ? { text, files } : { text }),
   interrupt: (id: string) =>
     fetch(`/api/sessions/${id}/interrupt`, { method: "POST", headers: auth }),
   events: (id: string, after: number) =>

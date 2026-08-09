@@ -56,7 +56,9 @@ conversation the model sees.
 
 `orc --serve` runs headless and prints a tokenized URL for the browser UI:
 streamed markdown, tool previews, an interactive status bar (model/effort
-selects, light/dark/system theme), queueing and interrupt. The sidebar
+selects, light/dark/system theme), queueing and interrupt. Drop files onto
+the transcript to attach them to the next message — images go to the model
+as images, text files inline. The sidebar
 manages every session from one place — sessions for the server's directory
 first, then the rest grouped by directory — with resume on click, parallel
 live sessions, and "new session" with a server-side directory picker (each

@@ -1,14 +1,15 @@
 import { useState } from "react";
 
 // lineClass reads the ± marker after the line-number gutter; numbered
-// lines without a marker are write content (plain code).
+// lines without a marker are write content (plain code). "row" is ours —
+// chroma owns short class names like "hl" inside .chroma.
 const lineClass = (l: string) =>
   /^\s*\d+ \+ /.test(l)
     ? "add"
     : /^\s*\d+ - /.test(l)
       ? "del"
       : /^\s*\d+ /.test(l)
-        ? "hl"
+        ? "row"
         : "ctx";
 
 // Preview shows a tool call body truncated to max lines with an
@@ -30,17 +31,17 @@ export function Preview({
   const lines = html ?? text.split("\n");
   const shown = open ? lines : lines.slice(0, max);
   return (
-    <pre className={gutter ? "preview" : "preview nogut"}>
+    <pre className={gutter ? "preview chroma" : "preview chroma nogut"}>
       {shown.map((l, i) =>
         html ? (
-          <div key={i} className="hl">
+          <div key={i} className="row">
             {gutter && (
               <span className="ctx">{String(i + 1).padStart(4) + " "}</span>
             )}
             <span dangerouslySetInnerHTML={{ __html: l }} />
           </div>
         ) : (
-          <div key={i} className={gutter ? lineClass(l) : "hl"}>
+          <div key={i} className={gutter ? lineClass(l) : "row"}>
             {l}
           </div>
         ),

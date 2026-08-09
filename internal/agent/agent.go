@@ -3,10 +3,12 @@ package agent
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/brijbyte/orc/internal/config"
 	"github.com/brijbyte/orc/internal/instructions"
@@ -15,6 +17,13 @@ import (
 	"github.com/brijbyte/orc/internal/tools"
 	"github.com/google/uuid"
 )
+
+// Attachment is a user-supplied file sent with a turn.
+type Attachment struct {
+	Name string
+	Mime string
+	Data []byte
+}
 
 // IO is the interface the UI supplies for agent events and queued input.
 type IO interface {
@@ -29,7 +38,7 @@ type IO interface {
 	Notice(line string)
 	QueueDrain()
 	QueuePeek() (string, bool)
-	QueueTake() (string, bool)
+	QueueTake() (string, []Attachment, bool)
 }
 
 type Agent struct {
@@ -63,13 +72,35 @@ func New(cfg *config.Config, prov provider.Provider, sess *session.Session,
 	}
 }
 
-func userMessage(text string) json.RawMessage {
+// userMessage builds a user item: the text plus one content part per
+// attachment — images inline as data-URL input_image, text files inline as
+// input_text, other binaries as a note.
+func userMessage(text string, atts []Attachment) json.RawMessage {
+	var content []map[string]string
+	if text != "" || len(atts) == 0 {
+		content = append(content, map[string]string{"type": "input_text", "text": text})
+	}
+	for _, a := range atts {
+		switch {
+		case strings.HasPrefix(a.Mime, "image/"):
+			content = append(content, map[string]string{
+				"type":      "input_image",
+				"image_url": "data:" + a.Mime + ";base64," + base64.StdEncoding.EncodeToString(a.Data),
+			})
+		case utf8.Valid(a.Data):
+			content = append(content, map[string]string{
+				"type": "input_text",
+				"text": fmt.Sprintf("[attached file: %s]\n%s", a.Name, a.Data),
+			})
+		default:
+			content = append(content, map[string]string{
+				"type": "input_text",
+				"text": fmt.Sprintf("[attached binary file %s: %d bytes, content omitted]", a.Name, len(a.Data)),
+			})
+		}
+	}
 	msg, _ := json.Marshal(map[string]any{
-		"type": "message",
-		"role": "user",
-		"content": []map[string]string{
-			{"type": "input_text", "text": text},
-		},
+		"type": "message", "role": "user", "content": content,
 	})
 	return msg
 }
@@ -103,6 +134,20 @@ func (ag *Agent) runCall(ctx context.Context, call item) {
 	ag.commit(callOutput(call.CallID, output))
 }
 
+// Echo is the display form of a user line with its attachments; UIs must
+// use it consistently so pending echoes match their later user echoes.
+func Echo(line string, atts []Attachment) string {
+	var sb strings.Builder
+	sb.WriteString(line)
+	for _, a := range atts {
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
+		fmt.Fprintf(&sb, "📎 %s (%d KB)", a.Name, (len(a.Data)+1023)/1024)
+	}
+	return sb.String()
+}
+
 // isControlLine reports a slash command or exit word: runs after the turn,
 // never sent as steering. Slash lines are never model input.
 func isControlLine(s string) bool {
@@ -118,9 +163,9 @@ func (ag *Agent) steer() {
 		if !ok || isControlLine(peek) {
 			return
 		}
-		line, _ := ag.IO.QueueTake()
-		ag.IO.UserLine(line)
-		ag.commit(userMessage(line))
+		line, atts, _ := ag.IO.QueueTake()
+		ag.IO.UserLine(Echo(line, atts))
+		ag.commit(userMessage(line, atts))
 	}
 }
 
@@ -155,7 +200,7 @@ func (ag *Agent) Compact(ctx context.Context) error {
 		return err
 	}
 	var sb strings.Builder
-	req := append(append([]json.RawMessage{}, ag.History...), userMessage(compactPrompt))
+	req := append(append([]json.RawMessage{}, ag.History...), userMessage(compactPrompt, nil))
 	cb := &provider.Callbacks{
 		OnTextDelta:     func(s string) { sb.WriteString(s); ag.IO.TextDelta(s) },
 		OnThinkingDelta: ag.IO.ThinkingDelta,
@@ -180,7 +225,7 @@ func (ag *Agent) Compact(ctx context.Context) error {
 	*ag.Sess = *next
 	ag.History = nil
 	ag.commit(userMessage(
-		"Summary of the conversation so far (earlier history was compacted):\n\n" + summary))
+		"Summary of the conversation so far (earlier history was compacted):\n\n"+summary, nil))
 	ag.IO.Usage(0) // real usage lands after the next request
 	ag.IO.Notice(fmt.Sprintf("🗜️  compacted into session %.8s", ag.Cfg.SessionID))
 	return nil
@@ -199,12 +244,12 @@ func (ag *Agent) maybeCompact(ctx context.Context) {
 }
 
 // Turn runs one user turn to completion (including tool rounds).
-func (ag *Agent) Turn(ctx context.Context, userText string) error {
+func (ag *Agent) Turn(ctx context.Context, userText string, atts []Attachment) error {
 	if ag.Cfg.Instructions == "" {
 		ag.Cfg.Instructions = instructions.Build(ag.Cfg.Cwd)
 	}
 	ag.maybeCompact(ctx)
-	ag.commit(userMessage(userText))
+	ag.commit(userMessage(userText, atts))
 
 	for {
 		var pending []json.RawMessage

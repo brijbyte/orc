@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/brijbyte/orc/internal/agent"
 	"github.com/brijbyte/orc/internal/commands"
 	"github.com/brijbyte/orc/internal/config"
 	"github.com/brijbyte/orc/internal/session"
@@ -66,7 +67,9 @@ func (p *Plain) Usage(tokens int64) {
 func (p *Plain) Notice(line string)        { fmt.Fprintln(os.Stderr, line) }
 func (p *Plain) QueueDrain()               {}
 func (p *Plain) QueuePeek() (string, bool) { return "", false }
-func (p *Plain) QueueTake() (string, bool) { return "", false }
+func (p *Plain) QueueTake() (string, []agent.Attachment, bool) {
+	return "", nil, false
+}
 func (p *Plain) Printf(f string, a ...any) { fmt.Printf(f+"\n", a...) }
 func (p *Plain) SetStatus(s string)        {}
 

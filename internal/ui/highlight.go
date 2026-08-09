@@ -13,6 +13,36 @@ import (
 
 var hlStyle = styles.Get("github-dark")
 
+// hlHTML emits class-based spans so the browser can theme them; the
+// palettes ship via HighlightCSS.
+var hlHTML = html.New(html.WithClasses(true), html.WithCSSComments(false),
+	html.PreventSurroundingPre(true))
+
+// HighlightCSS is the stylesheet for class-based preview spans: github-dark
+// by default, github (light) when the light theme is active. Background
+// rules are dropped — the preview card paints its own.
+func HighlightCSS() string {
+	var sb strings.Builder
+	emit := func(style *chroma.Style, scope string) {
+		var buf strings.Builder
+		hlHTML.WriteCSS(&buf, style)
+		for _, line := range strings.Split(buf.String(), "\n") {
+			// keep token rules only: no wrapper/background/line-machinery
+			if line == "" || strings.HasPrefix(line, ".bg") ||
+				(strings.HasPrefix(line, ".chroma") && !strings.HasPrefix(line, ".chroma .")) ||
+				strings.HasPrefix(line, ".chroma .hl") ||
+				strings.HasPrefix(line, ".chroma .ln") ||
+				strings.HasPrefix(line, ".chroma .line") {
+				continue
+			}
+			sb.WriteString(scope + line + "\n")
+		}
+	}
+	emit(hlStyle, "")
+	emit(styles.Get("github"), `:root[data-theme="light"] `)
+	return sb.String()
+}
+
 // tokenLines lexes content by the file's language; nil when unknown.
 func tokenLines(path, content string) [][]chroma.Token {
 	lexer := lexers.Match(path)
@@ -73,5 +103,5 @@ func PreviewHTML(name, argsJSON string) []string {
 	if tl == nil {
 		return nil
 	}
-	return formatLines(tl, html.New(html.PreventSurroundingPre(true)))
+	return formatLines(tl, hlHTML)
 }

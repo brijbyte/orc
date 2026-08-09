@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/brijbyte/orc/internal/agent"
 	"github.com/brijbyte/orc/internal/commands"
 	"github.com/brijbyte/orc/internal/ui"
 )
@@ -115,6 +116,7 @@ func (w *IO) Replay(history []json.RawMessage) {
 			Name      string `json:"name"`
 			Arguments string `json:"arguments"`
 			Content   []struct {
+				Type string `json:"type"`
 				Text string `json:"text"`
 			} `json:"content"`
 		}
@@ -127,6 +129,10 @@ func (w *IO) Replay(history []json.RawMessage) {
 		case "message":
 			var sb strings.Builder
 			for _, part := range probe.Content {
+				if part.Type == "input_image" {
+					sb.WriteString("\n📎 image")
+					continue
+				}
 				sb.WriteString(part.Text)
 			}
 			if sb.Len() == 0 {
@@ -145,9 +151,9 @@ func (w *IO) Replay(history []json.RawMessage) {
 
 func (w *IO) QueueDrain()               {}
 func (w *IO) QueuePeek() (string, bool) { return w.q.peek() }
-func (w *IO) QueueTake() (string, bool) {
+func (w *IO) QueueTake() (string, []agent.Attachment, bool) {
 	it, ok := w.q.take()
-	return it.line, ok
+	return it.line, it.atts, ok
 }
 
 // --- commands.UI ---
@@ -157,9 +163,9 @@ func (w *IO) SetStatus(s string)             { w.hub.setStatus(s) }
 
 // --- driver support (same surface as the TUI) ---
 
-func (w *IO) WaitTake() (line string, queued, ok bool) {
+func (w *IO) WaitTake() (line string, atts []agent.Attachment, queued, ok bool) {
 	it, ok := w.q.waitTake()
-	return it.line, it.queued, ok
+	return it.line, it.atts, it.queued, ok
 }
 
 func (w *IO) SetBusy(b bool) { w.hub.setBusy(b) }

@@ -199,7 +199,7 @@ func runOneShot(cfg *config.Config, prov provider.Provider, sess *session.Sessio
 	ag := agent.New(cfg, prov, sess, resumed, plain)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	err := ag.Turn(ctx, prompt)
+	err := ag.Turn(ctx, prompt, nil)
 	switch {
 	case errors.Is(err, provider.ErrInterrupted):
 		return 130
@@ -265,7 +265,7 @@ func runPipe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 			line = prompt // custom command: run its prompt as the turn
 		}
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-		if err := ag.Turn(ctx, line); err != nil && !errors.Is(err, provider.ErrInterrupted) {
+		if err := ag.Turn(ctx, line, nil); err != nil && !errors.Is(err, provider.ErrInterrupted) {
 			fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
 		}
 		stop()
@@ -375,7 +375,7 @@ func runTUI(cfg *config.Config, prov provider.Provider, sess *session.Session,
 			ctx, cancel := context.WithCancel(context.Background())
 			t.SetCancel(cancel)
 			t.SetBusy(true)
-			err := ag.Turn(ctx, line)
+			err := ag.Turn(ctx, line, nil)
 			t.SetBusy(false)
 			t.SetCancel(nil)
 			cancel()

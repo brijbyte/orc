@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/brijbyte/orc/internal/agent"
 	"github.com/brijbyte/orc/internal/commands"
 	"github.com/brijbyte/orc/internal/config"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -162,9 +163,9 @@ func (t *TUI) Usage(tokens int64) {
 
 func (t *TUI) QueueDrain()               {}
 func (t *TUI) QueuePeek() (string, bool) { return t.q.peek() }
-func (t *TUI) QueueTake() (string, bool) {
+func (t *TUI) QueueTake() (string, []agent.Attachment, bool) {
 	it, ok := t.q.take()
-	return it.line, ok
+	return it.line, nil, ok
 }
 
 // --- commands.UI ---

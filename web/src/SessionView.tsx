@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
+
+const fileMax = 16 << 20; // per-file cap, matches the server's request cap
 import { apply } from "./events";
 import type { Block, Ev, Model } from "./types";
 import { Transcript } from "./Transcript";
@@ -24,7 +26,17 @@ export function SessionView({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [err, setErr] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [dragging, setDragging] = useState(false);
   const lastID = useRef(0);
+  const dragDepth = useRef(0);
+
+  const addFiles = (list: FileList | null) => {
+    if (!list) return;
+    const ok = [...list].filter((f) => f.size <= fileMax);
+    if (ok.length < list.length) alert("files over 16 MB were skipped");
+    if (ok.length) setFiles((prev) => [...prev, ...ok]);
+  };
 
   const onEvent = useCallback((ev: Ev) => {
     lastID.current = ev.id;
@@ -65,7 +77,24 @@ export function SessionView({
   }, [sid, onEvent, onOpened]);
 
   return (
-    <div className="app" style={visible ? undefined : { display: "none" }}>
+    <div
+      className="app"
+      style={visible ? undefined : { display: "none" }}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        if (++dragDepth.current === 1) setDragging(true);
+      }}
+      onDragOver={(e) => e.preventDefault()}
+      onDragLeave={() => {
+        if (--dragDepth.current === 0) setDragging(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        dragDepth.current = 0;
+        setDragging(false);
+        addFiles(e.dataTransfer.files);
+      }}
+    >
       {err ? (
         <div className="dead">🧌 {err}</div>
       ) : blocks === null ? (
@@ -73,10 +102,11 @@ export function SessionView({
       ) : (
         <>
           <Transcript blocks={blocks} />
-          <InputBar sid={sid} busy={busy} />
+          <InputBar sid={sid} busy={busy} files={files} setFiles={setFiles} />
           <StatusBar sid={sid} status={status} models={models} />
         </>
       )}
+      {dragging && <div className="dropzone">📎 drop to attach</div>}
     </div>
   );
 }
