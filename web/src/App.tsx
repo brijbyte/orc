@@ -116,7 +116,14 @@ function Preview({ text, html }: { text: string; html?: string[] }) {
 function BlockView({ b }: { b: Block }) {
   switch (b.kind) {
     case "user":
-      return <div className="user">&gt; {b.text}</div>;
+      return (
+        <div className="user">
+          <span>&gt;</span>
+          <div className="md">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{b.text}</ReactMarkdown>
+          </div>
+        </div>
+      );
     case "pending":
       return <div className="pending">&gt; {b.text} ⏳</div>;
     case "think":
@@ -139,7 +146,7 @@ function BlockView({ b }: { b: Block }) {
     }
     case "assistant":
       return (
-        <div className="assistant">
+        <div className="assistant md">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{b.text}</ReactMarkdown>
         </div>
       );

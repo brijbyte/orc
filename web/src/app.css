@@ -34,8 +34,16 @@ main > div {
   margin: 0 auto 0.6rem;
 }
 .user {
+  display: flex;
+  gap: 0.5rem;
   color: var(--cyan);
-  white-space: pre-wrap;
+}
+.user > span {
+  font-weight: bold;
+}
+.user .md {
+  flex: 1;
+  min-width: 0;
 }
 .pending {
   color: var(--dim);
@@ -98,27 +106,30 @@ main > div {
   border-left: 2px solid var(--line);
   padding-left: 0.8rem;
 }
-.assistant :is(p, ul, ol, pre, table, blockquote, h1, h2, h3, h4) {
+.md :is(p, ul, ol, pre, table, blockquote, h1, h2, h3, h4) {
   margin: 0 0 0.6rem;
 }
-.assistant pre {
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md pre {
   background: #191b24;
   padding: 0.6rem;
   border-radius: 6px;
   overflow-x: auto;
 }
-.assistant code {
+.md code {
   background: #191b24;
   padding: 0.1rem 0.3rem;
   border-radius: 4px;
 }
-.assistant pre code {
+.md pre code {
   padding: 0;
 }
-.assistant table {
+.md table {
   border-collapse: collapse;
 }
-.assistant :is(td, th) {
+.md :is(td, th) {
   border: 1px solid var(--line);
   padding: 0.2rem 0.5rem;
 }
