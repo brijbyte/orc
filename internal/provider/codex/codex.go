@@ -74,9 +74,10 @@ type sseEvent struct {
 // only after the whole stream succeeds, so a mid-stream retry cannot
 // duplicate them.
 type streamState struct {
-	cb     *provider.Callbacks
-	items  []json.RawMessage
-	failed string
+	cb      *provider.Callbacks
+	items   []json.RawMessage
+	failed  string
+	thought bool // a reasoning summary part already streamed
 }
 
 func (st *streamState) onEvent(data []byte) {
@@ -90,9 +91,15 @@ func (st *streamState) onEvent(data []byte) {
 		if json.Unmarshal(ev.Delta, &s) == nil && st.cb.OnTextDelta != nil {
 			st.cb.OnTextDelta(s)
 		}
+	case "response.reasoning_summary_part.added":
+		// summary parts arrive back to back: break them apart
+		if st.thought && st.cb.OnThinkingDelta != nil {
+			st.cb.OnThinkingDelta("\n\n")
+		}
 	case "response.reasoning_summary_text.delta":
 		var s string
 		if json.Unmarshal(ev.Delta, &s) == nil && st.cb.OnThinkingDelta != nil {
+			st.thought = true
 			st.cb.OnThinkingDelta(s)
 		}
 	case "response.output_item.done":

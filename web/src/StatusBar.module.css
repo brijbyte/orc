@@ -1,0 +1,21 @@
+.footer {
+  color: var(--dim);
+  font-size: 12px;
+  padding: 0.3rem 1rem 0.6rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.footer > div {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 60rem;
+  margin: 0 auto;
+}
+.stat {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.themeSel {
+  margin-left: auto;
+}

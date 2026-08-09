@@ -132,13 +132,15 @@ func (s *Server) withRuntime(next func(http.ResponseWriter, *http.Request, *Runt
 
 // sessionRow is one /api/sessions entry.
 type sessionRow struct {
-	ID    string `json:"id"`
-	Rid   string `json:"rid,omitempty"` // live runtime handle
-	Title string `json:"title"`
-	When  string `json:"when"`
-	Cwd   string `json:"cwd"`
-	Live  bool   `json:"live"`
-	Busy  bool   `json:"busy"`
+	ID     string `json:"id"`
+	Rid    string `json:"rid,omitempty"` // live runtime handle
+	Title  string `json:"title"`
+	When   string `json:"when"`
+	Used   string `json:"used"`
+	Cwd    string `json:"cwd"`
+	Live   bool   `json:"live"`
+	Busy   bool   `json:"busy"`
+	Pinned bool   `json:"pinned"`
 }
 
 func (s *Server) handleSessions(rw http.ResponseWriter, r *http.Request) {
@@ -153,7 +155,8 @@ func (s *Server) handleSessions(rw http.ResponseWriter, r *http.Request) {
 
 	out := make([]sessionRow, 0, len(rows))
 	for _, row := range rows {
-		sr := sessionRow{ID: row.ID, Title: row.Title, When: row.When, Cwd: row.Cwd}
+		sr := sessionRow{ID: row.ID, Title: row.Title, When: row.When,
+			Used: row.Used, Cwd: row.Cwd, Pinned: row.Pinned}
 		if rt, ok := live[row.ID]; ok {
 			sr.Live, sr.Rid, sr.Busy = true, rt.ID, rt.IO.Busy()
 		}
@@ -237,6 +240,19 @@ func (s *Server) handleCloseSession(rw http.ResponseWriter, r *http.Request) {
 		}
 	} else if rt == nil {
 		http.Error(rw, "no such live session", http.StatusNotFound)
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// handlePin keeps a session at the top of every list, across restarts.
+func (s *Server) handlePin(rw http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Pinned bool `json:"pinned"`
+	}
+	json.NewDecoder(r.Body).Decode(&in)
+	if err := session.Pin(r.PathValue("id"), in.Pinned); err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
@@ -415,6 +431,7 @@ func (s *Server) mux() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions", s.auth(s.handleNew))
 	mux.HandleFunc("POST /api/sessions/{id}/open", s.auth(s.handleOpen))
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.auth(s.handleCloseSession))
+	mux.HandleFunc("POST /api/sessions/{id}/pin", s.auth(s.handlePin))
 	mux.HandleFunc("GET /api/sessions/{id}/state", s.auth(s.withRuntime(s.handleState)))
 	mux.HandleFunc("GET /api/sessions/{id}/events", s.auth(s.withRuntime(s.handleEvents)))
 	mux.HandleFunc("POST /api/sessions/{id}/input", s.auth(s.withRuntime(s.handleInput)))

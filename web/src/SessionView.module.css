@@ -1,0 +1,54 @@
+.app {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  position: relative; /* anchors the drag-drop overlay */
+}
+.dropzone {
+  position: absolute;
+  inset: 0.5rem;
+  border: 2px dashed var(--dim);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms var(--ease-out);
+  z-index: 5;
+}
+.dropzone[data-active] {
+  opacity: 1;
+}
+.dead {
+  padding: 2rem;
+  color: var(--dim);
+}
+.loader {
+  padding: 2rem;
+  color: var(--dim);
+  animation: pulse 0.9s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dropzone {
+    transition: none;
+  }
+  .loader {
+    animation: pulse 1.8s ease-in-out infinite alternate;
+  }
+}
+
+/* CSS-module keyframes are scoped, so each module declares what it uses */
+@keyframes pulse {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}

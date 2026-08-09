@@ -1,0 +1,175 @@
+.side {
+  width: 240px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+  padding: 0.6rem 0.5rem;
+  font-size: 13px;
+}
+.new {
+  width: 100%;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--green);
+  font: inherit;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+  margin-bottom: 0.6rem;
+}
+.new:hover {
+  border-color: var(--dim);
+}
+.group {
+  margin-bottom: 0.6rem;
+}
+.head {
+  color: var(--dim);
+  font-size: 11px;
+  padding: 0.2rem 0.3rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl; /* keep the tail of long paths visible */
+  text-align: left;
+}
+.row {
+  position: relative; /* anchors the stretched open link */
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.25rem 0.3rem 0.3rem;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--fg);
+}
+.row + .row {
+  margin-top: 0.25rem;
+}
+.row:hover {
+  background: var(--panel);
+}
+.row.active {
+  background: var(--panel);
+  color: var(--cyan);
+}
+.open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+/* the whole row opens the session; the action buttons sit above it */
+.open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.dot {
+  flex-shrink: 0;
+  color: var(--dim);
+  font-size: 10px;
+}
+.busydot {
+  color: var(--green);
+  animation: pulse 0.9s ease-in-out infinite alternate;
+}
+.title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* second row line: age (and directory, for pinned rows) plus the actions */
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-left: 1.1rem; /* clears the status dot */
+  min-height: 1.2em;
+}
+.age {
+  flex: 1;
+  min-width: 0;
+  color: var(--dim);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acts {
+  position: relative; /* over the stretched link */
+  display: flex;
+  gap: 0.1rem;
+  flex-shrink: 0;
+}
+.act {
+  display: flex;
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  padding: 0 0.15rem;
+  opacity: 0;
+}
+.act:focus-visible,
+.act.on {
+  opacity: 1;
+}
+.act.on {
+  color: var(--cyan);
+}
+.act:hover {
+  color: var(--fg);
+}
+.act.del:hover {
+  color: var(--red);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row:hover .act {
+    opacity: 1;
+  }
+  .act {
+    transition:
+      opacity 120ms ease,
+      transform 120ms var(--ease-out);
+  }
+  .act:focus-visible {
+    transition: none;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .act {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .busydot {
+    animation: pulse 1.8s ease-in-out infinite alternate;
+  }
+  .act {
+    transition: none;
+  }
+}
+
+/* CSS-module keyframes are scoped, so each module declares what it uses */
+@keyframes pulse {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}

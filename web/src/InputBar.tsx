@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Paperclip } from "lucide-react";
+import { LoaderCircle, Paperclip } from "lucide-react";
 import { api, type AttachedFile } from "./api";
 import { TipBtn } from "./ui";
-
-const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+import s from "./InputBar.module.css";
 
 const readB64 = (f: File) =>
   new Promise<AttachedFile>((resolve, reject) => {
@@ -36,8 +35,8 @@ function isEditable(t: EventTarget | null): boolean {
 }
 
 // InputBar owns the textarea (Enter sends, Shift+Enter breaks the line,
-// Esc interrupts), attachment chips, the attach button, the busy spinner,
-// and the stop button. While mounted it grabs focus Slack-style: stray
+// Esc interrupts), attachments, the busy spinner, and the stop button.
+// While mounted it grabs focus Slack-style: stray
 // printable keystrokes land in the textarea.
 export function InputBar({
   sid,
@@ -53,25 +52,8 @@ export function InputBar({
   addFiles: (f: FileList | null) => void;
 }) {
   const [input, setInput] = useState("");
-  const [spin, setSpin] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const pickRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!busy) return;
-    let last = 0;
-    let raf = 0;
-    const tick = (ts: number) => {
-      if (!last) last = ts;
-      if (ts - last >= 100) {
-        setSpin((s) => (s + 1) % spinnerFrames.length);
-        last = ts;
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [busy]);
 
   // focus on mount and after files attach
   useEffect(() => {
@@ -119,11 +101,11 @@ export function InputBar({
   };
 
   return (
-    <form className="composer" onSubmit={submit}>
+    <form className={s.composer} onSubmit={submit}>
       {files.length > 0 && (
-        <div className="chips">
+        <div className={s.chips}>
           {files.map((f, i) => (
-            <span key={i} className="chip">
+            <span key={i} className={s.chip}>
               📎 {f.name} <em>{sizeLabel(f.size)}</em>
               <TipBtn
                 tip="remove attachment"
@@ -135,9 +117,13 @@ export function InputBar({
           ))}
         </div>
       )}
-      <div className="bar">
-        <span className={busy ? "prompt busy" : "prompt"}>
-          {busy ? spinnerFrames[spin] : ">"}
+      <div className={s.bar}>
+        <span className={busy ? `${s.prompt} ${s.busy}` : s.prompt}>
+          {busy ? (
+            <LoaderCircle size={13} strokeWidth={1.8} aria-label="busy" />
+          ) : (
+            ">"
+          )}
         </span>
         <textarea
           ref={inputRef}
@@ -170,21 +156,21 @@ export function InputBar({
             e.target.value = "";
           }}
         />
-        <TipBtn
-          tip="attach files"
-          className="attach"
-          onClick={() => pickRef.current?.click()}
-        >
-          <Paperclip size={14} strokeWidth={1.8} aria-hidden />
-        </TipBtn>
         {/* always in the layout so the textarea width never shifts */}
         <button
           type="button"
-          className={busy ? "stop" : "stop hide"}
+          className={busy ? s.stop : `${s.stop} ${s.hide}`}
           onClick={() => api.interrupt(sid)}
         >
           stop
         </button>
+        <TipBtn
+          tip="attach files"
+          className={s.attach}
+          onClick={() => pickRef.current?.click()}
+        >
+          <Paperclip size={14} strokeWidth={1.8} aria-hidden />
+        </TipBtn>
       </div>
     </form>
   );

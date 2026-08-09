@@ -2,6 +2,7 @@ package ui
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/alecthomas/chroma/v2"
@@ -81,27 +82,54 @@ func highlightTermLines(path, content string) []string {
 	return formatLines(tl, formatters.Get("terminal256"))
 }
 
-// PreviewHTML pre-highlights a tool call's code preview into per-line HTML
-// with inline styles, so browsers need no highlighter: write content by its
-// path, clamped bash commands as shell. nil otherwise or when the language
-// is unknown.
-func PreviewHTML(name, argsJSON string) []string {
-	var a struct{ Path, Content, Cmd string }
-	if json.Unmarshal([]byte(argsJSON), &a) != nil {
+// hlLines lexes text into one HTML string per line; nil when the language
+// is unknown or the text is empty.
+func hlLines(path, text string) []string {
+	text = strings.TrimRight(text, "\n")
+	if text == "" {
 		return nil
 	}
-	var path, src string
-	switch {
-	case name == "write" && a.Content != "":
-		path, src = a.Path, a.Content
-	case name == "bash" && (len([]rune(a.Cmd)) > DescMax || strings.Contains(a.Cmd, "\n")):
-		path, src = "command.sh", a.Cmd
-	default:
-		return nil
-	}
-	tl := tokenLines(path, strings.TrimRight(src, "\n"))
+	tl := tokenLines(path, text)
 	if tl == nil {
 		return nil
 	}
 	return formatLines(tl, hlHTML)
+}
+
+// PreviewHTML pre-highlights a tool call's preview into per-line HTML, so
+// browsers need no lexer: an edit as a ± diff, write content by its path,
+// clamped bash commands as shell. Lines carry the same gutter and markers
+// as the text preview. nil otherwise or when the language is unknown.
+func PreviewHTML(name, argsJSON string) []string {
+	var a struct{ Path, Content, Cmd, Old, New string }
+	if json.Unmarshal([]byte(argsJSON), &a) != nil {
+		return nil
+	}
+	var lines []string
+	half := func(marker string, hl []string, start int) {
+		for i, l := range hl {
+			lines = append(lines, fmt.Sprintf("%4d %s %s", start+i, marker, l))
+		}
+	}
+	switch {
+	case name == "edit":
+		del, add := hlLines(a.Path, a.Old), hlLines(a.Path, a.New)
+		// an unknown language falls back to the plain-text preview
+		if (a.Old != "" && del == nil) || (a.New != "" && add == nil) {
+			return nil
+		}
+		start := editStartLine(a.Path, a.Old, a.New)
+		half("-", del, start)
+		half("+", add, start)
+	case name == "write":
+		for i, l := range hlLines(a.Path, a.Content) {
+			lines = append(lines, fmt.Sprintf("%4d %s", i+1, l))
+		}
+	case name == "bash" && (len([]rune(a.Cmd)) > DescMax || strings.Contains(a.Cmd, "\n")):
+		lines = hlLines("command.sh", a.Cmd) // bare: bash has no gutter
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	return lines
 }

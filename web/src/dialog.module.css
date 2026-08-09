@@ -1,0 +1,95 @@
+/* Shared Base UI dialog chrome: the directory picker and the delete
+   confirmation both dress their popup with these. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 1;
+  transition: opacity 150ms var(--ease-out);
+  z-index: 10;
+}
+.overlay[data-starting-style],
+.overlay[data-ending-style] {
+  opacity: 0;
+}
+.popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  opacity: 1;
+  transform: translate(-50%, -50%);
+  transition:
+    opacity 180ms var(--ease-out),
+    transform 180ms var(--ease-out);
+  z-index: 11;
+  width: min(34rem, 90vw);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  color: var(--fg);
+}
+.popup:focus-visible {
+  outline: none;
+}
+.popup[data-starting-style],
+.popup[data-ending-style] {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.98);
+}
+.popup[data-ending-style] {
+  transition-duration: 120ms;
+}
+.confirm {
+  width: min(24rem, 90vw);
+}
+.confirm .foot > :first-child {
+  margin-right: 0;
+}
+.head {
+  color: var(--dim);
+}
+.desc {
+  color: var(--dim);
+}
+.foot {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+}
+.foot > :first-child {
+  margin-right: auto; /* new-folder controls sit left, actions right */
+}
+.foot button {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--dim);
+  font: inherit;
+  padding: 0.2rem 0.7rem;
+  cursor: pointer;
+}
+.foot button:hover {
+  border-color: var(--dim);
+  color: var(--fg);
+}
+.foot .go {
+  color: var(--green);
+}
+.foot .danger {
+  color: var(--red);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popup {
+    transition-property: opacity;
+  }
+  .popup[data-starting-style],
+  .popup[data-ending-style] {
+    transform: translate(-50%, -50%);
+  }
+}

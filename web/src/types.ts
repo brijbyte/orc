@@ -19,7 +19,9 @@ export type SessionRow = {
   rid?: string;
   title: string;
   when: string;
+  used: string;
   cwd: string;
   live: boolean;
   busy: boolean;
+  pinned: boolean;
 };

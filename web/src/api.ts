@@ -31,6 +31,8 @@ export const api = {
     fetch(`/api/sessions/${id}`, { method: "DELETE", headers: auth }),
   remove: (id: string) =>
     fetch(`/api/sessions/${id}?purge=1`, { method: "DELETE", headers: auth }),
+  pin: (id: string, pinned: boolean) =>
+    post(`/api/sessions/${id}/pin`, { pinned }),
   state: (id: string) => get(`/api/sessions/${id}/state`),
   models: () => get("/api/models"),
   dirs: (path?: string) =>

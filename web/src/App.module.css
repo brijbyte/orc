@@ -1,0 +1,15 @@
+.shell {
+  display: flex;
+  height: 100dvh;
+}
+.dead {
+  padding: 2rem;
+  color: var(--dim);
+}
+.empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dim);
+}

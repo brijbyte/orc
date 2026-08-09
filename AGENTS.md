@@ -49,8 +49,10 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   session file when it closes with zero items). `IO` mirrors `agent.IO` onto
   an append-only SSE event log (hub) and a TUI-style input queue. Routes are
   session-scoped: `/api/sessions` (list all + create),
-  `/api/sessions/{id}/open|state|events|input|interrupt`, `DELETE` to stop,
-  plus `/api/models` and `/api/dirs` (directory picker, POST creates).
+  `/api/sessions/{id}/open|state|events|input|interrupt|pin`, `DELETE` to
+  stop, plus `/api/models` and `/api/dirs` (directory picker, POST creates).
+  Lists come back pinned first, then by session-file mtime (last turn);
+  pins live in `<orc home>/config.json`.
   `input` accepts `{text, files:[{name,type,data(base64)}]}` (24MB cap);
   `agent.userMessage` turns attachments into `input_image` data-URL parts
   (images) or inlined `input_text` (text files), and `agent.Echo` is the one
@@ -77,7 +79,13 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   popups use Base UI (`@base-ui/react`): `ui.tsx` wraps Tooltip (`TipBtn`)
   and Select (`Sel`); `DirPicker` is a Dialog, session delete an
   AlertDialog. Base UI popups stay mounted when closed — drive tests by
-  visibility, not detachment.
+  visibility, not detachment. Styling: `app.css` is global only (theme
+  tokens, `body`, scrollbars, the shared `button` press); every component
+  imports its own `*.module.css`, with `dialog.module.css` shared by the two
+  dialogs. Module keyframes are scoped, so a module declares the ones it
+  uses. Cross-component hooks are data attributes, not shared classes
+  (`data-block` on a transcript block reveals its `CopyBtn`), and `chroma`
+  stays a literal class because `/hl.css` targets it.
 - `cmd/orc` is the Cobra CLI and the four drivers (TUI, pipe, one-shot,
   serve). `/model` and `/effort` persist defaults to `<orc home>/config.json`;
   flags and resumed-session meta win over them.

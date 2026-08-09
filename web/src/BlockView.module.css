@@ -1,0 +1,130 @@
+.user {
+  display: flex;
+  gap: 0.5rem;
+  color: var(--cyan);
+}
+.user > span {
+  font-weight: bold;
+}
+.user .md {
+  flex: 1;
+  min-width: 0;
+}
+.pending {
+  color: var(--dim);
+  white-space: pre-wrap;
+}
+/* reasoning summary: a quieter sibling of the assistant block. Its markdown
+   section titles carry the structure, so the body needs no italics. */
+.think {
+  color: var(--dim);
+  border-left: 2px dashed var(--line);
+  padding-left: 0.8rem;
+}
+.thinkHead {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.35rem;
+}
+.think .md :is(p, ul, ol) {
+  margin-bottom: 0.35rem;
+}
+/* a lone bold run is a section title: give it air above */
+.think .md p:has(> strong:only-child) {
+  margin-top: 0.7rem;
+}
+.think .md > :first-child {
+  margin-top: 0;
+}
+.think .md strong {
+  color: color-mix(in srgb, var(--fg) 70%, var(--dim));
+  font-weight: bold;
+}
+.notice {
+  color: var(--dim);
+  white-space: pre-wrap;
+}
+.tool {
+  color: var(--dim);
+}
+.toolLine {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+}
+.toolLine svg {
+  flex-shrink: 0;
+}
+.assistant {
+  border-left: 2px solid var(--line);
+  padding-left: 0.8rem;
+}
+
+/* rendered markdown, from react-markdown */
+.md :is(p, ul, ol, pre, table, blockquote, h1, h2, h3, h4) {
+  margin: 0 0 0.6rem;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 1.1rem 0;
+}
+/* restore what preflight flattens, scoped to markdown output */
+.md :is(ul, ol) {
+  list-style: revert;
+  padding-left: 1.4rem;
+}
+.md :is(h1, h2, h3, h4) {
+  font-weight: bold;
+}
+.md h1 {
+  font-size: 1.3em;
+}
+.md h2 {
+  font-size: 1.15em;
+}
+.md blockquote {
+  border-left: 2px solid var(--line);
+  padding-left: 0.6rem;
+  color: var(--dim);
+}
+.md a {
+  color: var(--cyan);
+  text-decoration: underline;
+}
+.md pre {
+  background: var(--code-bg);
+  padding: 0.6rem;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.md code {
+  background: var(--code-bg);
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+}
+.md pre code {
+  padding: 0;
+}
+.md .tblwrap {
+  overflow-x: auto;
+  margin: 0 0 0.6rem;
+}
+.md table {
+  border-collapse: collapse;
+  margin: 0;
+}
+.md :is(td, th) {
+  border: 1px solid var(--line);
+  padding: 0.2rem 0.5rem;
+}
+/* long unbreakable tokens (URLs) wrap instead of widening the column */
+.md :is(p, li, td, th) {
+  overflow-wrap: break-word;
+}

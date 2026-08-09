@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import * as store from "./store";
 import type { Block } from "./types";
 import { BlockView } from "./BlockView";
+import s from "./Transcript.module.css";
 
 // Transcript renders the block list and follows the bottom until the user
 // scrolls up. The position is saved per session in the store, so a
@@ -27,6 +28,7 @@ export function Transcript({ sid, blocks }: { sid: string; blocks: Block[] }) {
 
   return (
     <main
+      className={s.main}
       ref={main}
       onScroll={(e) => {
         const el = e.currentTarget;

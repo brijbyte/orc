@@ -13,6 +13,8 @@ import * as store from "./store";
 import type { Model, SessionRow } from "./types";
 import { Sidebar } from "./Sidebar";
 import { DirPicker } from "./DirPicker";
+import s from "./App.module.css";
+import d from "./dialog.module.css";
 
 export type RootData = {
   dead: boolean;
@@ -67,6 +69,7 @@ export default function App() {
   const [open, setOpen] = useState<string[]>(loadOpen);
   const [picking, setPicking] = useState(false);
   const [doomed, setDoomed] = useState<SessionRow | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   // navigations keep the #token fragment
   const go = useCallback(
@@ -115,9 +118,18 @@ export default function App() {
   };
 
   const doDelete = (row: SessionRow) => {
-    setDoomed(null);
+    setDeleteOpen(false);
     api.remove(row.id).finally(revalidate);
     closeTab(row);
+  };
+
+  const confirmDelete = (row: SessionRow) => {
+    setDoomed(row);
+    setDeleteOpen(true);
+  };
+
+  const onPin = (row: SessionRow) => {
+    api.pin(row.id, !row.pinned).finally(revalidate);
   };
 
   const onNew = (cwd: string) => {
@@ -130,13 +142,13 @@ export default function App() {
 
   if (dead)
     return (
-      <div className="dead">
+      <div className={s.dead}>
         🧌 cannot reach orc — is it still running? (check the URL token)
       </div>
     );
 
   return (
-    <div className="shell">
+    <div className={s.shell}>
       <Sidebar
         rows={rows}
         serverCwd={serverCwd}
@@ -144,39 +156,45 @@ export default function App() {
         active={sid}
         openIds={open}
         onStop={onStop}
-        onDelete={setDoomed}
+        onDelete={confirmDelete}
+        onPin={onPin}
         onNew={() => setPicking(true)}
       />
       <Outlet context={models} />
-      {picking && (
-        <DirPicker
-          start={serverCwd}
-          onPick={onNew}
-          onCancel={() => setPicking(false)}
-        />
-      )}
-      {doomed && (
-        <AlertDialog.Root open onOpenChange={(o) => !o && setDoomed(null)}>
-          <AlertDialog.Portal>
-            <AlertDialog.Backdrop className="overlay" />
-            <AlertDialog.Popup className="picker confirm">
-              <AlertDialog.Title className="phead">
-                delete session?
-              </AlertDialog.Title>
-              <AlertDialog.Description className="pdesc">
-                “{doomed.title || doomed.id.slice(0, 8)}” and its file will be
-                removed.
-              </AlertDialog.Description>
-              <div className="pfoot">
-                <AlertDialog.Close>cancel</AlertDialog.Close>
-                <button className="pdanger" onClick={() => doDelete(doomed)}>
-                  delete
-                </button>
-              </div>
-            </AlertDialog.Popup>
-          </AlertDialog.Portal>
-        </AlertDialog.Root>
-      )}
+      <DirPicker
+        open={picking}
+        start={serverCwd}
+        onPick={onNew}
+        onCancel={() => setPicking(false)}
+      />
+      <AlertDialog.Root
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onOpenChangeComplete={(isOpen) => !isOpen && setDoomed(null)}
+      >
+        <AlertDialog.Portal>
+          <AlertDialog.Backdrop className={d.overlay} />
+          <AlertDialog.Popup className={`${d.popup} ${d.confirm}`}>
+            <AlertDialog.Title className={d.head}>
+              delete session?
+            </AlertDialog.Title>
+            <AlertDialog.Description className={d.desc}>
+              “{doomed?.title || doomed?.id.slice(0, 8) || "session"}” and its
+              file will be removed.
+            </AlertDialog.Description>
+            <div className={d.foot}>
+              <AlertDialog.Close>cancel</AlertDialog.Close>
+              <button
+                className={d.danger}
+                disabled={!doomed}
+                onClick={() => doomed && doDelete(doomed)}
+              >
+                delete
+              </button>
+            </div>
+          </AlertDialog.Popup>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
     </div>
   );
 }

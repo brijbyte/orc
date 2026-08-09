@@ -1,0 +1,86 @@
+/* portaled Base UI popups: positioner carries the stacking level */
+.pop {
+  z-index: 20;
+}
+.tip {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--fg);
+  font-size: 11px;
+  padding: 0.1rem 0.45rem;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity 100ms var(--ease-out),
+    transform 100ms var(--ease-out);
+}
+.tip[data-starting-style],
+.tip[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.98);
+}
+.tip[data-instant] {
+  transition: none;
+}
+/* select trigger: plain text with a dotted underline */
+.trigger {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--dim);
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.trigger:hover {
+  color: var(--fg);
+}
+.selPop {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.25rem;
+  font-size: 12px;
+  max-height: var(--available-height);
+  overflow-y: auto;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity 120ms var(--ease-out),
+    transform 120ms var(--ease-out);
+}
+.selPop[data-starting-style],
+.selPop[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.98);
+}
+.selPop[data-ending-style] {
+  transition-duration: 90ms;
+}
+.selItem {
+  padding: 0.15rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--fg);
+}
+.selItem[data-highlighted] {
+  background: var(--panel);
+  color: var(--cyan);
+}
+.selItem[data-selected] {
+  color: var(--cyan);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tip,
+  .selPop {
+    transition-property: opacity;
+  }
+  .tip[data-starting-style],
+  .tip[data-ending-style],
+  .selPop[data-starting-style],
+  .selPop[data-ending-style] {
+    transform: none;
+  }
+}

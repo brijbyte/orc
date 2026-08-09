@@ -3,6 +3,7 @@ import { api } from "./api";
 import { setThemePref, themePref, type ThemePref } from "./theme";
 import type { Model } from "./types";
 import { Sel } from "./ui";
+import s from "./StatusBar.module.css";
 
 // StatusBar renders "model · effort · rest…" with model and effort as
 // selects that dispatch the matching slash command, and the theme
@@ -25,10 +26,10 @@ export function StatusBar({
   if (model && !models.some((m) => m.slug === model))
     modelOpts.unshift({ value: model, title: "" });
   return (
-    <footer>
+    <footer className={s.footer}>
       <div>
         {status && (
-          <span className="stat">
+          <span className={s.stat}>
             <Sel
               value={model}
               options={modelOpts}
@@ -44,7 +45,7 @@ export function StatusBar({
           </span>
         )}
         <Sel
-          className="statSel themeSel"
+          className={s.themeSel}
           value={theme}
           options={["system", "light", "dark"].map((value) => ({ value }))}
           onChange={(v) => {

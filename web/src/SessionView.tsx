@@ -7,6 +7,7 @@ import type { Model } from "./types";
 import { Transcript } from "./Transcript";
 import { InputBar } from "./InputBar";
 import { StatusBar } from "./StatusBar";
+import s from "./SessionView.module.css";
 
 // SessionRoute adapts /s/:sid: the loader has already seeded the store,
 // the key remounts the view (and its local state) per session.
@@ -38,7 +39,7 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
 
   return (
     <div
-      className="app"
+      className={s.app}
       onDragEnter={(e) => {
         e.preventDefault();
         if (++dragDepth.current === 1) setDragging(true);
@@ -55,9 +56,9 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
       }}
     >
       {err ? (
-        <div className="dead">🧌 {err}</div>
+        <div className={s.dead}>🧌 {err}</div>
       ) : blocks === null ? (
-        <div className="loader">🧌 loading session…</div>
+        <div className={s.loader}>🧌 loading session…</div>
       ) : (
         <>
           <Transcript sid={sid} blocks={blocks} />
@@ -71,7 +72,9 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
           <StatusBar sid={sid} status={status} models={models} />
         </>
       )}
-      {dragging && <div className="dropzone">📎 drop to attach</div>}
+      <div className={s.dropzone} data-active={dragging || undefined} aria-hidden={!dragging}>
+        📎 drop to attach
+      </div>
     </div>
   );
 }

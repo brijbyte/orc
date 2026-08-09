@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { api } from "./api";
+import s from "./DirPicker.module.css";
+import d from "./dialog.module.css";
 
 // DirPicker browses server directories for a new session's cwd.
 export function DirPicker({
+  open,
   start,
   onPick,
   onCancel,
 }: {
+  open: boolean;
   start: string;
   onPick: (path: string) => void;
   onCancel: () => void;
@@ -18,6 +22,7 @@ export function DirPicker({
   const [dirs, setDirs] = useState<string[]>([]);
   const [err, setErr] = useState("");
   const [newName, setNewName] = useState<string | null>(null);
+  const picked = useRef<string | null>(null);
   const pathRef = useRef<HTMLInputElement>(null);
 
   const mkdir = () => {
@@ -48,14 +53,30 @@ export function DirPicker({
 
   useEffect(() => browse(start), [start]);
 
+  useEffect(() => {
+    if (!open) return;
+    picked.current = null;
+    setNewName(null);
+  }, [open]);
+
   return (
-    <Dialog.Root open onOpenChange={(o) => !o && onCancel()}>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(isOpen) => !isOpen && onCancel()}
+      onOpenChangeComplete={(isOpen) => {
+        if (isOpen) return;
+        const path = picked.current;
+        picked.current = null;
+        browse(start);
+        if (path) onPick(path);
+      }}
+    >
       <Dialog.Portal>
-        <Dialog.Backdrop className="overlay" />
-        <Dialog.Popup className="picker" initialFocus={pathRef}>
-          <Dialog.Title className="phead">start a session in…</Dialog.Title>
+        <Dialog.Backdrop className={d.overlay} />
+        <Dialog.Popup className={d.popup} initialFocus={pathRef}>
+          <Dialog.Title className={d.head}>start a session in…</Dialog.Title>
           <form
-            className="ppath"
+            className={s.path}
             onSubmit={(e) => {
               e.preventDefault();
               browse(input);
@@ -68,31 +89,31 @@ export function DirPicker({
               spellCheck={false}
             />
           </form>
-          {err && <div className="perr">{err}</div>}
-          <div className="plist">
+          {err && <div className={s.err}>{err}</div>}
+          <div className={s.list}>
             {parent && (
-              <button className="pdir" onClick={() => browse(parent)}>
+              <button className={s.dir} onClick={() => browse(parent)}>
                 ..
               </button>
             )}
             {dirs.map((d) => (
               <button
                 key={d}
-                className="pdir"
+                className={s.dir}
                 onClick={() => browse(path.replace(/\/$/, "") + "/" + d)}
               >
                 {d}/
               </button>
             ))}
           </div>
-          <div className="pfoot">
+          <div className={d.foot}>
             {newName === null ? (
-              <button className="pmk" onClick={() => setNewName("")}>
+              <button onClick={() => setNewName("")}>
                 + new folder
               </button>
             ) : (
               <form
-                className="pmkform"
+                className={s.mkform}
                 onSubmit={(e) => {
                   e.preventDefault();
                   mkdir();
@@ -115,7 +136,13 @@ export function DirPicker({
               </form>
             )}
             <Dialog.Close>cancel</Dialog.Close>
-            <button className="pgo" onClick={() => onPick(path)}>
+            <button
+              className={d.go}
+              onClick={() => {
+                picked.current = path;
+                onCancel();
+              }}
+            >
               start here
             </button>
           </div>

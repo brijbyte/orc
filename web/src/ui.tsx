@@ -1,5 +1,6 @@
 import { Select } from "@base-ui/react/select";
 import { Tooltip } from "@base-ui/react/tooltip";
+import s from "./ui.module.css";
 
 // TipBtn is a button with an accessible tooltip (hover and focus).
 export function TipBtn({
@@ -10,8 +11,8 @@ export function TipBtn({
     <Tooltip.Root>
       <Tooltip.Trigger type="button" aria-label={tip} {...props} />
       <Tooltip.Portal>
-        <Tooltip.Positioner className="pop" sideOffset={5}>
-          <Tooltip.Popup className="tip">{tip}</Tooltip.Popup>
+        <Tooltip.Positioner className={s.pop} sideOffset={5}>
+          <Tooltip.Popup className={s.tip}>{tip}</Tooltip.Popup>
         </Tooltip.Positioner>
       </Tooltip.Portal>
     </Tooltip.Root>
@@ -32,16 +33,16 @@ export function Sel({
 }) {
   return (
     <Select.Root value={value} onValueChange={(v) => v != null && onChange(v)}>
-      <Select.Trigger className={className ?? "statSel"}>
+      <Select.Trigger className={className ? `${s.trigger} ${className}` : s.trigger}>
         <Select.Value />
       </Select.Trigger>
       <Select.Portal>
-        <Select.Positioner className="pop" sideOffset={4}>
-          <Select.Popup className="selPop">
+        <Select.Positioner className={s.pop} sideOffset={4}>
+          <Select.Popup className={s.selPop}>
             {options.map((o) => (
               <Select.Item
                 key={o.value}
-                className="selItem"
+                className={s.selItem}
                 value={o.value}
                 title={o.title}
               >

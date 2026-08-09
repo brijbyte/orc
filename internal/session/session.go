@@ -25,10 +25,12 @@ type Session struct {
 }
 
 type Info struct {
-	ID    string
-	When  string
-	Title string
-	Cwd   string
+	ID     string
+	When   string // created
+	Used   string // last turn written
+	Title  string
+	Cwd    string
+	Pinned bool
 }
 
 type meta struct {
@@ -140,6 +142,7 @@ func Delete(id string) error {
 	if path == "" {
 		return fmt.Errorf("no session matching %s", id)
 	}
+	Pin(id, false) // no stale ids in the pinned list
 	return os.Remove(path)
 }
 
@@ -274,27 +277,66 @@ func listOne(path string) (Info, bool) {
 	return info, info.ID != ""
 }
 
-// ListAll returns every session, newest first.
+// ListAll returns every session, pinned first, then most recently used. The
+// file is appended on every turn, so its mtime is the last interaction.
 func ListAll() ([]Info, error) {
 	dir := config.Path("sessions")
 	entries, _ := os.ReadDir(dir)
-	var names []string
+	pinned := map[string]bool{}
+	for _, id := range config.LoadSettings().Pinned {
+		pinned[id] = true
+	}
+	type row struct {
+		Info
+		used time.Time
+	}
+	var rows []row
 	for _, e := range entries {
-		if strings.HasSuffix(e.Name(), ".jsonl") {
-			names = append(names, e.Name())
+		if !strings.HasSuffix(e.Name(), ".jsonl") {
+			continue
 		}
-	}
-	sort.Sort(sort.Reverse(sort.StringSlice(names)))
-	var rows []Info
-	for _, name := range names {
-		if info, ok := listOne(filepath.Join(dir, name)); ok {
-			rows = append(rows, info)
+		st, err := e.Info()
+		if err != nil {
+			continue
 		}
+		info, ok := listOne(filepath.Join(dir, e.Name()))
+		if !ok {
+			continue
+		}
+		info.Used = st.ModTime().UTC().Format("2006-01-02 15:04:05.000Z")
+		info.Pinned = pinned[info.ID]
+		rows = append(rows, row{info, st.ModTime()})
 	}
-	return rows, nil
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].Pinned != rows[j].Pinned {
+			return rows[i].Pinned
+		}
+		return rows[i].used.After(rows[j].used)
+	})
+	out := make([]Info, len(rows))
+	for i, r := range rows {
+		out[i] = r.Info
+	}
+	return out, nil
 }
 
-// List returns sessions for one directory (empty = current), newest first.
+// Pin adds or removes a session id from the pinned list in settings.
+func Pin(id string, on bool) error {
+	s := config.LoadSettings()
+	kept := s.Pinned[:0:0]
+	for _, p := range s.Pinned {
+		if p != id {
+			kept = append(kept, p)
+		}
+	}
+	if on {
+		kept = append(kept, id)
+	}
+	s.Pinned = kept
+	return config.SaveSettings(s)
+}
+
+// List returns sessions for one directory (empty = current), in ListAll order.
 func List(cwd string) ([]Info, error) {
 	if cwd == "" {
 		var err error

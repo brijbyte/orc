@@ -1,6 +1,4 @@
-// @ts-ignore
 import "./preflight.css";
-// @ts-ignore
 import "./app.css";
 
 import { createRoot } from "react-dom/client";
@@ -10,6 +8,7 @@ import { revalidateSoon, setRevalidator } from "./revalidate";
 import { SessionRoute } from "./SessionView";
 import * as store from "./store";
 import "./theme";
+import s from "./App.module.css";
 
 const router = createBrowserRouter([
   {
@@ -20,7 +19,7 @@ const router = createBrowserRouter([
       {
         index: true,
         element: (
-          <div className="empty">
+          <div className={s.empty}>
             🧌 pick a session on the left, or start one
           </div>
         ),

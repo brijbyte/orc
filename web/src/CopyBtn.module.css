@@ -1,0 +1,49 @@
+.copy {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 2px 5px;
+  color: var(--dim);
+  cursor: pointer;
+  opacity: 0;
+}
+.copy:focus-visible {
+  opacity: 1;
+}
+.copy:hover {
+  color: var(--fg);
+  border-color: var(--dim);
+}
+.copy svg {
+  display: block;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* [data-block] is the transcript block this button is pinned to */
+  [data-block]:hover .copy {
+    opacity: 1;
+  }
+  .copy {
+    transition:
+      opacity 120ms ease,
+      transform 120ms var(--ease-out);
+  }
+  .copy:focus-visible {
+    transition: none;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .copy {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .copy {
+    transition: none;
+  }
+}

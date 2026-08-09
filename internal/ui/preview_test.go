@@ -45,6 +45,26 @@ func TestEditPreviewHighlightsPython(t *testing.T) {
 	}
 }
 
+// The browser preview of an edit is a ± diff too: gutter, marker, and
+// chroma token spans on every line.
+func TestEditPreviewHTML(t *testing.T) {
+	args := editArgs(t, "script.py",
+		"def greet(name):\n    return \"hi\"",
+		"def greet(name):\n    return f\"hi {name}\"")
+	lines := PreviewHTML("edit", args)
+	if len(lines) != 4 {
+		t.Fatalf("want 4 diff lines, got %d: %q", len(lines), lines)
+	}
+	for i, want := range []string{" - ", " - ", " + ", " + "} {
+		if !strings.Contains(lines[i], want) {
+			t.Errorf("line %d lacks %q marker: %q", i, want, lines[i])
+		}
+		if !strings.Contains(lines[i], `<span class="`) {
+			t.Errorf("line %d not syntax highlighted: %q", i, lines[i])
+		}
+	}
+}
+
 // stripDiffPaint removes the diff's own color codes so assertions see only
 // what the lexer added.
 func stripDiffPaint(s string) string {

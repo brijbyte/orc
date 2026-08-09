@@ -1,21 +1,22 @@
 import { useState } from "react";
+import s from "./Preview.module.css";
 
 // lineClass reads the ± marker after the line-number gutter; numbered
 // lines without a marker are write content (plain code). "row" is ours —
 // chroma owns short class names like "hl" inside .chroma.
 const lineClass = (l: string) =>
   /^\s*\d+ \+ /.test(l)
-    ? "add"
+    ? s.add
     : /^\s*\d+ - /.test(l)
-      ? "del"
+      ? s.del
       : /^\s*\d+ /.test(l)
-        ? "row"
-        : "ctx";
+        ? s.row
+        : s.ctx;
 
 // Preview shows a tool call body truncated to max lines with an
 // expand/collapse toggle. html lines arrive pre-highlighted from the
-// server; gutter adds client-rendered line numbers (edit/write — bash
-// renders bare).
+// server, gutter and ± markers included; gutter only says whether those
+// prefixes are there (bash renders bare).
 export function Preview({
   text,
   html,
@@ -31,17 +32,16 @@ export function Preview({
   const lines = html ?? text.split("\n");
   const shown = open ? lines : lines.slice(0, max);
   return (
-    <pre className={gutter ? "preview chroma" : "preview chroma nogut"}>
+    <pre className={`${s.preview} chroma${gutter ? "" : " " + s.nogut}`}>
       {shown.map((l, i) =>
         html ? (
-          <div key={i} className="row">
-            {gutter && (
-              <span className="ctx">{String(i + 1).padStart(4) + " "}</span>
-            )}
-            <span dangerouslySetInnerHTML={{ __html: l }} />
-          </div>
+          <div
+            key={i}
+            className={gutter ? lineClass(l) : s.row}
+            dangerouslySetInnerHTML={{ __html: l }}
+          />
         ) : (
-          <div key={i} className={gutter ? lineClass(l) : "row"}>
+          <div key={i} className={gutter ? lineClass(l) : s.row}>
             {l}
           </div>
         ),
@@ -49,7 +49,7 @@ export function Preview({
       {lines.length > max && (
         <button
           type="button"
-          className="expander"
+          className={s.expander}
           onClick={() => setOpen(!open)}
         >
           {open ? "collapse" : `show ${lines.length - max} more lines`}

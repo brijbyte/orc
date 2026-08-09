@@ -1,0 +1,15 @@
+/* the transcript scrolls full-width so the scrollbar sits at the viewport
+   edge; each block centers itself into the 60rem column */
+.main {
+  flex: 1;
+  overflow-y: auto;
+  /* reserve symmetric scrollbar space so the centered column never
+     shifts when content starts to overflow */
+  scrollbar-gutter: stable both-edges;
+  padding: 1rem 1rem 0.5rem;
+}
+.main > [data-block] {
+  position: relative; /* anchors the per-block copy button */
+  max-width: 60rem;
+  margin: 0 auto 1.1rem;
+}
