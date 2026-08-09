@@ -102,7 +102,14 @@ export function SessionView({
       ) : (
         <>
           <Transcript blocks={blocks} />
-          <InputBar sid={sid} busy={busy} files={files} setFiles={setFiles} />
+          <InputBar
+            sid={sid}
+            busy={busy}
+            active={visible}
+            files={files}
+            setFiles={setFiles}
+            addFiles={addFiles}
+          />
           <StatusBar sid={sid} status={status} models={models} />
         </>
       )}

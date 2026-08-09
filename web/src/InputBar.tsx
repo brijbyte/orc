@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Paperclip } from "lucide-react";
 import { api, type AttachedFile } from "./api";
 
 const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -20,22 +21,40 @@ function sizeLabel(n: number): string {
   return n < 1024 ? `${n} B` : `${Math.round(n / 1024)} KB`;
 }
 
+// isEditable reports whether typing already goes somewhere.
+function isEditable(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null;
+  if (!el) return false;
+  const tag = el.tagName;
+  return (
+    tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" ||
+    el.isContentEditable
+  );
+}
+
 // InputBar owns the textarea (Enter sends, Shift+Enter breaks the line,
-// Esc interrupts), attachment chips, the busy spinner, and the stop button.
+// Esc interrupts), attachment chips, the attach button, the busy spinner,
+// and the stop button. While active it grabs focus Slack-style: stray
+// printable keystrokes land in the textarea.
 export function InputBar({
   sid,
   busy,
+  active,
   files,
   setFiles,
+  addFiles,
 }: {
   sid: string;
   busy: boolean;
+  active: boolean;
   files: File[];
   setFiles: (f: File[]) => void;
+  addFiles: (f: FileList | null) => void;
 }) {
   const [input, setInput] = useState("");
   const [spin, setSpin] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const pickRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!busy) return;
@@ -52,6 +71,27 @@ export function InputBar({
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [busy]);
+
+  // focus when this session comes to the front, and after files attach
+  useEffect(() => {
+    if (active) inputRef.current?.focus();
+  }, [active, files.length]);
+
+  // Slack-style: a printable key typed anywhere focuses the textarea; the
+  // browser then delivers the character there, so nothing typed is lost.
+  useEffect(() => {
+    if (!active) return;
+    const grab = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.key.length !== 1) return;
+      if (isEditable(e.target)) return;
+      // keep Space working as click on a focused button
+      if (e.key === " " && (e.target as HTMLElement)?.tagName === "BUTTON")
+        return;
+      inputRef.current?.focus();
+    };
+    window.addEventListener("keydown", grab);
+    return () => window.removeEventListener("keydown", grab);
+  }, [active]);
 
   // grow with content, up to the CSS max-height
   const autosize = () => {
@@ -121,6 +161,24 @@ export function InputBar({
           }
           autoFocus
         />
+        <input
+          ref={pickRef}
+          type="file"
+          multiple
+          hidden
+          onChange={(e) => {
+            addFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          className="attach"
+          title="attach files"
+          onClick={() => pickRef.current?.click()}
+        >
+          <Paperclip size={14} strokeWidth={1.8} aria-hidden />
+        </button>
         {busy && (
           <button type="button" onClick={() => api.interrupt(sid)}>
             stop

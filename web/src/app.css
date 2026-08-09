@@ -475,6 +475,17 @@ form button {
   padding: 0.1rem 0.6rem;
   cursor: pointer;
 }
+form button.attach {
+  color: var(--dim);
+  border: none;
+  padding: 0.15rem 0.2rem;
+}
+form button.attach:hover {
+  color: var(--fg);
+}
+form button.attach svg {
+  display: block;
+}
 footer {
   color: var(--dim);
   font-size: 12px;
