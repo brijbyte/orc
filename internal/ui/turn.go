@@ -184,38 +184,64 @@ const previewMax = 20
 
 // toolPreviewLines builds the uncapped body preview: ± diff for edit, new
 // content for write; nil for other tools.
+// editStartLine finds the 1-based file line of the edit: by the old text,
+// else the new text (already applied, e.g. replay), else 1.
+func editStartLine(path, oldText, newText string) int {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 1
+	}
+	text := string(data)
+	if i := strings.Index(text, oldText); i >= 0 {
+		return 1 + strings.Count(text[:i], "\n")
+	}
+	if i := strings.Index(text, newText); newText != "" && i >= 0 {
+		return 1 + strings.Count(text[:i], "\n")
+	}
+	return 1
+}
+
+func gutter(n int, tty bool) string {
+	g := fmt.Sprintf("%4d ", n)
+	if tty {
+		return styleDim.Render(g)
+	}
+	return g
+}
+
 func toolPreviewLines(name, argsJSON string, tty bool) []string {
 	var a struct{ Old, New, Content, Path string }
 	if json.Unmarshal([]byte(argsJSON), &a) != nil {
 		return nil
 	}
 	var lines []string
-	add := func(prefix, text string, style lipgloss.Style) {
+	add := func(marker, text string, style lipgloss.Style, start int) {
 		if text == "" {
 			return
 		}
-		for _, l := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
-			line := prefix + l
+		for i, l := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
+			body := marker + " " + l
 			if tty {
-				line = style.Render(line)
+				body = style.Render(body)
 			}
-			lines = append(lines, line)
+			lines = append(lines, gutter(start+i, tty)+body)
 		}
 	}
 	switch name {
 	case "edit":
-		add("  - ", a.Old, styleRed)
-		add("  + ", a.New, styleGreen)
+		start := editStartLine(a.Path, a.Old, a.New)
+		add("-", a.Old, styleRed, start)
+		add("+", a.New, styleGreen, start)
 	case "write":
 		if tty {
 			if hl := highlightTermLines(a.Path, strings.TrimRight(a.Content, "\n")); hl != nil {
-				for _, l := range hl {
-					lines = append(lines, styleGreen.Render("  + ")+l)
+				for i, l := range hl {
+					lines = append(lines, gutter(i+1, true)+styleGreen.Render("+ ")+l)
 				}
 				return lines
 			}
 		}
-		add("  + ", a.Content, styleGreen)
+		add("+", a.Content, styleGreen, 1)
 	}
 	return lines
 }
@@ -232,7 +258,7 @@ func ToolPreview(name, argsJSON string, tty bool, hint string) (short, full stri
 	if len(lines) <= previewMax {
 		return full, full
 	}
-	marker := fmt.Sprintf("  … %d more lines", len(lines)-previewMax)
+	marker := fmt.Sprintf("     … %d more lines", len(lines)-previewMax)
 	if hint != "" {
 		marker += " · " + hint
 	}

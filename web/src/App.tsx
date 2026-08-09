@@ -72,9 +72,13 @@ function apply(blocks: Block[], ev: Ev): Block[] {
 
 const previewMax = 20;
 
+// lineClass reads the ± marker after the line-number gutter.
+const lineClass = (l: string) =>
+  /^\s*\d+ \+ /.test(l) ? "add" : /^\s*\d+ - /.test(l) ? "del" : "ctx";
+
 // Preview shows an edit diff or write content, truncated to previewMax
 // lines; the marker line toggles the full text. html lines arrive
-// pre-highlighted from the server.
+// pre-highlighted from the server; their gutter is client-rendered.
 function Preview({ text, html }: { text: string; html?: string[] }) {
   const [open, setOpen] = useState(false);
   const lines = html ?? text.split("\n");
@@ -84,18 +88,19 @@ function Preview({ text, html }: { text: string; html?: string[] }) {
       {shown.map((l, i) =>
         html ? (
           <div key={i} className="hl">
-            <span className="add">{"  + "}</span>
+            <span className="ctx">{String(i + 1).padStart(4) + " "}</span>
+            <span className="add">{"+ "}</span>
             <span dangerouslySetInnerHTML={{ __html: l }} />
           </div>
         ) : (
-          <div key={i} className={l.startsWith("  +") ? "add" : l.startsWith("  -") ? "del" : "ctx"}>
+          <div key={i} className={lineClass(l)}>
             {l}
           </div>
         ),
       )}
       {lines.length > previewMax && (
         <div className="expander" onClick={() => setOpen(!open)}>
-          {open ? "  collapse" : `  … ${lines.length - previewMax} more lines · click to expand`}
+          {open ? "     collapse" : `     … ${lines.length - previewMax} more lines · click to expand`}
         </div>
       )}
     </pre>
