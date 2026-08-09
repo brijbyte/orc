@@ -35,8 +35,33 @@ main {
   padding: 1rem 1rem 0.5rem;
 }
 main > div {
+  position: relative; /* anchors the per-block copy button */
   max-width: 60rem;
   margin: 0 auto 0.6rem;
+}
+.copy {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 2px 5px;
+  color: var(--dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+main > div:hover .copy,
+.copy:focus-visible {
+  opacity: 1;
+}
+.copy:hover {
+  color: var(--fg);
+  border-color: var(--dim);
+}
+.copy svg {
+  display: block;
 }
 .user {
   display: flex;

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { Block } from "./types";
 import { Preview } from "./Preview";
+import { CopyBtn } from "./CopyBtn";
 
 const toolIcons: Record<string, typeof Wrench> = {
   bash: SquareTerminal,
@@ -34,14 +35,25 @@ export function BlockView({ b }: { b: Block }) {
           <div className="md">
             <Markdown text={b.text} />
           </div>
+          <CopyBtn text={b.text} />
         </div>
       );
     case "pending":
       return <div className="pending">&gt; {b.text} ⏳</div>;
     case "think":
-      return <div className="think">{b.text}</div>;
+      return (
+        <div className="think">
+          {b.text}
+          <CopyBtn text={b.text} />
+        </div>
+      );
     case "notice":
-      return <div className="notice">{b.text}</div>;
+      return (
+        <div className="notice">
+          {b.text}
+          <CopyBtn text={b.text} />
+        </div>
+      );
     case "tool": {
       const Icon = toolIcons[b.name] ?? Wrench;
       return (
@@ -53,6 +65,7 @@ export function BlockView({ b }: { b: Block }) {
             </span>
           </div>
           {(b.preview || b.html) && <Preview text={b.preview} html={b.html} />}
+          <CopyBtn text={b.copy ?? b.desc} />
         </div>
       );
     }
@@ -60,6 +73,7 @@ export function BlockView({ b }: { b: Block }) {
       return (
         <div className="assistant md">
           <Markdown text={b.text} />
+          <CopyBtn text={b.text} />
         </div>
       );
   }

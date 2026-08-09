@@ -9,6 +9,7 @@ export type Block =
       desc: string;
       preview: string;
       html?: string[];
+      copy?: string;
     };
 
 export type Model = { slug: string; description: string };

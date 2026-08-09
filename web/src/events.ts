@@ -33,6 +33,7 @@ export function apply(blocks: Block[], ev: Ev): Block[] {
         desc: ev.data.desc,
         preview: ev.data.preview,
         html: ev.data.html,
+        copy: ev.data.copy,
       });
       break;
     case "notice":

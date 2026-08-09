@@ -48,6 +48,24 @@ func (w *IO) TextDelta(s string)     { w.hub.emit("delta", text(s)) }
 func (w *IO) ThinkingDelta(s string) { w.hub.emit("think", text(s)) }
 func (w *IO) TurnEnd()               { w.hub.emit("turn_end", struct{}{}) }
 
+// toolCopyText is the raw source a copy button should yield: the command,
+// the written content, or an edit's replacement.
+func toolCopyText(name, argsJSON string) string {
+	var a struct{ Cmd, Content, New string }
+	if json.Unmarshal([]byte(argsJSON), &a) != nil {
+		return ""
+	}
+	switch name {
+	case "bash":
+		return a.Cmd
+	case "write":
+		return a.Content
+	case "edit":
+		return a.New
+	}
+	return ""
+}
+
 func (w *IO) ToolCall(name, argsJSON string) {
 	// full preview: the frontend truncates and expands client-side; write
 	// content is pre-highlighted to HTML lines so the browser needs no lexer
@@ -59,6 +77,9 @@ func (w *IO) ToolCall(name, argsJSON string) {
 	}
 	if hl := ui.PreviewHTML(name, argsJSON); hl != nil {
 		data["html"] = hl
+	}
+	if c := toolCopyText(name, argsJSON); c != "" {
+		data["copy"] = c
 	}
 	w.hub.emit("tool", data)
 }
