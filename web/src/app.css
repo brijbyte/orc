@@ -11,6 +11,8 @@
   --red: #e06c75;
   --green: #98c379;
   --line: #2a2c38;
+  --code-bg: #191b24;
+  --code-fg: #d8dae2;
 }
 body {
   background: var(--bg);
@@ -113,13 +115,13 @@ main > div {
   margin-bottom: 0;
 }
 .md pre {
-  background: #191b24;
+  background: var(--code-bg);
   padding: 0.6rem;
   border-radius: 6px;
   overflow-x: auto;
 }
 .md code {
-  background: #191b24;
+  background: var(--code-bg);
   padding: 0.1rem 0.3rem;
   border-radius: 4px;
 }
@@ -204,4 +206,50 @@ footer .statSel:hover {
 .dead {
   padding: 2rem;
   color: var(--dim);
+}
+
+/* Light scheme. Last so the overrides win their equal-specificity base
+   rules. Code stays a dark island: server-side chroma colors are
+   dark-tuned. */
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bg: #fafaf8;
+    --fg: #1f2328;
+    --dim: #6e7781;
+    --cyan: #0e7490;
+    --red: #cf222e;
+    --green: #1a7f37;
+    --line: #d1d9e0;
+  }
+  .preview {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 0.5rem 0.6rem;
+    border-radius: 6px;
+  }
+  .preview .add {
+    color: #98c379;
+  }
+  .preview .del {
+    color: #e06c75;
+  }
+  .preview .ctx {
+    color: #7a7f8e;
+  }
+  .preview .hl {
+    color: var(--code-fg);
+  }
+  .preview .expander {
+    border-color: #2a2c38;
+    color: #7a7f8e;
+  }
+  .preview .expander:hover {
+    color: #d8dae2;
+    border-color: #7a7f8e;
+  }
+  .md pre,
+  .md code {
+    color: var(--code-fg);
+  }
 }
