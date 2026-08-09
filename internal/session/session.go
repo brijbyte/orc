@@ -227,7 +227,7 @@ func fileExists(path string) bool {
 	return err == nil && !st.IsDir()
 }
 
-// listOne reads one list row: id, time, cwd, and first user line as title.
+// listOne reads one resumable row: id, time, cwd, and first user line.
 func listOne(path string) (Info, bool) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -235,9 +235,10 @@ func listOne(path string) (Info, bool) {
 	}
 	defer f.Close()
 	var info Info
+	hasItems := false
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
-	for ln := 0; ln < 4 && sc.Scan(); ln++ {
+	for sc.Scan() {
 		line := sc.Bytes()
 		var probe struct {
 			Meta    *meta `json:"_meta"`
@@ -259,7 +260,10 @@ func listOne(path string) (Info, bool) {
 			if probe.Meta.T != "" {
 				info.When = probe.Meta.T
 			}
-		} else if probe.Role == "user" && len(probe.Content) > 0 {
+			continue
+		}
+		hasItems = true
+		if probe.Role == "user" && len(probe.Content) > 0 {
 			title := probe.Content[0].Text
 			info.Title = strings.Map(func(r rune) rune {
 				if r == '\n' || r == '\t' {
@@ -274,7 +278,7 @@ func listOne(path string) (Info, bool) {
 		return Info{}, false
 	}
 	info.When = strings.Replace(info.When, "T", " ", 1)
-	return info, info.ID != ""
+	return info, info.ID != "" && hasItems
 }
 
 // ListAll returns every session, pinned first, then most recently used. The
