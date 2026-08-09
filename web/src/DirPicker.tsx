@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Dialog } from "@base-ui/react/dialog";
 import { api } from "./api";
 
 // DirPicker browses server directories for a new session's cwd.
@@ -17,6 +18,7 @@ export function DirPicker({
   const [dirs, setDirs] = useState<string[]>([]);
   const [err, setErr] = useState("");
   const [newName, setNewName] = useState<string | null>(null);
+  const pathRef = useRef<HTMLInputElement>(null);
 
   const mkdir = () => {
     const name = (newName ?? "").trim();
@@ -47,69 +49,78 @@ export function DirPicker({
   useEffect(() => browse(start), [start]);
 
   return (
-    <div className="overlay" onClick={onCancel}>
-      <div className="picker" onClick={(e) => e.stopPropagation()}>
-        <div className="phead">start a session in…</div>
-        <form
-          className="ppath"
-          onSubmit={(e) => {
-            e.preventDefault();
-            browse(input);
-          }}
-        >
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            spellCheck={false}
-            autoFocus
-          />
-        </form>
-        {err && <div className="perr">{err}</div>}
-        <div className="plist">
-          {parent && (
-            <div className="pdir" onClick={() => browse(parent)}>
-              ..
-            </div>
-          )}
-          {dirs.map((d) => (
-            <div
-              key={d}
-              className="pdir"
-              onClick={() => browse(path.replace(/\/$/, "") + "/" + d)}
-            >
-              {d}/
-            </div>
-          ))}
-        </div>
-        <div className="pfoot">
-          {newName === null ? (
-            <button className="pmk" onClick={() => setNewName("")}>
-              + new folder
+    <Dialog.Root open onOpenChange={(o) => !o && onCancel()}>
+      <Dialog.Portal>
+        <Dialog.Backdrop className="overlay" />
+        <Dialog.Popup className="picker" initialFocus={pathRef}>
+          <Dialog.Title className="phead">start a session in…</Dialog.Title>
+          <form
+            className="ppath"
+            onSubmit={(e) => {
+              e.preventDefault();
+              browse(input);
+            }}
+          >
+            <input
+              ref={pathRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              spellCheck={false}
+            />
+          </form>
+          {err && <div className="perr">{err}</div>}
+          <div className="plist">
+            {parent && (
+              <button className="pdir" onClick={() => browse(parent)}>
+                ..
+              </button>
+            )}
+            {dirs.map((d) => (
+              <button
+                key={d}
+                className="pdir"
+                onClick={() => browse(path.replace(/\/$/, "") + "/" + d)}
+              >
+                {d}/
+              </button>
+            ))}
+          </div>
+          <div className="pfoot">
+            {newName === null ? (
+              <button className="pmk" onClick={() => setNewName("")}>
+                + new folder
+              </button>
+            ) : (
+              <form
+                className="pmkform"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  mkdir();
+                }}
+              >
+                <input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Esc closes only the inline form, not the dialog.
+                    if (e.key === "Escape") {
+                      e.stopPropagation();
+                      setNewName(null);
+                    }
+                  }}
+                  placeholder="folder name"
+                  spellCheck={false}
+                  autoFocus
+                />
+              </form>
+            )}
+            <Dialog.Close>cancel</Dialog.Close>
+            <button className="pgo" onClick={() => onPick(path)}>
+              start here
             </button>
-          ) : (
-            <form
-              className="pmkform"
-              onSubmit={(e) => {
-                e.preventDefault();
-                mkdir();
-              }}
-            >
-              <input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => e.key === "Escape" && setNewName(null)}
-                placeholder="folder name"
-                spellCheck={false}
-                autoFocus
-              />
-            </form>
-          )}
-          <button onClick={onCancel}>cancel</button>
-          <button className="pgo" onClick={() => onPick(path)}>
-            start here
-          </button>
-        </div>
-      </div>
-    </div>
+          </div>
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

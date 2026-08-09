@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "./api";
 import { setThemePref, themePref, type ThemePref } from "./theme";
 import type { Model } from "./types";
+import { Sel } from "./ui";
 
 // StatusBar renders "model · effort · rest…" with model and effort as
 // selects that dispatch the matching slash command, and the theme
@@ -17,55 +18,40 @@ export function StatusBar({
 }) {
   const [theme, setTheme] = useState<ThemePref>(themePref());
   const [model, effort, ...rest] = status.split(" · ");
+  const modelOpts = models.map((m) => ({
+    value: m.slug,
+    title: m.description,
+  }));
+  if (model && !models.some((m) => m.slug === model))
+    modelOpts.unshift({ value: model, title: "" });
   return (
     <footer>
       <div>
         {status && (
           <span className="stat">
-            <select
-              className="statSel"
+            <Sel
               value={model}
-              onChange={(e) => api.send(sid, "/model " + e.target.value)}
-            >
-              {!models.some((m) => m.slug === model) && (
-                <option value={model}>{model}</option>
-              )}
-              {models.map((m) => (
-                <option key={m.slug} value={m.slug} title={m.description}>
-                  {m.slug}
-                </option>
-              ))}
-            </select>
+              options={modelOpts}
+              onChange={(v) => api.send(sid, "/model " + v)}
+            />
             {" · "}
-            <select
-              className="statSel"
+            <Sel
               value={effort}
-              onChange={(e) => api.send(sid, "/effort " + e.target.value)}
-            >
-              {["low", "medium", "high"].map((x) => (
-                <option key={x} value={x}>
-                  {x}
-                </option>
-              ))}
-            </select>
+              options={["low", "medium", "high"].map((value) => ({ value }))}
+              onChange={(v) => api.send(sid, "/effort " + v)}
+            />
             {rest.length > 0 && " · " + rest.join(" · ")}
           </span>
         )}
-        <select
+        <Sel
           className="statSel themeSel"
           value={theme}
-          onChange={(e) => {
-            const p = e.target.value as ThemePref;
-            setThemePref(p);
-            setTheme(p);
+          options={["system", "light", "dark"].map((value) => ({ value }))}
+          onChange={(v) => {
+            setThemePref(v as ThemePref);
+            setTheme(v as ThemePref);
           }}
-        >
-          {["system", "light", "dark"].map((x) => (
-            <option key={x} value={x}>
-              {x}
-            </option>
-          ))}
-        </select>
+        />
       </div>
     </footer>
   );

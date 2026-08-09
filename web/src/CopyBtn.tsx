@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
+import { TipBtn } from "./ui";
 
 // CopyBtn sits at a block's top-right corner, visible on hover; a brief
 // check mark confirms the copy.
@@ -8,11 +9,9 @@ export function CopyBtn({ text }: { text: string }) {
   if (!text) return null;
   const Icon = done ? Check : Copy;
   return (
-    <button
-      type="button"
+    <TipBtn
+      tip={done ? "copied" : "copy"}
       className="copy"
-      title="copy"
-      aria-label="copy"
       onClick={() => {
         navigator.clipboard.writeText(text);
         setDone(true);
@@ -20,6 +19,6 @@ export function CopyBtn({ text }: { text: string }) {
       }}
     >
       <Icon size={13} strokeWidth={1.8} aria-hidden />
-    </button>
+    </TipBtn>
   );
 }

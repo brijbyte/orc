@@ -58,10 +58,17 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   user echoes. Bearer-token auth on
   every route; plain HTTP binds loopback only, `--domain` adds autocert TLS.
   Frontend lives in `web/` (React 19 + Vite): `api`/`events`/`types` plus
-  `Sidebar` (session list grouped by cwd), `SessionView` (one mounted view +
-  SSE stream per open session), `DirPicker`,
+  `store.ts` (per-open-tab SSE streams, block state, and scroll positions
+  outside the render tree; App `ensure`s every open tab, `drop` on tab
+  close), `Sidebar`
+  (session list grouped by cwd), `SessionView` (only the active session
+  mounts; it subscribes to the store via useSyncExternalStore), `DirPicker`,
   `Transcript`/`BlockView`/`Preview`/`InputBar`/`StatusBar`; `theme.ts`
-  resolves light/dark/system onto `<html data-theme>`.
+  resolves light/dark/system onto `<html data-theme>`. Overlays and
+  popups use Base UI (`@base-ui/react`): `ui.tsx` wraps Tooltip (`TipBtn`)
+  and Select (`Sel`); `DirPicker` is a Dialog, session delete an
+  AlertDialog. Base UI popups stay mounted when closed — drive tests by
+  visibility, not detachment.
 - `cmd/orc` is the Cobra CLI and the four drivers (TUI, pipe, one-shot,
   serve). `/model` and `/effort` persist defaults to `<orc home>/config.json`;
   flags and resumed-session meta win over them.

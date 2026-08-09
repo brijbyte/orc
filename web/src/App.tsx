@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { AlertDialog } from "@base-ui/react/alert-dialog";
 import { api, hashSession, setHashSession } from "./api";
+import * as store from "./store";
 import type { Model, SessionRow } from "./types";
 import { SessionView } from "./SessionView";
 import { Sidebar } from "./Sidebar";
@@ -33,6 +35,7 @@ export default function App() {
     return t;
   });
   const [picking, setPicking] = useState(false);
+  const [doomed, setDoomed] = useState<SessionRow | null>(null);
 
   const refresh = useCallback(() => {
     api
@@ -53,13 +56,21 @@ export default function App() {
   }, [refresh]);
 
   useEffect(() => {
-    api.models().then((d) => setModels(d.models ?? [])).catch(() => {});
+    api
+      .models()
+      .then((d) => setModels(d.models ?? []))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     sessionStorage.setItem("orc-tabs", JSON.stringify(tabs));
     setHashSession(tabs.active);
   }, [tabs]);
+
+  // every open tab streams, mounted or not; the view only subscribes
+  useEffect(() => {
+    for (const sid of tabs.open) store.ensure(sid, refresh);
+  }, [tabs.open, refresh]);
 
   const activate = useCallback((id: string) => {
     setTabs((t) => ({
@@ -74,6 +85,8 @@ export default function App() {
   };
 
   const closeTab = (row: SessionRow) => {
+    store.drop(row.id);
+    if (row.rid) store.drop(row.rid);
     setTabs((t) => {
       const open = t.open.filter((x) => x !== row.id && x !== row.rid);
       const gone = t.active === row.id || t.active === row.rid;
@@ -86,9 +99,8 @@ export default function App() {
     closeTab(row);
   };
 
-  const onDelete = (row: SessionRow) => {
-    const name = row.title || row.id.slice(0, 8);
-    if (!window.confirm(`Delete session "${name}" and its file?`)) return;
+  const doDelete = (row: SessionRow) => {
+    setDoomed(null);
     api.remove(row.id).finally(refresh);
     closeTab(row);
   };
@@ -121,19 +133,12 @@ export default function App() {
         openIds={tabs.open}
         onOpen={onOpen}
         onStop={onStop}
-        onDelete={onDelete}
+        onDelete={setDoomed}
         onNew={() => setPicking(true)}
       />
-      {tabs.open.map((sid) => (
-        <SessionView
-          key={sid}
-          sid={sid}
-          visible={sid === tabs.active}
-          models={models}
-          onOpened={refresh}
-        />
-      ))}
-      {tabs.open.length === 0 && (
+      {tabs.active ? (
+        <SessionView key={tabs.active} sid={tabs.active} models={models} />
+      ) : (
         <div className="empty">🧌 pick a session on the left, or start one</div>
       )}
       {picking && (
@@ -142,6 +147,28 @@ export default function App() {
           onPick={onNew}
           onCancel={() => setPicking(false)}
         />
+      )}
+      {doomed && (
+        <AlertDialog.Root open onOpenChange={(o) => !o && setDoomed(null)}>
+          <AlertDialog.Portal>
+            <AlertDialog.Backdrop className="overlay" />
+            <AlertDialog.Popup className="picker confirm">
+              <AlertDialog.Title className="phead">
+                delete session?
+              </AlertDialog.Title>
+              <AlertDialog.Description className="pdesc">
+                “{doomed.title || doomed.id.slice(0, 8)}” and its file will be
+                removed.
+              </AlertDialog.Description>
+              <div className="pfoot">
+                <AlertDialog.Close>cancel</AlertDialog.Close>
+                <button className="pdanger" onClick={() => doDelete(doomed)}>
+                  delete
+                </button>
+              </div>
+            </AlertDialog.Popup>
+          </AlertDialog.Portal>
+        </AlertDialog.Root>
       )}
     </div>
   );

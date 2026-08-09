@@ -1,7 +1,3 @@
-* {
-  box-sizing: border-box;
-  margin: 0;
-}
 :root {
   color-scheme: dark;
   --bg: #12131a;
@@ -149,6 +145,20 @@ body {
   cursor: pointer;
   color: var(--fg);
 }
+.sopen {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
 .srow:hover {
   background: var(--panel);
 }
@@ -202,12 +212,14 @@ body {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 10;
 }
 .picker {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 11;
   width: min(34rem, 90vw);
   background: var(--bg);
   border: 1px solid var(--line);
@@ -216,6 +228,22 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  color: var(--fg);
+}
+.picker:focus-visible {
+  outline: none;
+}
+.confirm {
+  width: min(24rem, 90vw);
+}
+.confirm .pfoot > :first-child {
+  margin-right: 0;
+}
+.pdesc {
+  color: var(--dim);
+}
+.pfoot .pdanger {
+  color: var(--red);
 }
 .phead {
   color: var(--dim);
@@ -240,6 +268,13 @@ body {
   border-radius: 6px;
 }
 .pdir {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
   padding: 0.15rem 0.6rem;
   cursor: pointer;
 }
@@ -412,6 +447,29 @@ main > div:hover .copy,
   border-top: 1px solid var(--line);
   margin: 1.1rem 0;
 }
+/* restore what preflight flattens, scoped to markdown output */
+.md :is(ul, ol) {
+  list-style: revert;
+  padding-left: 1.4rem;
+}
+.md :is(h1, h2, h3, h4) {
+  font-weight: bold;
+}
+.md h1 {
+  font-size: 1.3em;
+}
+.md h2 {
+  font-size: 1.15em;
+}
+.md blockquote {
+  border-left: 2px solid var(--line);
+  padding-left: 0.6rem;
+  color: var(--dim);
+}
+.md a {
+  color: var(--cyan);
+  text-decoration: underline;
+}
 .md pre {
   background: var(--code-bg);
   padding: 0.6rem;
@@ -433,19 +491,19 @@ main > div:hover .copy,
   border: 1px solid var(--line);
   padding: 0.2rem 0.5rem;
 }
-form {
+.composer {
   border-top: 1px solid var(--line);
   padding: 0.6rem 1rem;
 }
-form .bar {
+.composer .bar {
   display: flex;
   gap: 0.5rem;
   align-items: flex-start;
   max-width: 60rem;
   margin: 0 auto;
 }
-form .bar .prompt,
-form .bar button {
+.composer .bar .prompt,
+.composer .bar button {
   line-height: 1.5; /* align with the textarea's first line */
 }
 .prompt {
@@ -455,7 +513,7 @@ form .bar button {
 .prompt.busy {
   color: var(--dim);
 }
-form textarea {
+.composer textarea {
   flex: 1;
   background: none;
   border: none;
@@ -466,7 +524,7 @@ form textarea {
   max-height: 12rem;
   overflow-y: auto;
 }
-form button {
+.composer button {
   background: none;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -475,15 +533,15 @@ form button {
   padding: 0.1rem 0.6rem;
   cursor: pointer;
 }
-form button.attach {
+.composer button.attach {
   color: var(--dim);
   border: none;
   padding: 0.15rem 0.2rem;
 }
-form button.attach:hover {
+.composer button.attach:hover {
   color: var(--fg);
 }
-form button.attach svg {
+.composer button.attach svg {
   display: block;
 }
 footer {
@@ -520,6 +578,40 @@ footer .statSel {
 }
 footer .statSel:hover {
   color: var(--fg);
+}
+/* portaled Base UI popups: positioner carries the stacking level */
+.pop {
+  z-index: 20;
+}
+.tip {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--fg);
+  font-size: 11px;
+  padding: 0.1rem 0.45rem;
+}
+.selPop {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.25rem;
+  font-size: 12px;
+  max-height: var(--available-height);
+  overflow-y: auto;
+}
+.selItem {
+  padding: 0.15rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--fg);
+}
+.selItem[data-highlighted] {
+  background: var(--panel);
+  color: var(--cyan);
+}
+.selItem[data-selected] {
+  color: var(--cyan);
 }
 .dead {
   padding: 2rem;

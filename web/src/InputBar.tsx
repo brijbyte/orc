@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Paperclip } from "lucide-react";
 import { api, type AttachedFile } from "./api";
+import { TipBtn } from "./ui";
 
 const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
@@ -21,32 +22,32 @@ function sizeLabel(n: number): string {
   return n < 1024 ? `${n} B` : `${Math.round(n / 1024)} KB`;
 }
 
-// isEditable reports whether typing already goes somewhere.
+// isEditable reports whether typing already goes somewhere: form fields,
+// or an open popup (dialog, select listbox) with its own key handling.
 function isEditable(t: EventTarget | null): boolean {
   const el = t as HTMLElement | null;
   if (!el) return false;
   const tag = el.tagName;
   return (
     tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" ||
-    el.isContentEditable
+    el.isContentEditable ||
+    !!el.closest?.('[role="dialog"],[role="alertdialog"],[role="listbox"]')
   );
 }
 
 // InputBar owns the textarea (Enter sends, Shift+Enter breaks the line,
 // Esc interrupts), attachment chips, the attach button, the busy spinner,
-// and the stop button. While active it grabs focus Slack-style: stray
+// and the stop button. While mounted it grabs focus Slack-style: stray
 // printable keystrokes land in the textarea.
 export function InputBar({
   sid,
   busy,
-  active,
   files,
   setFiles,
   addFiles,
 }: {
   sid: string;
   busy: boolean;
-  active: boolean;
   files: File[];
   setFiles: (f: File[]) => void;
   addFiles: (f: FileList | null) => void;
@@ -72,15 +73,14 @@ export function InputBar({
     return () => cancelAnimationFrame(raf);
   }, [busy]);
 
-  // focus when this session comes to the front, and after files attach
+  // focus on mount and after files attach
   useEffect(() => {
-    if (active) inputRef.current?.focus();
-  }, [active, files.length]);
+    inputRef.current?.focus();
+  }, [files.length]);
 
   // Slack-style: a printable key typed anywhere focuses the textarea; the
   // browser then delivers the character there, so nothing typed is lost.
   useEffect(() => {
-    if (!active) return;
     const grab = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || e.key.length !== 1) return;
       if (isEditable(e.target)) return;
@@ -91,7 +91,7 @@ export function InputBar({
     };
     window.addEventListener("keydown", grab);
     return () => window.removeEventListener("keydown", grab);
-  }, [active]);
+  }, []);
 
   // grow with content, up to the CSS max-height
   const autosize = () => {
@@ -119,19 +119,18 @@ export function InputBar({
   };
 
   return (
-    <form onSubmit={submit}>
+    <form className="composer" onSubmit={submit}>
       {files.length > 0 && (
         <div className="chips">
           {files.map((f, i) => (
             <span key={i} className="chip">
               📎 {f.name} <em>{sizeLabel(f.size)}</em>
-              <button
-                type="button"
-                title="remove attachment"
+              <TipBtn
+                tip="remove attachment"
                 onClick={() => setFiles(files.filter((_, j) => j !== i))}
               >
                 ✕
-              </button>
+              </TipBtn>
             </span>
           ))}
         </div>
@@ -171,14 +170,13 @@ export function InputBar({
             e.target.value = "";
           }}
         />
-        <button
-          type="button"
+        <TipBtn
+          tip="attach files"
           className="attach"
-          title="attach files"
           onClick={() => pickRef.current?.click()}
         >
           <Paperclip size={14} strokeWidth={1.8} aria-hidden />
-        </button>
+        </TipBtn>
         {busy && (
           <button type="button" onClick={() => api.interrupt(sid)}>
             stop

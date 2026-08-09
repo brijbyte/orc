@@ -1,4 +1,5 @@
 import type { SessionRow } from "./types";
+import { TipBtn } from "./ui";
 
 // prettyDir abbreviates a home-prefixed path and keeps it short from the left.
 function prettyDir(cwd: string, home: string): string {
@@ -21,28 +22,26 @@ function Row({
   onStop: () => void;
   onDelete: () => void;
 }) {
-  const act = (fn: () => void) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    fn();
-  };
   return (
-    <div
-      className={"srow" + (active ? " active" : "")}
-      onClick={onOpen}
-      title={`${row.id.slice(0, 8)} · ${row.when}`}
-    >
-      <span className="sdot">
-        {row.busy ? <span className="busydot">●</span> : row.live ? "●" : "○"}
-      </span>
-      <span className="stitle">{row.title || row.id.slice(0, 8)}</span>
-      {open && row.live && (
-        <button className="sstop" title="close (stop) this session" onClick={act(onStop)}>
-          ✕
-        </button>
-      )}
-      <button className="sdel" title="delete this session" onClick={act(onDelete)}>
-        🗑
+    <div className={"srow" + (active ? " active" : "")}>
+      <button
+        className="sopen"
+        onClick={onOpen}
+        title={`${row.id.slice(0, 8)} · ${row.when}`}
+      >
+        <span className="sdot">
+          {row.busy ? <span className="busydot">●</span> : row.live ? "●" : "○"}
+        </span>
+        <span className="stitle">{row.title || row.id.slice(0, 8)}</span>
       </button>
+      {open && row.live && (
+        <TipBtn tip="close (stop) this session" className="sstop" onClick={onStop}>
+          ✕
+        </TipBtn>
+      )}
+      <TipBtn tip="delete this session" className="sdel" onClick={onDelete}>
+        🗑
+      </TipBtn>
     </div>
   );
 }

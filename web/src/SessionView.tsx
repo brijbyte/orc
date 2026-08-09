@@ -1,35 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "./api";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import * as store from "./store";
 
 const fileMax = 16 << 20; // per-file cap, matches the server's request cap
-import { apply } from "./events";
-import type { Block, Ev, Model } from "./types";
+import type { Model } from "./types";
 import { Transcript } from "./Transcript";
 import { InputBar } from "./InputBar";
 import { StatusBar } from "./StatusBar";
 
-// SessionView drives one open session: revive it on the server, seed the
-// block list from /state, then follow the SSE stream. Stays mounted (and
-// connected) while hidden so switching back is instant.
-export function SessionView({
-  sid,
-  visible,
-  models,
-  onOpened,
-}: {
-  sid: string;
-  visible: boolean;
-  models: Model[];
-  onOpened?: () => void;
-}) {
-  const [blocks, setBlocks] = useState<Block[] | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState("");
-  const [err, setErr] = useState("");
+// SessionView renders the active session from the store. Only the active
+// view is mounted; streams live in store.ts and keep running across
+// switches (App calls store.ensure for every open tab).
+export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
-  const lastID = useRef(0);
   const dragDepth = useRef(0);
+
+  const { blocks, busy, status, err } = useSyncExternalStore(
+    useCallback((fn: () => void) => store.subscribe(sid, fn), [sid]),
+    useCallback(() => store.snapshot(sid), [sid]),
+  );
 
   const addFiles = (list: FileList | null) => {
     if (!list) return;
@@ -38,48 +27,9 @@ export function SessionView({
     if (ok.length) setFiles((prev) => [...prev, ...ok]);
   };
 
-  const onEvent = useCallback((ev: Ev) => {
-    lastID.current = ev.id;
-    if (ev.type === "busy") setBusy(ev.data.busy);
-    else if (ev.type === "status") setStatus(ev.data.text);
-    else setBlocks((prev) => apply([...(prev ?? [])], ev));
-  }, []);
-
-  useEffect(() => {
-    let es: EventSource | null = null;
-    let gone = false;
-    api
-      .open(sid)
-      .then(() => {
-        onOpened?.(); // the session just went live; refresh the sidebar
-        return api.state(sid);
-      })
-      .then((state) => {
-        if (gone) return;
-        const seed: Block[] = [];
-        for (const ev of state.events ?? []) {
-          lastID.current = ev.id;
-          if (ev.type !== "busy" && ev.type !== "status") apply(seed, ev);
-        }
-        setBlocks(seed);
-        setBusy(!!state.busy);
-        setStatus(state.status ?? "");
-        es = api.events(sid, lastID.current);
-        es.onmessage = (m) => onEvent(JSON.parse(m.data));
-      })
-      .catch(() => {
-        if (!gone) setErr("cannot open this session");
-      });
-    return () => {
-      gone = true;
-      es?.close();
-    };
-  }, [sid, onEvent, onOpened]);
-
   return (
     <div
       className="app"
-      style={visible ? undefined : { display: "none" }}
       onDragEnter={(e) => {
         e.preventDefault();
         if (++dragDepth.current === 1) setDragging(true);
@@ -101,11 +51,10 @@ export function SessionView({
         <div className="loader">🧌 loading session…</div>
       ) : (
         <>
-          <Transcript blocks={blocks} />
+          <Transcript sid={sid} blocks={blocks} />
           <InputBar
             sid={sid}
             busy={busy}
-            active={visible}
             files={files}
             setFiles={setFiles}
             addFiles={addFiles}
