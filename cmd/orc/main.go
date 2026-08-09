@@ -205,6 +205,9 @@ func runPipe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 	plain.Cmds = cmds
 	ag := agent.New(cfg, prov, sess, resumed, plain)
 	ui.Banner(cfg, didResume)
+	if !prov.Authenticated() {
+		ui.PrintLoginHint(prov.Name())
+	}
 	if didResume {
 		ag.Replay()
 	}
@@ -250,6 +253,9 @@ func runTUI(cfg *config.Config, prov provider.Provider, sess *session.Session,
 	ag := agent.New(cfg, prov, sess, resumed, t)
 
 	ui.Banner(cfg, didResume)
+	if !prov.Authenticated() {
+		ui.PrintLoginHint(prov.Name())
+	}
 	if didResume {
 		ag.Replay()
 	}

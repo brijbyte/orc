@@ -40,6 +40,8 @@ type Provider interface {
 		cfg *config.Config, cb *Callbacks) error
 	// AuthStatus prints auth status for --auth; nil if usable.
 	AuthStatus() error
+	// Authenticated quietly reports whether usable credentials exist.
+	Authenticated() bool
 	// Login runs interactive login for --login; nil when unsupported.
 	Login() error
 	// Models lists selectable models; nil when unavailable.

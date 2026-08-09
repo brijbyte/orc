@@ -204,6 +204,15 @@ func loadAuth(notify func(string)) (accessToken, accountID string, err error) {
 	return at, acct, nil
 }
 
+func (p *Codex) Authenticated() bool {
+	af, err := loadAuthFile()
+	if err != nil {
+		return false
+	}
+	tokens := af.tokens()
+	return tokens["access_token"] != "" && tokens["account_id"] != ""
+}
+
 func (p *Codex) AuthStatus() error {
 	af, err := loadAuthFile()
 	if err != nil {

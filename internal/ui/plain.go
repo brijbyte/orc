@@ -147,6 +147,11 @@ func Banner(cfg *config.Config, resumed bool) {
 	}
 }
 
+// PrintLoginHint warns at startup that the provider has no credentials.
+func PrintLoginHint(providerName string) {
+	fmt.Printf("🔐 orc: no %s login found — run `orc --login` to sign in\n", providerName)
+}
+
 // ResumeHint prints the resume tip on exit.
 func ResumeHint(id string) {
 	line := fmt.Sprintf("💡 orc: resume with `orc --resume %.8s`", id)
