@@ -17,7 +17,13 @@ type Ev = { id: number; type: string; data: any };
 type Block =
   | { kind: "user" | "pending" | "notice" | "think"; text: string }
   | { kind: "assistant"; text: string; open: boolean }
-  | { kind: "tool"; name: string; desc: string; preview: string; html?: string[] };
+  | {
+      kind: "tool";
+      name: string;
+      desc: string;
+      preview: string;
+      html?: string[];
+    };
 
 const toolIcons: Record<string, typeof Wrench> = {
   bash: SquareTerminal,
@@ -71,6 +77,7 @@ function apply(blocks: Block[], ev: Ev): Block[] {
 }
 
 const previewMax = 20;
+const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 // lineClass reads the ± marker after the line-number gutter; numbered
 // lines without a marker are write content (plain code).
@@ -105,7 +112,11 @@ function Preview({ text, html }: { text: string; html?: string[] }) {
         ),
       )}
       {lines.length > previewMax && (
-        <button type="button" className="expander" onClick={() => setOpen(!open)}>
+        <button
+          type="button"
+          className="expander"
+          onClick={() => setOpen(!open)}
+        >
           {open ? "collapse" : `show ${lines.length - previewMax} more lines`}
         </button>
       )}
@@ -159,6 +170,7 @@ export default function App() {
   const [status, setStatus] = useState("");
   const [input, setInput] = useState("");
   const [dead, setDead] = useState(false);
+  const [spin, setSpin] = useState(0);
   const lastID = useRef(0);
   const bottom = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -186,7 +198,9 @@ export default function App() {
         setBlocks(bs);
         setBusy(s.busy);
         setStatus(s.status);
-        es = new EventSource(`/api/events?token=${token}&after=${lastID.current}`);
+        es = new EventSource(
+          `/api/events?token=${token}&after=${lastID.current}`,
+        );
         es.onmessage = (m) => onEvent(JSON.parse(m.data));
       })
       .catch(() => setDead(true));
@@ -196,6 +210,22 @@ export default function App() {
   useEffect(() => {
     if (stick.current) bottom.current?.scrollIntoView();
   }, [blocks]);
+
+  useEffect(() => {
+    if (!busy) return;
+    let last = 0;
+    let raf = 0;
+    const tick = (ts: number) => {
+      if (!last) last = ts;
+      if (ts - last >= 100) {
+        setSpin((s) => (s + 1) % spinnerFrames.length);
+        last = ts;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [busy]);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -227,7 +257,11 @@ export default function App() {
     });
 
   if (dead)
-    return <div className="dead">🧌 cannot reach orc — is it still running? (check the URL token)</div>;
+    return (
+      <div className="dead">
+        🧌 cannot reach orc — is it still running? (check the URL token)
+      </div>
+    );
 
   return (
     <div className="app">
@@ -244,7 +278,9 @@ export default function App() {
       </main>
       <form onSubmit={submit}>
         <div className="bar">
-          <span className={busy ? "prompt busy" : "prompt"}>{busy ? "⠋" : ">"}</span>
+          <span className={busy ? "prompt busy" : "prompt"}>
+            {busy ? spinnerFrames[spin] : ">"}
+          </span>
           <textarea
             ref={inputRef}
             rows={1}
@@ -261,7 +297,9 @@ export default function App() {
                 interrupt();
               }
             }}
-            placeholder={busy ? "queue a message… (Esc interrupts)" : "message orc"}
+            placeholder={
+              busy ? "queue a message… (Esc interrupts)" : "message orc"
+            }
             autoFocus
           />
           {busy && (

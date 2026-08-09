@@ -209,6 +209,40 @@ func gutter(n int, tty bool) string {
 	return g
 }
 
+// Diff line paint (256-color): dark backgrounds, readable ± marker fg.
+const (
+	bgDel = "\x1b[48;5;52m"
+	bgAdd = "\x1b[48;5;22m"
+	fgDel = "\x1b[38;5;203m"
+	fgAdd = "\x1b[38;5;114m"
+)
+
+// onBackground repaints s onto bg, restoring bg after any full reset that
+// highlighted tokens emit.
+func onBackground(s, bg string) string {
+	return bg + strings.ReplaceAll(s, "\x1b[0m", "\x1b[0m"+bg) + "\x1b[0m"
+}
+
+// diffHalf appends one side of an edit diff: gutter, ± marker, and the code
+// syntax-highlighted by the file's language, all over the diff background.
+func diffHalf(out *[]string, marker, fg, bg, text, path string, start int) {
+	if text == "" {
+		return
+	}
+	body := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	hl := highlightTermLines(path, strings.TrimRight(text, "\n"))
+	if len(hl) != len(body) {
+		hl = nil
+	}
+	for i, l := range body {
+		if hl != nil {
+			l = hl[i]
+		}
+		seg := onBackground(fg+marker+" \x1b[39m"+l, bg)
+		*out = append(*out, gutter(start+i, true)+seg)
+	}
+}
+
 func toolPreviewLines(name, argsJSON string, tty bool) []string {
 	var a struct{ Old, New, Content, Path string }
 	if json.Unmarshal([]byte(argsJSON), &a) != nil {
@@ -230,6 +264,11 @@ func toolPreviewLines(name, argsJSON string, tty bool) []string {
 	switch name {
 	case "edit":
 		start := editStartLine(a.Path, a.Old, a.New)
+		if tty {
+			diffHalf(&lines, "-", fgDel, bgDel, a.Old, a.Path, start)
+			diffHalf(&lines, "+", fgAdd, bgAdd, a.New, a.Path, start)
+			return lines
+		}
 		add("-", a.Old, styleRed, start)
 		add("+", a.New, styleGreen, start)
 	case "write":
