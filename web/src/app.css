@@ -1,6 +1,5 @@
-/* Global styles only: theme tokens, document defaults, shared keyframes and
-   the one button affordance every component inherits. Everything else lives
-   in a *.module.css next to its component. */
+/* Global styles only: theme tokens, document defaults, scrollbars, and the
+   shared pointer-down response. Component styles live in CSS modules. */
 :root {
   color-scheme: dark;
   --bg: #12131a;
@@ -12,27 +11,29 @@
   --line: #2a2c38;
   --code-bg: #191b24;
   --code-fg: #d8dae2;
-  --panel: #191b24; /* hover/selection surfaces; stays light in light mode */
+  --panel: #191b24;
+  --material: color-mix(in srgb, var(--bg) 88%, transparent);
+  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --hit: 2rem;
 }
 body {
   background: var(--bg);
   color: var(--fg);
-  font: 14px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font: 0.875rem/1.5 var(--font-ui);
 }
-/* slim scrollbars: standard properties for Firefox/new Chromium, webkit
-   pseudo-elements for Safari */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
 }
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 0.5rem;
+  height: 0.5rem;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--line);
-  border-radius: 4px;
+  border-radius: 0.25rem;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--dim);
@@ -42,27 +43,21 @@ body {
   background: transparent;
 }
 
-@media (hover: hover) and (pointer: fine) {
+@media (prefers-reduced-motion: no-preference) {
   button {
-    transition: transform 120ms var(--ease-out);
+    transition: transform 100ms var(--ease-out);
   }
   button:active:not(:focus-visible) {
-    transform: scale(0.98);
+    transform: scale(0.97);
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  button {
-    transition: none;
-  }
-  button:active {
-    transform: none;
+@media (pointer: coarse) {
+  :root {
+    --hit: 2.75rem;
   }
 }
 
-/* Light scheme, selected via <html data-theme> (theme.ts resolves the
-   "system" preference). Code previews follow the theme too: /hl.css ships
-   a light chroma palette scoped to [data-theme="light"]. */
 :root[data-theme="light"] {
   color-scheme: light;
   --bg: #fafaf8;

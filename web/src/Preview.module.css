@@ -34,8 +34,7 @@
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0.15rem 0.6rem;
-  font: inherit;
-  font-size: 12px;
+  font: 0.75rem/1.5 var(--font-ui);
   color: var(--dim);
   cursor: pointer;
   user-select: none;

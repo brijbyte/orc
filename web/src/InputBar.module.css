@@ -1,6 +1,10 @@
 .composer {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
   padding: 0.6rem 1rem;
+  background: var(--material);
+  backdrop-filter: blur(0.5rem);
+  -webkit-backdrop-filter: blur(0.5rem);
+  font-family: var(--font-ui);
 }
 .chips {
   display: flex;
@@ -13,17 +17,22 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  min-height: var(--hit);
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 0.1rem 0.5rem;
-  font-size: 12px;
+  border-radius: 0.4rem;
+  padding: 0.1em 0.25em 0.1em 0.5em;
+  font-size: 0.75rem;
 }
 .chip em {
   font-style: normal;
   color: var(--dim);
 }
-.chip button {
+.composer .chip button {
+  display: grid;
+  place-items: center;
+  width: var(--hit);
+  height: var(--hit);
   background: none;
   border: none;
   color: var(--dim);
@@ -31,7 +40,7 @@
   cursor: pointer;
   padding: 0;
 }
-.chip button:hover {
+.composer .chip button:hover {
   color: var(--red);
 }
 .bar {
@@ -43,34 +52,40 @@
 }
 .bar .prompt,
 .bar button {
-  line-height: 1.5; /* align with the textarea's first line */
+  line-height: 1.5;
 }
 .prompt {
   color: var(--cyan);
-  font-weight: bold;
+  font: bold 0.875rem/1.5 var(--font-mono);
   flex: none;
   width: 1.25ch;
   text-align: center;
 }
-.prompt.busy {
-  color: var(--dim);
+.prompt.busy,
+.prompt.complete {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 1.5em;
 }
-.prompt.busy svg {
+.prompt.busy {
+  color: var(--dim);
+}
+.prompt.complete {
+  color: var(--green);
+}
+.prompt svg {
   display: block;
+}
+.prompt.busy svg {
   animation: spin 750ms linear infinite;
   will-change: transform;
 }
-/* holds the textarea and the floating stop button */
 .field {
   position: relative;
   flex: 1;
   min-width: 0;
 }
-/* while a turn runs, keep queued text clear of the stop button */
 .field.busy textarea {
   padding-right: 4rem;
 }
@@ -81,24 +96,30 @@
   border: none;
   outline: none;
   color: var(--fg);
-  font: inherit;
+  font: 0.875rem/1.5 var(--font-mono);
   resize: none;
   max-height: 12rem;
   overflow-y: auto;
 }
 .composer button {
+  min-height: var(--hit);
   background: none;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 0.4rem;
   color: var(--red);
-  font: inherit;
-  padding: 0.1rem 0.6rem;
+  font: 0.8125rem/1.5 var(--font-ui);
+  padding: 0.1em 0.6em;
   cursor: pointer;
 }
 .composer button.attach {
+  display: grid;
+  place-items: center;
+  width: var(--hit);
+  height: var(--hit);
+  min-height: 0;
   color: var(--dim);
   border: none;
-  padding: 0.15rem 0 0.15rem 0.2rem;
+  padding: 0;
 }
 .composer button.attach:hover {
   color: var(--fg);
@@ -106,31 +127,40 @@
 .composer button.attach svg {
   display: block;
 }
-/* out of flow: the textarea never resizes when a turn starts or ends */
 .composer button.stop {
   position: absolute;
   right: 0;
   bottom: 0;
-  background: var(--bg);
+  background: var(--material);
+}
+.live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(1turn);
-  }
-}
-
-@keyframes pulse {
-  from {
-    opacity: 0.35;
-  }
-  to {
-    opacity: 1;
-  }
+  to { transform: rotate(1turn); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .prompt.busy svg {
-    animation: pulse 1.8s ease-in-out infinite alternate;
+    animation: none;
+    will-change: auto;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .composer,
+  .composer button.stop {
+    background: var(--bg);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 }

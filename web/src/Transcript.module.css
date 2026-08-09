@@ -7,6 +7,7 @@
      shifts when content starts to overflow */
   scrollbar-gutter: stable both-edges;
   padding: 1rem 1rem 0.5rem;
+  font: 0.875rem/1.5 var(--font-mono);
 }
 .main > [data-block] {
   position: relative; /* anchors the per-block copy button */
@@ -22,4 +23,10 @@
   margin: 0 auto;
   color: var(--dim);
   background: var(--bg);
+}
+
+@media (max-width: 48rem) {
+  .main {
+    padding-top: 4rem;
+  }
 }

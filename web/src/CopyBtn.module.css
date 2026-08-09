@@ -1,11 +1,15 @@
 .copy {
   position: absolute;
-  top: 0;
-  right: 0;
+  top: -0.35rem;
+  right: -0.25rem;
+  display: grid;
+  place-items: center;
+  width: var(--hit);
+  height: var(--hit);
   background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  padding: 2px 5px;
+  border: 1px solid transparent;
+  border-radius: 0.35rem;
+  padding: 0;
   color: var(--dim);
   cursor: pointer;
   opacity: 0;
@@ -15,21 +19,20 @@
 }
 .copy:hover {
   color: var(--fg);
-  border-color: var(--dim);
+  border-color: var(--line);
 }
 .copy svg {
   display: block;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  /* [data-block] is the transcript block this button is pinned to */
   [data-block]:hover .copy {
     opacity: 1;
   }
   .copy {
     transition:
-      opacity 120ms ease,
-      transform 120ms var(--ease-out);
+      opacity 100ms ease,
+      transform 100ms var(--ease-out);
   }
   .copy:focus-visible {
     transition: none;

@@ -73,7 +73,7 @@ export function DirPicker({
     >
       <Dialog.Portal>
         <Dialog.Backdrop className={d.overlay} />
-        <Dialog.Popup className={d.popup} initialFocus={pathRef}>
+        <Dialog.Popup className={`${d.popup} ${s.popup}`} initialFocus={pathRef}>
           <Dialog.Title className={d.head}>start a session in…</Dialog.Title>
           <form
             className={s.path}

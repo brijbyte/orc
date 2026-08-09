@@ -1,19 +1,26 @@
 .side {
-  width: 240px;
+  width: clamp(15rem, 24vw, 20rem);
   flex-shrink: 0;
   border-right: 1px solid var(--line);
   overflow-y: auto;
   padding: 0.6rem 0.5rem;
-  font-size: 13px;
+  font: 0.8125rem/1.5 var(--font-mono);
+  background: var(--bg);
+  z-index: 7;
+}
+.backdrop,
+.dismiss {
+  display: none;
 }
 .new {
   width: 100%;
+  min-height: var(--hit);
   background: none;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 0.4rem;
   color: var(--green);
   font: inherit;
-  padding: 0.25rem 0.6rem;
+  padding: 0.25em 0.6em;
   cursor: pointer;
   margin-bottom: 0.6rem;
 }
@@ -25,32 +32,32 @@
 }
 .head {
   color: var(--dim);
-  font-size: 11px;
-  padding: 0.2rem 0.3rem;
+  font-size: 0.6875rem;
+  padding: 0.2em 0.3em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  direction: rtl; /* keep the tail of long paths visible */
+  direction: rtl;
   text-align: left;
 }
 .row {
-  position: relative; /* anchors the stretched open link */
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
   padding: 0.25rem 0.3rem 0.3rem;
-  border-radius: 5px;
+  border-radius: 0.35rem;
   cursor: pointer;
   color: var(--fg);
 }
 .row + .row {
   margin-top: 0.25rem;
 }
-.row:hover {
+.row:hover,
+.row.active {
   background: var(--panel);
 }
 .row.active {
-  background: var(--panel);
   color: var(--cyan);
 }
 .open {
@@ -67,7 +74,6 @@
   cursor: pointer;
   text-align: left;
 }
-/* the whole row opens the session; the action buttons sit above it */
 .open::after {
   content: "";
   position: absolute;
@@ -76,7 +82,7 @@
 .dot {
   flex-shrink: 0;
   color: var(--dim);
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 .busydot {
   color: var(--green);
@@ -89,36 +95,39 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* second row line: age (and directory, for pinned rows) plus the actions */
 .foot {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding-left: 1.1rem; /* clears the status dot */
+  padding-left: 1.1rem;
+  padding-right: calc(var(--hit) + var(--hit) + var(--hit) + 0.2rem);
   min-height: 1.2em;
 }
 .age {
   flex: 1;
   min-width: 0;
   color: var(--dim);
-  font-size: 10px;
+  font-size: 0.625rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .acts {
-  position: relative; /* over the stretched link */
+  position: absolute;
+  right: 0.15rem;
+  bottom: 0;
   display: flex;
   gap: 0.1rem;
-  flex-shrink: 0;
 }
 .act {
-  display: flex;
+  display: grid;
+  place-items: center;
+  width: var(--hit);
+  height: var(--hit);
   background: none;
   border: none;
   color: var(--dim);
   cursor: pointer;
-  padding: 0 0.15rem;
+  padding: 0;
   opacity: 0;
 }
 .act:focus-visible,
@@ -141,8 +150,8 @@
   }
   .act {
     transition:
-      opacity 120ms ease,
-      transform 120ms var(--ease-out);
+      opacity 100ms ease,
+      transform 100ms var(--ease-out);
   }
   .act:focus-visible {
     transition: none;
@@ -155,21 +164,80 @@
   }
 }
 
+@media (max-width: 48rem) {
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 6;
+    display: block;
+    background: rgb(0 0 0 / 0.32);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms var(--ease-out);
+  }
+  .backdrop[data-open] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .side.sheet {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(20rem, calc(100vw - 3rem));
+    border-right-color: color-mix(in srgb, var(--line) 80%, transparent);
+    background: var(--material);
+    box-shadow: 0.75rem 0 2rem rgb(0 0 0 / 0.18);
+    backdrop-filter: blur(0.65rem);
+    -webkit-backdrop-filter: blur(0.65rem);
+    opacity: 0;
+    transform: translateX(-100%);
+    pointer-events: none;
+    transition:
+      opacity 180ms var(--ease-out),
+      transform 180ms var(--ease-out);
+  }
+  .side.sheet[data-open] {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+  .dismiss {
+    display: grid;
+    place-items: center;
+    width: var(--hit);
+    height: var(--hit);
+    padding: 0;
+    margin: 0 0 0.45rem auto;
+    color: var(--dim);
+    border: 0;
+    background: none;
+  }
+  .dismiss:hover {
+    color: var(--fg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .busydot {
-    animation: pulse 1.8s ease-in-out infinite alternate;
+    animation: none;
   }
   .act {
     transition: none;
   }
+  .backdrop,
+  .side.sheet {
+    transition-property: opacity;
+  }
 }
 
-/* CSS-module keyframes are scoped, so each module declares what it uses */
+@media (prefers-reduced-transparency: reduce) {
+  .side.sheet {
+    background: var(--bg);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 @keyframes pulse {
-  from {
-    opacity: 0.35;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0.35; }
+  to { opacity: 1; }
 }

@@ -39,6 +39,7 @@ function Row({
   onStop,
   onDelete,
   onPin,
+  onOpen,
 }: {
   row: SessionRow;
   active: boolean;
@@ -47,6 +48,7 @@ function Row({
   onStop: () => void;
   onDelete: () => void;
   onPin: () => void;
+  onOpen: () => void;
 }) {
   const sid = row.rid ?? row.id;
   // open tabs stream: their busy state is live, not 5s-poll delayed
@@ -61,6 +63,7 @@ function Row({
         className={s.open}
         to={`/s/${sid}` + tokenHash()}
         title={`${row.id.slice(0, 8)} · started ${row.when}`}
+        onClick={onOpen}
       >
         <span className={s.dot}>
           {busy ? <span className={s.busydot}>●</span> : row.live ? "●" : "○"}
@@ -103,6 +106,9 @@ export function Sidebar({
   home,
   active,
   openIds,
+  sheet,
+  open,
+  onDismiss,
   onStop,
   onDelete,
   onPin,
@@ -113,6 +119,9 @@ export function Sidebar({
   home: string;
   active: string;
   openIds: string[];
+  sheet: boolean;
+  open: boolean;
+  onDismiss: () => void;
   onStop: (row: SessionRow) => void;
   onDelete: (row: SessionRow) => void;
   onPin: (row: SessionRow) => void;
@@ -147,18 +156,36 @@ export function Sidebar({
           onStop={() => onStop(r)}
           onDelete={() => onDelete(r)}
           onPin={() => onPin(r)}
+          onOpen={onDismiss}
         />
       ))}
     </div>
   );
 
   return (
-    <nav className={s.side}>
-      <button className={s.new} onClick={onNew}>
-        + new session
-      </button>
-      {!!pinned.length && group("📌 pinned", pinned, true)}
-      {[...groups.entries()].map(([cwd, list]) => group(cwd, list))}
-    </nav>
+    <>
+      <div
+        className={s.backdrop}
+        data-open={(sheet && open) || undefined}
+        onClick={onDismiss}
+        aria-hidden
+      />
+      <nav
+        id="session-sidebar"
+        aria-label="sessions"
+        className={`${s.side}${sheet ? ` ${s.sheet}` : ""}`}
+        data-open={!sheet || open || undefined}
+        inert={sheet && !open}
+      >
+        <TipBtn tip="close sidebar" className={s.dismiss} onClick={onDismiss}>
+          <X size={16} strokeWidth={1.8} aria-hidden />
+        </TipBtn>
+        <button className={s.new} onClick={onNew}>
+          + new session
+        </button>
+        {!!pinned.length && group("📌 pinned", pinned, true)}
+        {[...groups.entries()].map(([cwd, list]) => group(cwd, list))}
+      </nav>
+    </>
   );
 }

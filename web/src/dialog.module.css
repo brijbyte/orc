@@ -1,11 +1,9 @@
-/* Shared Base UI dialog chrome: the directory picker and the delete
-   confirmation both dress their popup with these. */
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgb(0 0 0 / 0.5);
   opacity: 1;
-  transition: opacity 150ms var(--ease-out);
+  transition: opacity 160ms var(--ease-out);
   z-index: 10;
 }
 .overlay[data-starting-style],
@@ -19,18 +17,21 @@
   opacity: 1;
   transform: translate(-50%, -50%);
   transition:
-    opacity 180ms var(--ease-out),
-    transform 180ms var(--ease-out);
+    opacity 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
   z-index: 11;
   width: min(34rem, 90vw);
+  max-height: 90dvh;
+  overflow: auto;
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 0.5rem;
   padding: 0.8rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   color: var(--fg);
+  font-family: var(--font-ui);
 }
 .popup:focus-visible {
   outline: none;
@@ -40,18 +41,13 @@
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.98);
 }
-.popup[data-ending-style] {
-  transition-duration: 120ms;
-}
 .confirm {
   width: min(24rem, 90vw);
 }
 .confirm .foot > :first-child {
   margin-right: 0;
 }
-.head {
-  color: var(--dim);
-}
+.head,
 .desc {
   color: var(--dim);
 }
@@ -59,18 +55,20 @@
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 .foot > :first-child {
-  margin-right: auto; /* new-folder controls sit left, actions right */
+  margin-right: auto;
 }
 .foot button {
+  min-height: var(--hit);
   background: none;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 0.4rem;
   color: var(--dim);
   font: inherit;
-  padding: 0.2rem 0.7rem;
+  padding: 0.2em 0.7em;
   cursor: pointer;
 }
 .foot button:hover {

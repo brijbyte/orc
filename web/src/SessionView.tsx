@@ -1,8 +1,15 @@
-import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useOutletContext, useParams } from "react-router";
 import * as store from "./store";
 
 const fileMax = 16 << 20; // per-file cap, matches the server's request cap
+const hasFiles = (dt: DataTransfer) => dt.types.includes("Files");
 import type { Model } from "./types";
 import { Transcript } from "./Transcript";
 import { InputBar } from "./InputBar";
@@ -23,12 +30,24 @@ export function SessionRoute() {
 export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [complete, setComplete] = useState(false);
   const dragDepth = useRef(0);
+  const wasBusy = useRef(false);
 
   const { blocks, busy, status, err, hasMore, loadingOlder } = useSyncExternalStore(
     useCallback((fn: () => void) => store.subscribe(sid, fn), [sid]),
     useCallback(() => store.snapshot(sid), [sid]),
   );
+
+  useEffect(() => {
+    const didComplete = !busy && wasBusy.current;
+    if (busy) setComplete(false);
+    else if (didComplete) setComplete(true);
+    wasBusy.current = busy;
+    if (!didComplete) return;
+    const timer = window.setTimeout(() => setComplete(false), 1400);
+    return () => clearTimeout(timer);
+  }, [busy]);
 
   const addFiles = (list: FileList | null) => {
     if (!list) return;
@@ -40,15 +59,23 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
   return (
     <div
       className={s.app}
+      data-dragging={dragging || undefined}
       onDragEnter={(e) => {
+        if (!hasFiles(e.dataTransfer)) return;
         e.preventDefault();
         if (++dragDepth.current === 1) setDragging(true);
       }}
-      onDragOver={(e) => e.preventDefault()}
-      onDragLeave={() => {
+      onDragOver={(e) => {
+        if (!hasFiles(e.dataTransfer)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeave={(e) => {
+        if (!hasFiles(e.dataTransfer)) return;
         if (--dragDepth.current === 0) setDragging(false);
       }}
       onDrop={(e) => {
+        if (!hasFiles(e.dataTransfer)) return;
         e.preventDefault();
         dragDepth.current = 0;
         setDragging(false);
@@ -70,6 +97,7 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
           <InputBar
             sid={sid}
             busy={busy}
+            complete={complete}
             files={files}
             setFiles={setFiles}
             addFiles={addFiles}

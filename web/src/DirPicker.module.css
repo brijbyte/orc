@@ -1,11 +1,15 @@
+.popup {
+  font-family: var(--font-mono);
+}
 .path input {
   width: 100%;
+  min-height: var(--hit);
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 0.4rem;
   color: var(--fg);
   font: inherit;
-  padding: 0.25rem 0.5rem;
+  padding: 0.25em 0.5em;
   outline: none;
 }
 .err {
@@ -15,17 +19,18 @@
   max-height: 40vh;
   overflow-y: auto;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 0.4rem;
 }
 .dir {
   display: block;
   width: 100%;
+  min-height: var(--hit);
   text-align: left;
   background: none;
   border: none;
   color: inherit;
   font: inherit;
-  padding: 0.15rem 0.6rem;
+  padding: 0.15em 0.6em;
   cursor: pointer;
 }
 .dir:hover {
@@ -33,12 +38,14 @@
   color: var(--cyan);
 }
 .mkform input {
+  min-height: var(--hit);
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 0.4rem;
   color: var(--fg);
   font: inherit;
-  padding: 0.2rem 0.5rem;
+  padding: 0.2em 0.5em;
   outline: none;
   width: 12rem;
+  max-width: 100%;
 }

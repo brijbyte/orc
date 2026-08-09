@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { PanelLeft } from "lucide-react";
 import {
   Outlet,
   useLoaderData,
@@ -13,6 +19,7 @@ import * as store from "./store";
 import type { Model, SessionRow } from "./types";
 import { Sidebar } from "./Sidebar";
 import { DirPicker } from "./DirPicker";
+import { TipBtn } from "./ui";
 import s from "./App.module.css";
 import d from "./dialog.module.css";
 
@@ -59,6 +66,29 @@ function loadOpen(): string[] {
   return [];
 }
 
+function sessionTitle(row: SessionRow | null): string {
+  const title = (row?.title || row?.id.slice(0, 8) || "session")
+    .replace(/\s+/g, " ")
+    .trim();
+  return title.length > 64 ? title.slice(0, 63) + "…" : title;
+}
+
+const faviconPath = "/favicon.svg";
+let faviconFrames: Promise<string[]> | null = null;
+
+function activityFavicons(): Promise<string[]> {
+  return (faviconFrames ??= fetch(faviconPath)
+    .then((response) => response.text())
+    .then((svg) =>
+      [-16, -8, 0, 8, 16, 8, 0, -8].map((angle) => {
+        const frame = svg
+          .replace(/(<svg[^>]*>)/, `$1<g transform="rotate(${angle} 32 32)">`)
+          .replace("</svg>", "</g></svg>");
+        return `data:image/svg+xml,${encodeURIComponent(frame)}`;
+      }),
+    ));
+}
+
 // App is the layout route: sidebar plus the routed session (Outlet). The
 // active session is /s/:sid; every open tab streams via the store.
 export default function App() {
@@ -70,6 +100,21 @@ export default function App() {
   const [picking, setPicking] = useState(false);
   const [doomed, setDoomed] = useState<SessionRow | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [narrow, setNarrow] = useState(() =>
+    matchMedia("(max-width: 48rem)").matches,
+  );
+  const [sideOpen, setSideOpen] = useState(() =>
+    !matchMedia("(max-width: 48rem)").matches,
+  );
+  const selected = rows.find((r) => sid === r.id || sid === r.rid) ?? null;
+  const pageTitle = selected ? sessionTitle(selected) : "orc";
+  const anyBusy = useSyncExternalStore(
+    useCallback((notify) => {
+      const stops = open.map((id) => store.subscribe(id, notify));
+      return () => stops.forEach((stop) => stop());
+    }, [open]),
+    useCallback(() => open.some((id) => store.snapshot(id).busy), [open]),
+  );
 
   // navigations keep the #token fragment
   const go = useCallback(
@@ -90,14 +135,67 @@ export default function App() {
     return () => clearInterval(iv);
   }, [revalidate]);
 
+  useEffect(() => {
+    const media = matchMedia("(max-width: 48rem)");
+    const resize = () => {
+      setNarrow(media.matches);
+      setSideOpen(!media.matches);
+    };
+    media.addEventListener("change", resize);
+    return () => media.removeEventListener("change", resize);
+  }, []);
+
   // the routed session is an open tab
   useEffect(() => {
     if (sid) setOpen((o) => (o.includes(sid) ? o : [...o, sid]));
-  }, [sid]);
+    if (narrow) setSideOpen(false);
+  }, [sid, narrow]);
 
   useEffect(() => {
     sessionStorage.setItem("orc-tabs", JSON.stringify({ open }));
   }, [open]);
+
+  useEffect(() => {
+    document.title = pageTitle;
+  }, [pageTitle]);
+
+  useEffect(() => {
+    const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (!icon || !anyBusy) {
+      if (icon) icon.href = faviconPath;
+      return;
+    }
+    const media = matchMedia("(prefers-reduced-motion: reduce)");
+    let frames: string[] = [];
+    let frame = 0;
+    let timer = 0;
+    let stopped = false;
+    const start = () => {
+      clearInterval(timer);
+      if (!frames.length) return;
+      if (media.matches) {
+        icon.href = frames[4];
+        return;
+      }
+      const show = () => {
+        icon.href = frames[frame++ % frames.length];
+      };
+      show();
+      timer = window.setInterval(show, 160);
+    };
+    media.addEventListener("change", start);
+    activityFavicons().then((loaded) => {
+      if (stopped) return;
+      frames = loaded;
+      start();
+    });
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      media.removeEventListener("change", start);
+      icon.href = faviconPath;
+    };
+  }, [anyBusy]);
 
   // every open tab streams, mounted or not; the view only subscribes
   useEffect(() => {
@@ -149,16 +247,31 @@ export default function App() {
 
   return (
     <div className={s.shell}>
+      <TipBtn
+        tip={sideOpen ? "hide sessions" : "show sessions"}
+        className={s.menu}
+        aria-controls="session-sidebar"
+        aria-expanded={sideOpen}
+        onClick={() => setSideOpen((open) => !open)}
+      >
+        <PanelLeft size={16} strokeWidth={1.8} aria-hidden />
+      </TipBtn>
       <Sidebar
         rows={rows}
         serverCwd={serverCwd}
         home={home}
         active={sid}
         openIds={open}
+        sheet={narrow}
+        open={sideOpen}
+        onDismiss={() => setSideOpen(false)}
         onStop={onStop}
         onDelete={confirmDelete}
         onPin={onPin}
-        onNew={() => setPicking(true)}
+        onNew={() => {
+          setSideOpen(false);
+          setPicking(true);
+        }}
       />
       <Outlet context={models} />
       <DirPicker
@@ -179,8 +292,7 @@ export default function App() {
               delete session?
             </AlertDialog.Title>
             <AlertDialog.Description className={d.desc}>
-              “{doomed?.title || doomed?.id.slice(0, 8) || "session"}” and its
-              file will be removed.
+              “{sessionTitle(doomed)}” and its file will be removed.
             </AlertDialog.Description>
             <div className={d.foot}>
               <AlertDialog.Close>cancel</AlertDialog.Close>

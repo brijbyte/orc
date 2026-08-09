@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { LoaderCircle, Paperclip } from "lucide-react";
+import { Check, LoaderCircle, Paperclip } from "lucide-react";
 import { api, type AttachedFile } from "./api";
 import { TipBtn } from "./ui";
 import s from "./InputBar.module.css";
@@ -41,12 +41,14 @@ function isEditable(t: EventTarget | null): boolean {
 export function InputBar({
   sid,
   busy,
+  complete,
   files,
   setFiles,
   addFiles,
 }: {
   sid: string;
   busy: boolean;
+  complete: boolean;
   files: File[];
   setFiles: (f: File[]) => void;
   addFiles: (f: FileList | null) => void;
@@ -118,12 +120,26 @@ export function InputBar({
         </div>
       )}
       <div className={s.bar}>
-        <span className={busy ? `${s.prompt} ${s.busy}` : s.prompt}>
+        <span
+          className={
+            busy
+              ? `${s.prompt} ${s.busy}`
+              : complete
+                ? `${s.prompt} ${s.complete}`
+                : s.prompt
+          }
+          aria-hidden
+        >
           {busy ? (
-            <LoaderCircle size={13} strokeWidth={1.8} aria-label="busy" />
+            <LoaderCircle size={13} strokeWidth={1.8} />
+          ) : complete ? (
+            <Check size={13} strokeWidth={2} />
           ) : (
             ">"
           )}
+        </span>
+        <span className={s.live} role="status" aria-live="polite" aria-atomic>
+          {busy ? "Turn in progress" : complete ? "Turn complete" : ""}
         </span>
         {/* the stop button floats over this box, so the textarea keeps the
             full width whether a turn runs or not */}
