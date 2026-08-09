@@ -34,6 +34,8 @@ export const api = {
   pin: (id: string, pinned: boolean) =>
     post(`/api/sessions/${id}/pin`, { pinned }),
   state: (id: string) => get(`/api/sessions/${id}/state`),
+  history: (id: string, before: number) =>
+    get(`/api/sessions/${id}/history?before=${before}`),
   models: () => get("/api/models"),
   dirs: (path?: string) =>
     get(`/api/dirs${path ? `?path=${encodeURIComponent(path)}` : ""}`),

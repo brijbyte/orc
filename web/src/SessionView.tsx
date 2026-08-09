@@ -25,7 +25,7 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
   const [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0);
 
-  const { blocks, busy, status, err } = useSyncExternalStore(
+  const { blocks, busy, status, err, hasMore, loadingOlder } = useSyncExternalStore(
     useCallback((fn: () => void) => store.subscribe(sid, fn), [sid]),
     useCallback(() => store.snapshot(sid), [sid]),
   );
@@ -61,7 +61,12 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
         <div className={s.loader}>🧌 loading session…</div>
       ) : (
         <>
-          <Transcript sid={sid} blocks={blocks} />
+          <Transcript
+            sid={sid}
+            blocks={blocks}
+            hasMore={hasMore}
+            loadingOlder={loadingOlder}
+          />
           <InputBar
             sid={sid}
             busy={busy}

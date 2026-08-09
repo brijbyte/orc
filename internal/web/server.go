@@ -3,10 +3,10 @@ package web
 import (
 	"context"
 	"crypto/rand"
-	"encoding/base64"
 	"crypto/subtle"
 	"crypto/tls"
 	"embed"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -258,9 +258,24 @@ func (s *Server) handlePin(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+const historyPageSize = 75
+
 func (s *Server) handleState(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
-	events, busy, status := rt.IO.hub.snapshot()
-	writeJSON(rw, map[string]any{"events": events, "busy": busy, "status": status})
+	events, before, last, more, busy, status := rt.IO.hub.page(0, historyPageSize)
+	writeJSON(rw, map[string]any{
+		"events": events, "before": before, "last_id": last, "has_more": more,
+		"busy": busy, "status": status,
+	})
+}
+
+func (s *Server) handleHistory(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
+	before, err := strconv.ParseInt(r.URL.Query().Get("before"), 10, 64)
+	if err != nil || before < 1 {
+		http.Error(rw, "bad cursor", http.StatusBadRequest)
+		return
+	}
+	events, cursor, _, more, _, _ := rt.IO.hub.page(before, historyPageSize)
+	writeJSON(rw, map[string]any{"events": events, "before": cursor, "has_more": more})
 }
 
 func (s *Server) handleEvents(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
@@ -433,6 +448,7 @@ func (s *Server) mux() *http.ServeMux {
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.auth(s.handleCloseSession))
 	mux.HandleFunc("POST /api/sessions/{id}/pin", s.auth(s.handlePin))
 	mux.HandleFunc("GET /api/sessions/{id}/state", s.auth(s.withRuntime(s.handleState)))
+	mux.HandleFunc("GET /api/sessions/{id}/history", s.auth(s.withRuntime(s.handleHistory)))
 	mux.HandleFunc("GET /api/sessions/{id}/events", s.auth(s.withRuntime(s.handleEvents)))
 	mux.HandleFunc("POST /api/sessions/{id}/input", s.auth(s.withRuntime(s.handleInput)))
 	mux.HandleFunc("POST /api/sessions/{id}/interrupt", s.auth(s.withRuntime(s.handleInterrupt)))

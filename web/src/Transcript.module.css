@@ -13,3 +13,13 @@
   max-width: 60rem;
   margin: 0 auto 1.1rem;
 }
+.loading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  width: fit-content;
+  height: 0;
+  margin: 0 auto;
+  color: var(--dim);
+  background: var(--bg);
+}

@@ -65,6 +65,57 @@ func (h *hub) snapshot() (evs []Event, busy bool, status string) {
 	return append([]Event{}, h.events...), h.busy, h.status
 }
 
+// page returns complete display blocks before the given event ID. A zero
+// before value selects the newest page.
+func (h *hub) page(before int64, limit int) (evs []Event, cursor, last int64, more, busy bool, status string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	end := len(h.events)
+	if before > 0 && before-1 < int64(end) {
+		end = int(before - 1)
+	}
+	starts := blockStarts(h.events[:end])
+	start := 0
+	if len(starts) > limit {
+		start = starts[len(starts)-limit]
+		more = true
+	}
+	evs = append(evs, h.events[start:end]...)
+	if len(evs) > 0 {
+		cursor = evs[0].ID
+	}
+	return evs, cursor, int64(len(h.events)), more, h.busy, h.status
+}
+
+func blockStarts(events []Event) []int {
+	var starts []int
+	last := ""
+	assistantOpen := false
+	for i, ev := range events {
+		switch ev.Type {
+		case "user", "pending", "tool", "notice":
+			starts = append(starts, i)
+			last, assistantOpen = ev.Type, false
+		case "delta":
+			if last != "assistant" || !assistantOpen {
+				starts = append(starts, i)
+			}
+			last, assistantOpen = "assistant", true
+		case "think":
+			if last != "think" {
+				starts = append(starts, i)
+			}
+			last, assistantOpen = "think", false
+		case "turn_end":
+			if last == "assistant" {
+				assistantOpen = false
+			}
+		}
+	}
+	return starts
+}
+
 func (h *hub) setBusy(b bool) {
 	h.mu.Lock()
 	h.busy = b

@@ -10,22 +10,33 @@ export type SessionState = {
   busy: boolean;
   status: string;
   err: string;
+  hasMore: boolean;
+  loadingOlder: boolean;
 };
 
 type Entry = {
   state: SessionState;
+  events: Ev[];
+  before: number;
   es?: EventSource;
   subs: Set<() => void>;
   ready?: Promise<void>; // resolves once the seed from /state is applied
 };
 
 const entries = new Map<string, Entry>();
-const initial: SessionState = { blocks: null, busy: false, status: "", err: "" };
+const initial: SessionState = {
+  blocks: null,
+  busy: false,
+  status: "",
+  err: "",
+  hasMore: false,
+  loadingOlder: false,
+};
 
 function entry(sid: string): Entry {
   let e = entries.get(sid);
   if (!e) {
-    e = { state: initial, subs: new Set() };
+    e = { state: initial, events: [], before: 0, subs: new Set() };
     entries.set(sid, e);
   }
   return e;
@@ -45,6 +56,7 @@ export function ensure(sid: string, onOpened?: () => void): Promise<void> {
   let lastID = 0;
   const onEvent = (ev: Ev) => {
     lastID = ev.id;
+    e.events.push(ev);
     if (ev.type === "busy") set(e, { busy: ev.data.busy });
     else if (ev.type === "status") set(e, { status: ev.data.text });
     else set(e, { blocks: apply([...(e.state.blocks ?? [])], ev) });
@@ -57,16 +69,45 @@ export function ensure(sid: string, onOpened?: () => void): Promise<void> {
     })
     .then((state) => {
       const seed: Block[] = [];
-      for (const ev of state.events ?? []) {
-        lastID = ev.id;
+      e.events = state.events ?? [];
+      e.before = state.before ?? 0;
+      lastID = state.last_id ?? 0;
+      for (const ev of e.events) {
         if (ev.type !== "busy" && ev.type !== "status") apply(seed, ev);
       }
-      set(e, { blocks: seed, busy: !!state.busy, status: state.status ?? "" });
+      set(e, {
+        blocks: seed,
+        busy: !!state.busy,
+        status: state.status ?? "",
+        hasMore: !!state.has_more,
+      });
       e.es = api.events(sid, lastID);
       e.es.onmessage = (m) => onEvent(JSON.parse(m.data));
     })
     .catch(() => set(e, { err: "cannot open this session" }));
   return e.ready;
+}
+
+export function loadOlder(sid: string): Promise<void> {
+  const e = entry(sid);
+  if (!e.state.hasMore || e.state.loadingOlder || !e.before) return Promise.resolve();
+  set(e, { loadingOlder: true });
+  return api
+    .history(sid, e.before)
+    .then((page) => {
+      const byID = new Map<number, Ev>();
+      for (const ev of [...(page.events ?? []), ...e.events]) byID.set(ev.id, ev);
+      e.events = [...byID.values()].sort((a, b) => a.id - b.id);
+      e.before = page.before ?? e.before;
+      const blocks: Block[] = [];
+      for (const ev of e.events) apply(blocks, ev);
+      set(e, {
+        blocks,
+        hasMore: !!page.has_more,
+        loadingOlder: false,
+      });
+    })
+    .catch(() => set(e, { loadingOlder: false }));
 }
 
 // drop closes the stream and forgets the state (tab closed, not the runtime).

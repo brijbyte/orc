@@ -1,6 +1,6 @@
 export type Ev = { id: number; type: string; data: any };
 
-export type Block =
+export type Block = { id: number } & (
   | { kind: "user" | "pending" | "notice" | "think"; text: string }
   | { kind: "assistant"; text: string; open: boolean }
   | {
@@ -10,7 +10,8 @@ export type Block =
       preview: string;
       html?: string[];
       copy?: string;
-    };
+    }
+);
 
 export type Model = { slug: string; description: string };
 
