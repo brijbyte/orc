@@ -1,6 +1,6 @@
 #include "commands.h"
 #include "ansi.h"
-#include "input.h"
+#include "ui.h"
 #include "session.h"
 #include "util.h"
 
@@ -108,7 +108,7 @@ void commands_status_update(void) {
             snprintf(s + n, sizeof s - (size_t)n, " (%lld%%)",
                      (ctx_used * 100 + win - 1) / win); /* ceil: never 0% */
     }
-    input_status_set(s);
+    ui_status_set(s);
 }
 
 void commands_ctx_used(long long tokens) {

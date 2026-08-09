@@ -4,7 +4,7 @@
 
 #include "loop.h"
 #include "event.h"
-#include "input.h"
+#include "ui.h"
 #include "orc.h"
 
 #include <fcntl.h>
@@ -26,7 +26,7 @@ static void on_sigint(uv_signal_t *handle, int signum) {
 static void on_sigwinch(uv_signal_t *handle, int signum) {
     (void)handle;
     (void)signum;
-    input_resize();
+    ui_input_resize();
 }
 
 static void on_input(uv_poll_t *handle, int status, int events) {
@@ -36,7 +36,7 @@ static void on_input(uv_poll_t *handle, int status, int events) {
 
 static void on_animation(uv_timer_t *handle) {
     (void)handle;
-    input_tick();
+    ui_input_tick();
 }
 
 int loop_init(void) {

@@ -1,7 +1,6 @@
 #include "agent.h"
 #include "ansi.h"
 #include "commands.h"
-#include "input.h"
 #include "loop.h"
 #include "orc.h"
 #include "process.h"
@@ -198,18 +197,18 @@ int main(int argc, char **argv) {
         if (do_resume) agent_replay(&ag);
         if (sess.ctx > 0) commands_ctx_used(sess.ctx);
         commands_status_update();
-        input_init();
+        ui_input_init();
         loop_input_start();
-        if (input_active()) {
+        if (ui_input_active()) {
             /* Event-loop REPL: lines typed while a turn runs are queued. */
             for (;;) {
                 g_interrupt = 0;
-                input_wait();
+                ui_input_wait();
                 if (g_interrupt) { g_interrupt = 0; continue; }
                 int queued = 0;
-                char *line = input_take(&queued);
+                char *line = ui_input_take(&queued);
                 if (!line) {
-                    if (input_eof()) break;
+                    if (ui_input_eof()) break;
                     continue;
                 }
                 if (strcmp(line, "exit") == 0 || strcmp(line, "quit") == 0) {
@@ -217,24 +216,24 @@ int main(int argc, char **argv) {
                     break;
                 }
                 if (queued) { /* replay so it's clear what runs now */
-                    input_erase();
+                    ui_output_suspend();
                     printf(BOLD_CYAN(">") " " ANSI_CYAN "%s" ANSI_RESET "\n",
                            line);
-                    input_redraw();
+                    ui_output_resume();
                 }
                 if (line[0] == '/') {
-                    input_erase();
+                    ui_output_suspend();
                     int cd = command_dispatch(&ag, line);
-                    input_redraw();
+                    ui_output_resume();
                     if (cd) {
                         free(line);
                         if (cd == 2) break;
                         continue;
                     }
                 }
-                input_set_idle(0);
+                ui_input_set_idle(0);
                 agent_turn(&ag, line);
-                input_set_idle(1);
+                ui_input_set_idle(1);
                 free(line);
             }
         } else { /* stdin is a pipe: plain blocking reads */

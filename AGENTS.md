@@ -20,9 +20,8 @@ Minimal C coding-agent harness. Keep the code and model-facing text terse.
   `src/skills.c` discovers and searches skills for the `skill` tool.
 - `src/instructions.c` builds agent instructions on the first turn, not at
   startup.
-- `src/commands.c` implements slash commands. `src/input.c` owns line editing,
-  the `/` menu, input queues, and the spinner. `src/ui.c` owns agent output and
-  terminal rendering.
+- `src/commands.c` implements slash commands. `src/ui.c` owns ncurses input,
+  the `/` menu, input queues, agent output, and terminal rendering.
 
 ## Codex invariants
 
@@ -38,10 +37,9 @@ Minimal C coding-agent harness. Keep the code and model-facing text terse.
 ## Conventions
 
 - Use C11 and keep `-Wall -Wextra` clean.
-- `vendor/` is gitignored and fetched at build time. The linenoise fork is
-  tracked in `third_party/linenoise/`; keep its `UPSTREAM.md` current.
+- `vendor/` is gitignored and fetched at build time.
 - Spell ANSI escapes in `src/ansi.h`. Emit styles only when the stream is a
-  TTY. Prompts may contain SGR escapes; linenoise skips them in width math.
-- Terminal output during a turn must use whole lines between `input_erase()`
-  and `input_redraw()`.
+  TTY.
+- Terminal output during a turn must use whole lines between
+  `ui_output_suspend()` and `ui_output_resume()`.
 - Return tool errors as model output. Do not abort the agent.

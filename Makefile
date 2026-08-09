@@ -1,7 +1,7 @@
 CC ?= cc
 STRIP ?= strip
 CPPFLAGS += -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700 \
-            -Ithird_party/linenoise -Ivendor -Isrc
+            -Ivendor -Isrc
 CFLAGS ?= -O2
 CFLAGS += -std=c11 -Wall -Wextra
 
@@ -28,11 +28,11 @@ export MACOSX_DEPLOYMENT_TARGET  # vendor sub-builds (mbedTLS, curl) honor it
 endif
 
 OBJS = src/main.o src/agent.o src/provider.o src/providers/codex.o src/http.o \
-       src/tools.o src/process.o src/skills.o src/session.o src/render.o src/input.o src/event.o src/loop.o src/ui.o \
+       src/tools.o src/process.o src/skills.o src/session.o src/render.o src/event.o src/loop.o src/ui.o \
        src/commands.o src/util.o src/auth.o src/instructions.o \
        vendor/cJSON.o vendor/md4c.o vendor/timestamp_parse.o \
        vendor/timestamp_format.o vendor/timestamp_valid.o \
-       third_party/linenoise/linenoise.o vendor/utf8proc.o
+       vendor/utf8proc.o
 
 # libcurl is embedded statically (with mbedTLS) so the binary has no deps
 # beyond libc/pthread. `make SYSTEM_CURL=1` links the system libcurl instead.
@@ -54,7 +54,10 @@ ifeq ($(UNAME_S),Darwin)
 LDLIBS += -framework CoreFoundation -framework SystemConfiguration
 endif
 endif
-LDLIBS += $(UV_A)
+NCURSES_CFLAGS := $(shell pkg-config --cflags ncursesw 2>/dev/null)
+NCURSES_LIBS := $(shell pkg-config --libs ncursesw 2>/dev/null || echo -lncurses)
+CPPFLAGS += $(NCURSES_CFLAGS) -D_XOPEN_SOURCE_EXTENDED=1
+LDLIBS += $(UV_A) $(NCURSES_LIBS)
 ifneq ($(UNAME_S),Darwin)
 LDLIBS += -ldl -lrt -lpthread
 endif
@@ -150,9 +153,8 @@ vendor/md4c.o: vendor/md4c.c vendor/md4c.h
 vendor/utf8proc.o: vendor/utf8proc.c vendor/utf8proc.h vendor/utf8proc_data.c
 vendor/timestamp_parse.o vendor/timestamp_format.o vendor/timestamp_valid.o: \
 	vendor/timestamp.h
-third_party/linenoise/linenoise.o: CPPFLAGS += -include strings.h  # strcasecmp under POSIX
 $(OBJS): vendor/cJSON.h vendor/md4c.h vendor/utf8proc.h vendor/timestamp.h \
-	third_party/linenoise/linenoise.h $(firstword $(MBED_A)) $(CURL_A) $(UV_A)
+	$(firstword $(MBED_A)) $(CURL_A) $(UV_A)
 
 PREFIX ?= /usr/local
 install: $(DEBUG_BIN)

@@ -70,14 +70,9 @@ the `TAP_PUSH_TOKEN` secret (a PAT with push access to
 The REPL stays responsive while the agent works: keep typing and press Enter
 to queue the next prompt (it runs when the current turn finishes, marked
 `↳ queued`), Ctrl-C interrupts the current turn, and lines get editing +
-history (linenoise, persisted at `<orc home>/history`). Esc also cancels the
+history (ncurses, persisted at `<orc home>/history`). Esc also cancels the
 running turn — keeping the typed line, unlike Ctrl-C — but closes an open
-menu first. Shift+Enter (in
-terminals that send CSI-u or modifyOtherKeys encodings) or Ctrl-J inserts a
-soft line break, shown inline as `[\n]`; multi-line pastes are folded the
-same way.
-
-Slash commands: `/model [slug]`, `/effort low|medium|high`, `/new` (fresh
+menu first. Slash commands: `/model [slug]`, `/effort low|medium|high`, `/new` (fresh
 session), `/help`, `/quit`. Typing `/` shows a live candidate list under the
 input line; Up/Down move the selection, Enter runs it, Tab completes, Esc
 closes the menu (history recall also keeps it closed). Bare
@@ -126,7 +121,7 @@ src/main.c            CLI and REPL            src/tools.c    tool dispatch
 src/loop.c            central libuv loop       src/process.c  managed processes
 src/agent.c           agentic loop             src/session.c  JSONL persistence
 src/provider.c        provider registry       src/render.c   ANSI markdown
-src/providers/codex.c Codex auth+request+SSE  src/input.c    async line editor
+src/providers/codex.c Codex auth+request+SSE  src/ui.c       ncurses input + output
 src/http.c            libcurl + SSE framing   src/util.c     strbuf, base64url, ...
                                               vendor/        cJSON, md4c, ...
 ```
