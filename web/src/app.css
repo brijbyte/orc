@@ -53,6 +53,14 @@ main > div {
 .tool {
   color: var(--dim);
 }
+.tool-line {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+}
+.tool-line svg {
+  flex-shrink: 0;
+}
 .diff {
   margin: 0.2rem 0 0;
   overflow-x: auto;
@@ -101,9 +109,13 @@ form {
 form .bar {
   display: flex;
   gap: 0.5rem;
-  align-items: center;
+  align-items: flex-start;
   max-width: 60rem;
   margin: 0 auto;
+}
+form .bar .prompt,
+form .bar button {
+  line-height: 1.5; /* align with the textarea's first line */
 }
 .prompt {
   color: var(--cyan);
@@ -112,13 +124,16 @@ form .bar {
 .prompt.busy {
   color: var(--dim);
 }
-form input {
+form textarea {
   flex: 1;
   background: none;
   border: none;
   outline: none;
   color: var(--fg);
   font: inherit;
+  resize: none;
+  max-height: 12rem;
+  overflow-y: auto;
 }
 form button {
   background: none;

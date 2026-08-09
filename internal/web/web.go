@@ -50,7 +50,8 @@ func (w *IO) TurnEnd()               { w.hub.emit("turn_end", struct{}{}) }
 
 func (w *IO) ToolCall(name, argsJSON string) {
 	w.hub.emit("tool", map[string]string{
-		"line": ui.ToolLine(name, argsJSON, false),
+		"name": name,
+		"desc": ui.ToolDesc(name, argsJSON),
 		"diff": ui.EditDiff(name, argsJSON, false),
 	})
 }

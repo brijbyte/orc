@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import {
+  BookOpen,
+  Brain,
+  Cog,
+  FilePen,
+  Pencil,
+  SquareTerminal,
+  Wrench,
+} from "lucide-react";
 
 const token = window.location.hash.slice(1);
 
@@ -8,7 +17,16 @@ type Ev = { id: number; type: string; data: any };
 type Block =
   | { kind: "user" | "pending" | "notice" | "think"; text: string }
   | { kind: "assistant"; text: string; open: boolean }
-  | { kind: "tool"; line: string; diff: string };
+  | { kind: "tool"; name: string; desc: string; diff: string };
+
+const toolIcons: Record<string, typeof Wrench> = {
+  bash: SquareTerminal,
+  process: Cog,
+  read: BookOpen,
+  write: FilePen,
+  edit: Pencil,
+  skill: Brain,
+};
 
 // apply folds one event into the block list (mutates and returns it).
 function apply(blocks: Block[], ev: Ev): Block[] {
@@ -37,7 +55,12 @@ function apply(blocks: Block[], ev: Ev): Block[] {
       if (last?.kind === "assistant") last.open = false;
       break;
     case "tool":
-      blocks.push({ kind: "tool", line: ev.data.line, diff: ev.data.diff });
+      blocks.push({
+        kind: "tool",
+        name: ev.data.name,
+        desc: ev.data.desc,
+        diff: ev.data.diff,
+      });
       break;
     case "notice":
       blocks.push({ kind: "notice", text: ev.data.text });
@@ -68,13 +91,20 @@ function BlockView({ b }: { b: Block }) {
       return <div className="think">{b.text}</div>;
     case "notice":
       return <div className="notice">{b.text}</div>;
-    case "tool":
+    case "tool": {
+      const Icon = toolIcons[b.name] ?? Wrench;
       return (
         <div className="tool">
-          <div>{b.line}</div>
+          <div className="tool-line">
+            <Icon size={14} strokeWidth={1.8} aria-hidden />
+            <span>
+              {b.name} {b.desc}
+            </span>
+          </div>
           {b.diff && <Diff diff={b.diff} />}
         </div>
       );
+    }
     case "assistant":
       return (
         <div className="assistant">
@@ -128,11 +158,22 @@ export default function App() {
     if (stick.current) bottom.current?.scrollIntoView();
   }, [blocks]);
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // grow with content, up to the CSS max-height
+  const autosize = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  };
+
+  const submit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     const text = input.trim();
     if (!text) return;
     setInput("");
+    requestAnimationFrame(autosize);
     fetch(`/api/input`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
@@ -165,10 +206,22 @@ export default function App() {
       <form onSubmit={submit}>
         <div className="bar">
           <span className={busy ? "prompt busy" : "prompt"}>{busy ? "⠋" : ">"}</span>
-          <input
+          <textarea
+            ref={inputRef}
+            rows={1}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Escape" && busy && interrupt()}
+            onChange={(e) => {
+              setInput(e.target.value);
+              autosize();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              } else if (e.key === "Escape" && busy) {
+                interrupt();
+              }
+            }}
             placeholder={busy ? "queue a message… (Esc interrupts)" : "message orc"}
             autoFocus
           />

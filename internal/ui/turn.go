@@ -154,8 +154,8 @@ func displayPath(path string) string {
 	return path
 }
 
-// ToolLine formats the dim one-liner shown for a tool call.
-func ToolLine(name, argsJSON string, tty bool) string {
+// ToolDesc summarizes a tool call's arguments (command or path).
+func ToolDesc(name, argsJSON string) string {
 	var args struct {
 		Cmd  string `json:"cmd"`
 		Path string `json:"path"`
@@ -168,7 +168,12 @@ func ToolLine(name, argsJSON string, tty bool) string {
 	if len(desc) > 100 {
 		desc = desc[:100]
 	}
-	line := fmt.Sprintf("%s %s %s", toolIcon(name), name, desc)
+	return desc
+}
+
+// ToolLine formats the dim one-liner shown for a tool call.
+func ToolLine(name, argsJSON string, tty bool) string {
+	line := fmt.Sprintf("%s %s %s", toolIcon(name), name, ToolDesc(name, argsJSON))
 	if tty {
 		return styleDim.Render(line)
 	}
