@@ -48,7 +48,7 @@ func (j *job) state() (running bool, exit, sig int) {
 	return j.running, j.exit, j.signal
 }
 
-func processStart(cmd string) string {
+func processStart(cwd, cmd string) string {
 	jobsMu.Lock()
 	id := fmt.Sprintf("job-%d", nextID)
 	nextID++
@@ -62,6 +62,7 @@ func processStart(cmd string) string {
 		return "error: cannot create process log"
 	}
 	c := exec.Command("/bin/sh", "-c", cmd)
+	c.Dir = cwd
 	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	c.Stdout = logFile
 	c.Stderr = logFile

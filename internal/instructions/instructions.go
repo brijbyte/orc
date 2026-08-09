@@ -4,6 +4,7 @@ package instructions
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -26,8 +27,10 @@ func appendAgents(sb *strings.Builder, path string) {
 	}
 }
 
-func Build() string {
-	cwd, _ := os.Getwd()
+func Build(cwd string) string {
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
 	var sb strings.Builder
 	fmt.Fprintf(&sb,
 		"You are orc, a terse coding agent running in a terminal at %s on %s %s. "+
@@ -36,7 +39,7 @@ func Build() string {
 			"Keep answers short; no preamble, no summaries of what you did unless asked.",
 		cwd, sysname(), runtime.GOARCH)
 	appendAgents(&sb, config.ExpandHome("~/.agents/AGENTS.md"))
-	appendAgents(&sb, "AGENTS.md")
+	appendAgents(&sb, filepath.Join(cwd, "AGENTS.md"))
 	return sb.String()
 }
 

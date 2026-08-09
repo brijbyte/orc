@@ -56,6 +56,7 @@ export function BlockView({ b }: { b: Block }) {
       );
     case "tool": {
       const Icon = toolIcons[b.name] ?? Wrench;
+      const bash = b.name === "bash";
       return (
         <div className="tool">
           <div className="tool-line">
@@ -64,7 +65,14 @@ export function BlockView({ b }: { b: Block }) {
               {b.name} {b.desc}
             </span>
           </div>
-          {(b.preview || b.html) && <Preview text={b.preview} html={b.html} />}
+          {(b.preview || b.html) && (
+            <Preview
+              text={b.preview}
+              html={b.html}
+              gutter={!bash}
+              max={bash ? 5 : 20}
+            />
+          )}
           <CopyBtn text={b.copy ?? b.desc} />
         </div>
       );

@@ -1,94 +1,148 @@
-import {
-  Component,
-  Suspense,
-  use,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import { api } from "./api";
-import { apply } from "./events";
-import type { Block, Ev, Model } from "./types";
-import { Transcript } from "./Transcript";
-import { InputBar } from "./InputBar";
-import { StatusBar } from "./StatusBar";
+import { useCallback, useEffect, useState } from "react";
+import { api, hashSession, setHashSession } from "./api";
+import type { Model, SessionRow } from "./types";
+import { SessionView } from "./SessionView";
+import { Sidebar } from "./Sidebar";
+import { DirPicker } from "./DirPicker";
 
-// One-shot init: fires at module load so the fetch overlaps the first
-// render; Session suspends on it.
-const initPromise = Promise.all([
-  api.state(),
-  api.models().catch(() => ({ models: [] as Model[] })),
-]);
+// Open tabs survive a reload in this browser tab.
+function loadTabs(): { open: string[]; active: string } {
+  try {
+    const t = JSON.parse(sessionStorage.getItem("orc-tabs") ?? "");
+    if (Array.isArray(t.open)) return { open: t.open, active: t.active ?? "" };
+  } catch {
+    /* first visit */
+  }
+  return { open: [], active: "" };
+}
 
-// Session owns the live state: the event stream feeding the block list,
-// busy/status flags, and the model list for the status bar.
-function Session() {
-  const [state, modelsData] = use(initPromise);
+// App manages the session list, the set of open (mounted) sessions, and the
+// directory picker for new sessions. Each open session keeps its own SSE
+// stream; the sidebar switches which one is visible.
+export default function App() {
+  const [rows, setRows] = useState<SessionRow[]>([]);
+  const [serverCwd, setServerCwd] = useState("");
+  const [home, setHome] = useState("");
+  const [dead, setDead] = useState(false);
+  const [models, setModels] = useState<Model[]>([]);
+  const [tabs, setTabs] = useState(() => {
+    const t = loadTabs();
+    const h = hashSession();
+    if (h && !t.open.includes(h)) t.open = [...t.open, h];
+    if (h) t.active = h;
+    return t;
+  });
+  const [picking, setPicking] = useState(false);
 
-  const folded = useMemo(() => {
-    const blocks: Block[] = [];
-    let lastID = 0;
-    for (const ev of state.events ?? []) {
-      lastID = ev.id;
-      if (ev.type !== "busy" && ev.type !== "status") apply(blocks, ev);
-    }
-    return { blocks, lastID };
-  }, [state]);
-
-  const [blocks, setBlocks] = useState<Block[]>(folded.blocks);
-  const [busy, setBusy] = useState(!!state.busy);
-  const [status, setStatus] = useState(state.status ?? "");
-  const [models] = useState<Model[]>(modelsData.models ?? []);
-  const lastID = useRef(folded.lastID);
-
-  const onEvent = useCallback((ev: Ev) => {
-    lastID.current = ev.id;
-    if (ev.type === "busy") setBusy(ev.data.busy);
-    else if (ev.type === "status") setStatus(ev.data.text);
-    else setBlocks((prev) => apply([...prev], ev));
+  const refresh = useCallback(() => {
+    api
+      .sessions()
+      .then((d) => {
+        setRows(d.sessions ?? []);
+        setServerCwd(d.cwd ?? "");
+        setHome(d.home ?? "");
+        setDead(false);
+      })
+      .catch(() => setDead(true));
   }, []);
 
   useEffect(() => {
-    const es = api.events(lastID.current);
-    es.onmessage = (m) => onEvent(JSON.parse(m.data));
-    return () => es.close();
-  }, [onEvent]);
+    refresh();
+    const iv = setInterval(refresh, 5000);
+    return () => clearInterval(iv);
+  }, [refresh]);
+
+  useEffect(() => {
+    api.models().then((d) => setModels(d.models ?? [])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem("orc-tabs", JSON.stringify(tabs));
+    setHashSession(tabs.active);
+  }, [tabs]);
+
+  const activate = useCallback((id: string) => {
+    setTabs((t) => ({
+      open: t.open.includes(id) ? t.open : [...t.open, id],
+      active: id,
+    }));
+  }, []);
+
+  const onOpen = (row: SessionRow) => {
+    // A live runtime may already hold this session under its own handle.
+    activate(row.rid ?? row.id);
+  };
+
+  const closeTab = (row: SessionRow) => {
+    setTabs((t) => {
+      const open = t.open.filter((x) => x !== row.id && x !== row.rid);
+      const gone = t.active === row.id || t.active === row.rid;
+      return { open, active: gone ? (open[0] ?? "") : t.active };
+    });
+  };
+
+  const onStop = (row: SessionRow) => {
+    api.stop(row.rid ?? row.id).finally(refresh);
+    closeTab(row);
+  };
+
+  const onDelete = (row: SessionRow) => {
+    const name = row.title || row.id.slice(0, 8);
+    if (!window.confirm(`Delete session "${name}" and its file?`)) return;
+    api.remove(row.id).finally(refresh);
+    closeTab(row);
+  };
+
+  const onNew = (cwd: string) => {
+    setPicking(false);
+    api
+      .create(cwd)
+      .then((d) => {
+        activate(d.id);
+        refresh();
+      })
+      .catch(() => {});
+  };
+
+  if (dead)
+    return (
+      <div className="dead">
+        🧌 cannot reach orc — is it still running? (check the URL token)
+      </div>
+    );
 
   return (
-    <div className="app">
-      <Transcript blocks={blocks} />
-      <InputBar busy={busy} />
-      <StatusBar status={status} models={models} />
+    <div className="shell">
+      <Sidebar
+        rows={rows}
+        serverCwd={serverCwd}
+        home={home}
+        active={tabs.active}
+        openIds={tabs.open}
+        onOpen={onOpen}
+        onStop={onStop}
+        onDelete={onDelete}
+        onNew={() => setPicking(true)}
+      />
+      {tabs.open.map((sid) => (
+        <SessionView
+          key={sid}
+          sid={sid}
+          visible={sid === tabs.active}
+          models={models}
+          onOpened={refresh}
+        />
+      ))}
+      {tabs.open.length === 0 && (
+        <div className="empty">🧌 pick a session on the left, or start one</div>
+      )}
+      {picking && (
+        <DirPicker
+          start={serverCwd}
+          onPick={onNew}
+          onCancel={() => setPicking(false)}
+        />
+      )}
     </div>
-  );
-}
-
-// Boundary catches a rejected init (bad token, server gone).
-class Boundary extends Component<{ children: ReactNode }, { err: boolean }> {
-  state = { err: false };
-  static getDerivedStateFromError() {
-    return { err: true };
-  }
-  render() {
-    if (this.state.err)
-      return (
-        <div className="dead">
-          🧌 cannot reach orc — is it still running? (check the URL token)
-        </div>
-      );
-    return this.props.children;
-  }
-}
-
-export default function App() {
-  return (
-    <Boundary>
-      <Suspense fallback={<div className="loader">🧌 loading session…</div>}>
-        <Session />
-      </Suspense>
-    </Boundary>
   );
 }

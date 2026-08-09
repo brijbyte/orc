@@ -90,6 +90,7 @@ func run(opts *options, model, effort, providerName string, effortExplicit bool)
 		Effort:    effort,
 		SessionID: uuid.NewString(),
 	}
+	cfg.Cwd, _ = os.Getwd()
 	if providerName != "" {
 		cfg.Provider = providerName
 	}
@@ -110,7 +111,7 @@ func run(opts *options, model, effort, providerName string, effortExplicit bool)
 	}
 
 	if opts.doList {
-		rows, err := session.List()
+		rows, err := session.List(cfg.Cwd)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
 			return 1
@@ -269,28 +270,21 @@ func runPipe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 		}
 		stop()
 	}
+	if err := sc.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "❌ orc: stdin: %v\n", err)
+		return 1
+	}
 	fmt.Println()
 	return 0
 }
 
-// runServe drives the agent from the web UI: same loop as the TUI driver,
-// input and output travel over HTTP instead of the terminal.
+// runServe hosts the multi-session web UI: the initial session becomes the
+// first runtime; browsers list, open, and start sessions over the API.
 func runServe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 	resumed []json.RawMessage, opts *options) int {
-	w := web.NewIO()
-	cmds := commands.New(prov, cfg, w)
-	w.SetCommands(cmds)
-	ag := agent.New(cfg, prov, sess, resumed, w)
-	if opts.doResume {
-		ag.Replay() // seed the event log so browsers render the history
-	}
-	cmds.Models() // prefetch: /api/models reads the cached list
-	if sess.Ctx > 0 {
-		cmds.CtxUsed(sess.Ctx) // resumed session: seed the context gauge
-	}
-	cmds.StatusUpdate()
+	srv := web.NewServer(prov, cfg, opts.serveAddr, opts.domain)
+	srv.Register(web.NewRuntime(prov, cfg, sess, resumed, opts.doResume))
 
-	srv := &web.Server{IO: w, Addr: opts.serveAddr, Domain: opts.domain}
 	url, err := srv.Start(func(s string) { fmt.Println(s) })
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
@@ -301,74 +295,10 @@ func runServe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 		ui.PrintLoginHint(prov.Name())
 	}
 
-	// Ctrl-C ends the input queue; the driver loop then drains out.
+	// Ctrl-C stops the server and every runtime.
 	sig, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	go func() {
-		<-sig.Done()
-		w.Interrupt()
-		w.Close()
-	}()
-
-	for {
-		line, queued, ok := w.WaitTake()
-		if !ok {
-			break
-		}
-		if line == "exit" || line == "quit" {
-			break
-		}
-		if queued {
-			w.EchoQueued(line)
-		}
-		if strings.TrimSpace(line) == "/login" {
-			ctx, cancel := context.WithCancel(sig)
-			w.SetCancel(cancel)
-			w.SetBusy(true)
-			err := prov.Login(ctx, w.Notice)
-			w.SetBusy(false)
-			w.SetCancel(nil)
-			cancel()
-			if err != nil {
-				w.Printf("❌ orc: %v", err)
-			}
-			continue
-		}
-		if strings.TrimSpace(line) == "/compact" {
-			ctx, cancel := context.WithCancel(sig)
-			w.SetCancel(cancel)
-			w.SetBusy(true)
-			err := ag.Compact(ctx)
-			w.SetBusy(false)
-			w.SetCancel(nil)
-			cancel()
-			if err != nil && !errors.Is(err, provider.ErrInterrupted) {
-				w.Printf("❌ orc: %v", err)
-			}
-			continue
-		}
-		if strings.HasPrefix(line, "/") {
-			handled, quit, prompt := cmds.Dispatch(ag, line)
-			if quit {
-				break
-			}
-			if prompt == "" && handled {
-				continue
-			}
-			line = prompt // custom command: run its prompt as the turn
-		}
-		ctx, cancel := context.WithCancel(sig)
-		w.SetCancel(cancel)
-		w.SetBusy(true)
-		err := ag.Turn(ctx, line)
-		w.SetBusy(false)
-		w.SetCancel(nil)
-		cancel()
-		if err != nil && !errors.Is(err, provider.ErrInterrupted) {
-			w.Printf("❌ orc: %v", err)
-		}
-	}
-	w.Close()
+	<-sig.Done()
 	srv.Shutdown()
 	return 0
 }

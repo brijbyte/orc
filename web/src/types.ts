@@ -13,3 +13,13 @@ export type Block =
     };
 
 export type Model = { slug: string; description: string };
+
+export type SessionRow = {
+  id: string;
+  rid?: string;
+  title: string;
+  when: string;
+  cwd: string;
+  live: boolean;
+  busy: boolean;
+};

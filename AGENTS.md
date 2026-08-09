@@ -9,7 +9,8 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   placeholder page). Rebuild both after web changes.
 - Tests: `go test -mod=mod ./internal/ui/`. Lint: `go vet -mod=mod ./...`.
 - Smoke: `./bin/orc --auth`, `./bin/orc -p "say hi"`, `--resume`, `--list`,
-  `--serve=127.0.0.1:7799` (curl the printed `#token` against `/api/state`).
+  `--serve=127.0.0.1:7799` (curl the printed `#token` against
+  `/api/sessions`).
 - Legacy C implementation in `src/` (`make c`) pending removal; `vendor/`
   belongs to it, which is why Go commands need `-mod=mod`.
 - Zero-token UI check: hand-write a session file
@@ -42,15 +43,28 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   render helpers: `ToolLine`/`ToolDesc`/`ToolPreview` (edit = ± diff with
   chroma tokens over red/green backgrounds; write and clamped bash = numbered
   highlighted code; truncation at 20 lines, ctrl+o expands the last one).
-- `internal/web` is `--serve`: `IO` mirrors `agent.IO` onto an append-only
-  SSE event log (hub) and a TUI-style input queue; bearer-token auth on every
-  route; plain HTTP binds loopback only, `--domain` adds autocert TLS.
+- `internal/web` is `--serve`, a multi-session server: `Server` holds a
+  registry of `Runtime`s (one per live session: `IO` + agent + driver-loop
+  goroutine; runtimes stay alive until stopped or shutdown, and drop the
+  session file when it closes with zero items). `IO` mirrors `agent.IO` onto
+  an append-only SSE event log (hub) and a TUI-style input queue. Routes are
+  session-scoped: `/api/sessions` (list all + create),
+  `/api/sessions/{id}/open|state|events|input|interrupt`, `DELETE` to stop,
+  plus `/api/models` and `/api/dirs` (directory picker). Bearer-token auth on
+  every route; plain HTTP binds loopback only, `--domain` adds autocert TLS.
   Frontend lives in `web/` (React 19 + Vite): `api`/`events`/`types` plus
+  `Sidebar` (session list grouped by cwd), `SessionView` (one mounted view +
+  SSE stream per open session), `DirPicker`,
   `Transcript`/`BlockView`/`Preview`/`InputBar`/`StatusBar`; `theme.ts`
   resolves light/dark/system onto `<html data-theme>`.
 - `cmd/orc` is the Cobra CLI and the four drivers (TUI, pipe, one-shot,
   serve). `/model` and `/effort` persist defaults to `<orc home>/config.json`;
   flags and resumed-session meta win over them.
+- `config.Config.Cwd` is the session working directory: bash/read/write/edit,
+  skills and custom-command discovery, instructions, and the status line all
+  use it (never `os.Getwd()`), so one server can host sessions across
+  directories. Session meta records it; `Resume` restores it when the
+  directory still exists.
 
 ## Codex invariants
 

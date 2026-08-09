@@ -154,9 +154,9 @@ func displayPath(path string) string {
 	return path
 }
 
-// descMax clamps the tool one-liner; a clamped bash command gets the full
+// DescMax clamps the tool one-liner; a clamped bash command gets the full
 // text as an expandable preview instead.
-const descMax = 100
+const DescMax = 100
 
 // ToolDesc summarizes a tool call's arguments (command or path).
 func ToolDesc(name, argsJSON string) string {
@@ -169,8 +169,8 @@ func ToolDesc(name, argsJSON string) string {
 	if desc == "" && args.Path != "" {
 		desc = displayPath(args.Path)
 	}
-	if r := []rune(desc); len(r) > descMax {
-		desc = string(r[:descMax]) + "…"
+	if r := []rune(desc); len(r) > DescMax {
+		desc = string(r[:DescMax]) + "…"
 	}
 	return desc
 }
@@ -300,7 +300,7 @@ func toolPreviewLines(name, argsJSON string, tty bool) []string {
 		return codeLines(a.Path, a.Content, tty)
 	case "bash":
 		// the one-liner clamps long commands; preview the full text
-		if len([]rune(a.Cmd)) > descMax {
+		if len([]rune(a.Cmd)) > DescMax {
 			return codeLines("command.sh", a.Cmd, tty)
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/brijbyte/orc/internal/config"
@@ -179,8 +180,13 @@ func (af *authFile) refresh(notify func(string)) error {
 	return nil
 }
 
+// authMu serializes refresh across concurrent turns (web serves many sessions).
+var authMu sync.Mutex
+
 // loadAuth returns a valid access token and account id, refreshing if due.
 func loadAuth(notify func(string)) (accessToken, accountID string, err error) {
+	authMu.Lock()
+	defer authMu.Unlock()
 	af, err := loadAuthFile()
 	if err != nil {
 		return "", "", err

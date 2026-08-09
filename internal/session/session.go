@@ -28,6 +28,7 @@ type Info struct {
 	ID    string
 	When  string
 	Title string
+	Cwd   string
 }
 
 type meta struct {
@@ -53,7 +54,10 @@ func New(cfg *config.Config) (*Session, error) {
 		return nil, err
 	}
 	s.f = f
-	cwd, _ := os.Getwd()
+	cwd := cfg.Cwd
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
 	s.writeMeta(meta{ID: cfg.SessionID, Model: cfg.Model, Effort: cfg.Effort,
 		Cwd: cwd, T: now()})
 	return s, nil
@@ -130,6 +134,15 @@ func findSession(id string) string {
 	return filepath.Join(dir, best)
 }
 
+// Delete removes a session file by id prefix.
+func Delete(id string) error {
+	path := findSession(id)
+	if path == "" {
+		return fmt.Errorf("no session matching %s", id)
+	}
+	return os.Remove(path)
+}
+
 // Resume loads history from a session ref (empty = most recent, id prefix, or
 // path) and reopens the file for appending. Restores cfg.SessionID.
 func Resume(ref string, cfg *config.Config) (*Session, []json.RawMessage, error) {
@@ -170,6 +183,12 @@ func Resume(ref string, cfg *config.Config) (*Session, []json.RawMessage, error)
 			if m.ID != "" {
 				cfg.SessionID = m.ID // prompt_cache_key survives resumes
 			}
+			// Tools run in the session's original directory when it still exists.
+			if m.Cwd != "" {
+				if st, err := os.Stat(m.Cwd); err == nil && st.IsDir() {
+					cfg.Cwd = m.Cwd
+				}
+			}
 			if m.Ctx != 0 {
 				s.Ctx = m.Ctx
 			}
@@ -185,7 +204,12 @@ func Resume(ref string, cfg *config.Config) (*Session, []json.RawMessage, error)
 			history = append(history, json.RawMessage(line))
 		}
 	}
+	scanErr := sc.Err()
 	f.Close()
+	if scanErr != nil {
+		// Partial history would desync function_call/output pairs.
+		return nil, nil, fmt.Errorf("cannot read %s: %v", resolved, scanErr)
+	}
 
 	s.f, err = os.OpenFile(resolved, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -200,15 +224,14 @@ func fileExists(path string) bool {
 	return err == nil && !st.IsDir()
 }
 
-// listOne reads one --list row if the session belongs to cwd.
-func listOne(path, cwd string) (Info, bool) {
+// listOne reads one list row: id, time, cwd, and first user line as title.
+func listOne(path string) (Info, bool) {
 	f, err := os.Open(path)
 	if err != nil {
 		return Info{}, false
 	}
 	defer f.Close()
 	var info Info
-	matches := false
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
 	for ln := 0; ln < 4 && sc.Scan(); ln++ {
@@ -224,8 +247,8 @@ func listOne(path, cwd string) (Info, bool) {
 			continue
 		}
 		if probe.Meta != nil {
-			if probe.Meta.Cwd == cwd {
-				matches = true
+			if probe.Meta.Cwd != "" {
+				info.Cwd = probe.Meta.Cwd
 			}
 			if probe.Meta.ID != "" {
 				info.ID = probe.Meta.ID
@@ -244,16 +267,15 @@ func listOne(path, cwd string) (Info, bool) {
 			break
 		}
 	}
+	if sc.Err() != nil {
+		return Info{}, false
+	}
 	info.When = strings.Replace(info.When, "T", " ", 1)
-	return info, matches
+	return info, info.ID != ""
 }
 
-// List returns sessions for the current directory, newest first.
-func List() ([]Info, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("cannot get current directory")
-	}
+// ListAll returns every session, newest first.
+func ListAll() ([]Info, error) {
 	dir := config.Path("sessions")
 	entries, _ := os.ReadDir(dir)
 	var names []string
@@ -265,7 +287,28 @@ func List() ([]Info, error) {
 	sort.Sort(sort.Reverse(sort.StringSlice(names)))
 	var rows []Info
 	for _, name := range names {
-		if info, ok := listOne(filepath.Join(dir, name), cwd); ok {
+		if info, ok := listOne(filepath.Join(dir, name)); ok {
+			rows = append(rows, info)
+		}
+	}
+	return rows, nil
+}
+
+// List returns sessions for one directory (empty = current), newest first.
+func List(cwd string) ([]Info, error) {
+	if cwd == "" {
+		var err error
+		if cwd, err = os.Getwd(); err != nil {
+			return nil, fmt.Errorf("cannot get current directory")
+		}
+	}
+	all, err := ListAll()
+	if err != nil {
+		return nil, err
+	}
+	var rows []Info
+	for _, info := range all {
+		if info.Cwd == cwd {
 			rows = append(rows, info)
 		}
 	}

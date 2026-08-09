@@ -86,40 +86,50 @@ func clampOutput(s string) string {
 		s[len(s)-outTail:]
 }
 
-// Run executes one tool call; ctx cancellation interrupts bash.
-func Run(ctx context.Context, name, argsJSON string) string {
+// resolve makes a relative tool path absolute against the session cwd.
+func resolve(cwd, path string) string {
+	if cwd == "" || path == "" || filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(cwd, path)
+}
+
+// Run executes one tool call in the session cwd; ctx cancellation
+// interrupts bash.
+func Run(ctx context.Context, cwd, name, argsJSON string) string {
 	var a args
 	if json.Unmarshal([]byte(argsJSON), &a) != nil || a == nil {
 		return "error: bad arguments JSON"
 	}
 	switch name {
 	case "bash":
-		return toolBash(ctx, a)
+		return toolBash(ctx, cwd, a)
 	case "process":
 		return clampOutput(processTool(a))
 	case "read":
-		return clampOutput(toolRead(a))
+		return clampOutput(toolRead(cwd, a))
 	case "write":
-		return toolWrite(a)
+		return toolWrite(cwd, a)
 	case "edit":
-		return toolEdit(a)
+		return toolEdit(cwd, a)
 	case "skill":
-		return clampOutput(skills.Query(a.str("query")))
+		return clampOutput(skills.Query(cwd, a.str("query")))
 	}
 	return fmt.Sprintf("error: unknown tool %s", name)
 }
 
-func toolBash(ctx context.Context, a args) string {
+func toolBash(ctx context.Context, cwd string, a args) string {
 	cmd := a.str("cmd")
 	if cmd == "" {
 		return "error: missing cmd"
 	}
 	if b, _ := a["background"].(bool); b {
-		return processStart(cmd)
+		return processStart(cwd, cmd)
 	}
 	timeout := time.Duration(a.num("timeout_s", int(bashTimeout/time.Second))) * time.Second
 
 	c := exec.Command("/bin/sh", "-c", cmd)
+	c.Dir = cwd
 	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	var out strings.Builder
 	c.Stdout = &out
@@ -165,8 +175,8 @@ func toolBash(ctx context.Context, a args) string {
 	return clampOutput(out.String() + tail)
 }
 
-func toolRead(a args) string {
-	path := a.str("path")
+func toolRead(cwd string, a args) string {
+	path := resolve(cwd, a.str("path"))
 	if path == "" {
 		return "error: missing path"
 	}
@@ -204,8 +214,8 @@ func toolRead(a args) string {
 	return out.String()
 }
 
-func toolWrite(a args) string {
-	path := a.str("path")
+func toolWrite(cwd string, a args) string {
+	path := resolve(cwd, a.str("path"))
 	content, hasContent := a["content"].(string)
 	if path == "" || !hasContent {
 		return "error: missing path/content"
@@ -219,8 +229,8 @@ func toolWrite(a args) string {
 	return "ok"
 }
 
-func toolEdit(a args) string {
-	path, old, newText := a.str("path"), a.str("old"), a.str("new")
+func toolEdit(cwd string, a args) string {
+	path, old, newText := resolve(cwd, a.str("path")), a.str("old"), a.str("new")
 	if path == "" || a["old"] == nil || a["new"] == nil {
 		return "error: missing path/old/new"
 	}

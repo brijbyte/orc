@@ -5,7 +5,7 @@ const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "
 
 // InputBar owns the textarea (Enter sends, Shift+Enter breaks the line,
 // Esc interrupts), the busy spinner, and the stop button.
-export function InputBar({ busy }: { busy: boolean }) {
+export function InputBar({ sid, busy }: { sid: string; busy: boolean }) {
   const [input, setInput] = useState("");
   const [spin, setSpin] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -40,7 +40,7 @@ export function InputBar({ busy }: { busy: boolean }) {
     if (!text) return;
     setInput("");
     requestAnimationFrame(autosize);
-    api.send(text);
+    api.send(sid, text);
   };
 
   return (
@@ -62,7 +62,7 @@ export function InputBar({ busy }: { busy: boolean }) {
               e.preventDefault();
               submit();
             } else if (e.key === "Escape" && busy) {
-              api.interrupt();
+              api.interrupt(sid);
             }
           }}
           placeholder={
@@ -71,7 +71,7 @@ export function InputBar({ busy }: { busy: boolean }) {
           autoFocus
         />
         {busy && (
-          <button type="button" onClick={() => api.interrupt()}>
+          <button type="button" onClick={() => api.interrupt(sid)}>
             stop
           </button>
         )}

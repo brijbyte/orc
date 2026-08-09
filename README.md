@@ -54,10 +54,14 @@ conversation the model sees.
 
 ## Web UI
 
-`orc --serve` runs the session headless and prints a tokenized URL for the
-browser UI: streamed markdown, tool previews, an interactive status bar
-(model/effort selects, light/dark/system theme), queueing and interrupt. The
-session file is the same JSONL, so `orc --resume` reopens it in the terminal.
+`orc --serve` runs headless and prints a tokenized URL for the browser UI:
+streamed markdown, tool previews, an interactive status bar (model/effort
+selects, light/dark/system theme), queueing and interrupt. The sidebar
+manages every session from one place — sessions for the server's directory
+first, then the rest grouped by directory — with resume on click, parallel
+live sessions, and "new session" with a server-side directory picker (each
+session's tools run in its own directory). Session files are the same JSONL,
+so `orc --resume` reopens any of them in the terminal.
 For a public machine, `--serve --domain orc.example.com` serves HTTPS on :443
 via Let's Encrypt (needs ports 80/443 and DNS pointing at the host); plain
 HTTP never binds beyond loopback, and every request needs the URL token.
@@ -94,7 +98,7 @@ internal/agent         agentic loop, compact  internal/session   JSONL persisten
 internal/provider      provider registry      internal/skills    skill discovery
 internal/provider/codex  Codex auth+SSE       internal/commands  slash + custom commands
 internal/ui            Bubble Tea TUI, previews, glamour markdown, plain pipe mode
-internal/web           --serve: SSE hub, auth, embedded frontend
+internal/web           --serve: session registry, SSE hub, auth, embedded frontend
 web                    React 19 + Vite frontend (built into internal/web/dist)
 internal/config        paths, atomic writes   internal/instructions  system prompt
 ```

@@ -18,31 +18,40 @@ type skill struct {
 	path        string
 }
 
-var (
-	once     sync.Once
+// loader holds one discovery walk's state; results are cached per cwd.
+type loader struct {
 	index    []skill
 	warnings strings.Builder
 	visited  map[string]bool
+}
+
+var (
+	cacheMu sync.Mutex
+	cache   = map[string]*loader{}
 )
 
 var nameRE = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
-func warn(path, reason string) {
-	warnings.WriteString("warning: " + path + ": " + reason + "\n")
+func (l *loader) warn(path, reason string) {
+	l.warnings.WriteString("warning: ")
+	l.warnings.WriteString(path)
+	l.warnings.WriteString(": ")
+	l.warnings.WriteString(reason)
+	l.warnings.WriteString("\n")
 }
 
 // parseSkill reads name and description from SKILL.md frontmatter.
-func parseSkill(path string) (name, description string, ok bool) {
+func (l *loader) parseSkill(path string) (name, description string, ok bool) {
 	f, err := os.Open(path)
 	if err != nil {
-		warn(path, "cannot read SKILL.md")
+		l.warn(path, "cannot read SKILL.md")
 		return
 	}
 	defer f.Close()
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 4096), 1024*1024)
 	if !sc.Scan() || strings.TrimSpace(sc.Text()) != "---" {
-		warn(path, "missing frontmatter")
+		l.warn(path, "missing frontmatter")
 		return
 	}
 	closed := false
@@ -70,6 +79,8 @@ func parseSkill(path string) (name, description string, ok bool) {
 	}
 	reason := ""
 	switch {
+	case sc.Err() != nil:
+		reason = "cannot read SKILL.md"
 	case tooLong:
 		reason = "frontmatter line is too long"
 	case !closed:
@@ -82,7 +93,7 @@ func parseSkill(path string) (name, description string, ok bool) {
 		reason = "description is too long"
 	}
 	if reason != "" {
-		warn(path, reason)
+		l.warn(path, reason)
 		return "", "", false
 	}
 	return name, description, true
@@ -97,8 +108,8 @@ func scalar(s string) string {
 	return s
 }
 
-func haveName(name string) bool {
-	for _, s := range index {
+func (l *loader) haveName(name string) bool {
+	for _, s := range l.index {
 		if s.name == name {
 			return true
 		}
@@ -106,17 +117,17 @@ func haveName(name string) bool {
 	return false
 }
 
-func addSkill(file string) {
+func (l *loader) addSkill(file string) {
 	resolved, err := filepath.EvalSymlinks(file)
 	if err != nil {
 		return
 	}
 	resolved, _ = filepath.Abs(resolved)
-	name, description, ok := parseSkill(resolved)
-	if !ok || haveName(name) {
+	name, description, ok := l.parseSkill(resolved)
+	if !ok || l.haveName(name) {
 		return
 	}
-	index = append(index, skill{name, description, resolved})
+	l.index = append(l.index, skill{name, description, resolved})
 }
 
 func sortedDirs(path string) []string {
@@ -139,41 +150,38 @@ func sortedDirs(path string) []string {
 	return names
 }
 
-func discoverDir(path string) {
+func (l *loader) discoverDir(path string) {
 	resolved, err := filepath.EvalSymlinks(path)
-	if err != nil || visited[resolved] {
+	if err != nil || l.visited[resolved] {
 		return
 	}
-	visited[resolved] = true
+	l.visited[resolved] = true
 	file := filepath.Join(resolved, "SKILL.md")
 	if st, err := os.Stat(file); err == nil && st.Mode().IsRegular() {
-		addSkill(file)
+		l.addSkill(file)
 		return
 	}
 	for _, child := range sortedDirs(resolved) {
-		discoverDir(child)
+		l.discoverDir(child)
 	}
 }
 
-func discoverRoot(root string) {
+func (l *loader) discoverRoot(root string) {
 	resolved, err := filepath.EvalSymlinks(root)
-	if err != nil || visited["root:"+resolved] {
+	if err != nil || l.visited["root:"+resolved] {
 		return
 	}
-	visited["root:"+resolved] = true
+	l.visited["root:"+resolved] = true
 	for _, child := range sortedDirs(resolved) {
-		discoverDir(child)
+		l.discoverDir(child)
 	}
 }
 
-func load() {
-	visited = map[string]bool{}
-	current, err := os.Getwd()
-	if err != nil {
-		return
-	}
+func (l *loader) load(cwd string) {
+	l.visited = map[string]bool{}
+	current := cwd
 	for {
-		discoverRoot(filepath.Join(current, ".agents/skills"))
+		l.discoverRoot(filepath.Join(current, ".agents/skills"))
 		if _, err := os.Lstat(filepath.Join(current, ".git")); err == nil {
 			break
 		}
@@ -184,25 +192,43 @@ func load() {
 		current = parent
 	}
 	if home, err := os.UserHomeDir(); err == nil {
-		discoverRoot(filepath.Join(home, ".agents/skills"))
+		l.discoverRoot(filepath.Join(home, ".agents/skills"))
 	}
+}
+
+// loadFor returns the (cached) skill index for a working directory.
+func loadFor(cwd string) *loader {
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
+	cacheMu.Lock()
+	defer cacheMu.Unlock()
+	if l, ok := cache[cwd]; ok {
+		return l
+	}
+	l := &loader{}
+	if cwd != "" {
+		l.load(cwd)
+	}
+	cache[cwd] = l
+	return l
 }
 
 // Query returns matching skills: exact name match first, else case-insensitive
 // substring over names and descriptions. Empty or "*" lists all.
-func Query(query string) string {
-	once.Do(load)
+func Query(cwd, query string) string {
+	l := loadFor(cwd)
 	if query == "*" {
 		query = ""
 	}
 	var out strings.Builder
-	out.WriteString(warnings.String())
+	out.WriteString(l.warnings.String())
 
 	appendResult := func(s skill) {
 		out.WriteString(s.name + " — " + s.description + "\n" + s.path + "\n")
 	}
 	found := false
-	for _, s := range index {
+	for _, s := range l.index {
 		if s.name == query {
 			appendResult(s)
 			found = true
@@ -211,7 +237,7 @@ func Query(query string) string {
 	}
 	if !found {
 		q := strings.ToLower(query)
-		for _, s := range index {
+		for _, s := range l.index {
 			if strings.Contains(strings.ToLower(s.name), q) ||
 				strings.Contains(strings.ToLower(s.description), q) {
 				appendResult(s)

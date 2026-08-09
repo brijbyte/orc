@@ -7,9 +7,11 @@ import type { Model } from "./types";
 // selects that dispatch the matching slash command, and the theme
 // switcher at the right edge.
 export function StatusBar({
+  sid,
   status,
   models,
 }: {
+  sid: string;
   status: string;
   models: Model[];
 }) {
@@ -23,7 +25,7 @@ export function StatusBar({
             <select
               className="statSel"
               value={model}
-              onChange={(e) => api.send("/model " + e.target.value)}
+              onChange={(e) => api.send(sid, "/model " + e.target.value)}
             >
               {!models.some((m) => m.slug === model) && (
                 <option value={model}>{model}</option>
@@ -38,7 +40,7 @@ export function StatusBar({
             <select
               className="statSel"
               value={effort}
-              onChange={(e) => api.send("/effort " + e.target.value)}
+              onChange={(e) => api.send(sid, "/effort " + e.target.value)}
             >
               {["low", "medium", "high"].map((x) => (
                 <option key={x} value={x}>

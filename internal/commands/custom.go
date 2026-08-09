@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"sync"
 )
 
 // Custom slash commands are markdown prompts: .agents/commands/<name>.md in
@@ -24,13 +23,11 @@ type CustomCmd struct {
 	path       string
 }
 
-var (
-	customOnce sync.Once
-	customList []CustomCmd
-)
-
-func customRoots() []string {
-	roots := []string{".agents/commands"}
+func customRoots(cwd string) []string {
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
+	roots := []string{filepath.Join(cwd, ".agents/commands")}
 	if home, err := os.UserHomeDir(); err == nil {
 		roots = append(roots, filepath.Join(home, ".agents/commands"))
 	}
@@ -88,9 +85,9 @@ func builtinName(name string) bool {
 	return false
 }
 
-func loadCustom() {
+func (c *Commands) loadCustom() {
 	seen := map[string]bool{}
-	for _, root := range customRoots() {
+	for _, root := range customRoots(c.cfg.Cwd) {
 		entries, err := os.ReadDir(root)
 		if err != nil {
 			continue
@@ -110,17 +107,17 @@ func loadCustom() {
 				continue
 			}
 			seen[name] = true
-			customList = append(customList,
+			c.customList = append(c.customList,
 				CustomCmd{Name: name, Desc: customDesc(string(data)), path: path})
 		}
 	}
-	sort.Slice(customList, func(i, j int) bool { return customList[i].Name < customList[j].Name })
+	sort.Slice(c.customList, func(i, j int) bool { return c.customList[i].Name < c.customList[j].Name })
 }
 
 // CustomCmds lists discovered custom commands for menus and /help.
 func (c *Commands) CustomCmds() []CustomCmd {
-	customOnce.Do(loadCustom)
-	return customList
+	c.customOnce.Do(c.loadCustom)
+	return c.customList
 }
 
 // customPrompt expands a custom command into the prompt to run.

@@ -235,8 +235,12 @@ func (t *TUI) loadHistory() {
 	}
 	defer f.Close()
 	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 64*1024), 1024*1024)
 	for sc.Scan() {
 		t.histAdd(strings.TrimRight(sc.Text(), "\r\n"))
+	}
+	if sc.Err() != nil {
+		return // keep the lines read so far; saveHistory rewrites a clean file
 	}
 }
 

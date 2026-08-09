@@ -1,7 +1,5 @@
 import { useState } from "react";
 
-const previewMax = 20;
-
 // lineClass reads the ± marker after the line-number gutter; numbered
 // lines without a marker are write content (plain code).
 const lineClass = (l: string) =>
@@ -13,34 +11,47 @@ const lineClass = (l: string) =>
         ? "hl"
         : "ctx";
 
-// Preview shows an edit diff or write content, truncated to previewMax
-// lines; the marker line toggles the full text. html lines arrive
-// pre-highlighted from the server; their gutter is client-rendered.
-export function Preview({ text, html }: { text: string; html?: string[] }) {
+// Preview shows a tool call body truncated to max lines with an
+// expand/collapse toggle. html lines arrive pre-highlighted from the
+// server; gutter adds client-rendered line numbers (edit/write — bash
+// renders bare).
+export function Preview({
+  text,
+  html,
+  gutter,
+  max,
+}: {
+  text: string;
+  html?: string[];
+  gutter: boolean;
+  max: number;
+}) {
   const [open, setOpen] = useState(false);
   const lines = html ?? text.split("\n");
-  const shown = open ? lines : lines.slice(0, previewMax);
+  const shown = open ? lines : lines.slice(0, max);
   return (
-    <pre className="preview">
+    <pre className={gutter ? "preview" : "preview nogut"}>
       {shown.map((l, i) =>
         html ? (
           <div key={i} className="hl">
-            <span className="ctx">{String(i + 1).padStart(4) + " "}</span>
+            {gutter && (
+              <span className="ctx">{String(i + 1).padStart(4) + " "}</span>
+            )}
             <span dangerouslySetInnerHTML={{ __html: l }} />
           </div>
         ) : (
-          <div key={i} className={lineClass(l)}>
+          <div key={i} className={gutter ? lineClass(l) : "hl"}>
             {l}
           </div>
         ),
       )}
-      {lines.length > previewMax && (
+      {lines.length > max && (
         <button
           type="button"
           className="expander"
           onClick={() => setOpen(!open)}
         >
-          {open ? "collapse" : `show ${lines.length - previewMax} more lines`}
+          {open ? "collapse" : `show ${lines.length - max} more lines`}
         </button>
       )}
     </pre>

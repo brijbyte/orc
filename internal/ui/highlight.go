@@ -64,7 +64,7 @@ func PreviewHTML(name, argsJSON string) []string {
 	switch {
 	case name == "write" && a.Content != "":
 		path, src = a.Path, a.Content
-	case name == "bash" && len([]rune(a.Cmd)) > descMax:
+	case name == "bash" && (len([]rune(a.Cmd)) > DescMax || strings.Contains(a.Cmd, "\n")):
 		path, src = "command.sh", a.Cmd
 	default:
 		return nil

@@ -17,6 +17,7 @@ type Config struct {
 	Model        string
 	Effort       string
 	SessionID    string
+	Cwd          string // session working directory for tools and instructions
 	Instructions string
 }
 

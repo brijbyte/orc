@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/brijbyte/orc/internal/agent"
 	"github.com/brijbyte/orc/internal/config"
@@ -42,6 +43,8 @@ type Commands struct {
 	models       []provider.Model
 	modelsLoaded bool
 	ctxUsed      int64
+	customOnce   sync.Once
+	customList   []CustomCmd
 }
 
 func New(prov provider.Provider, cfg *config.Config, ui UI) *Commands {
@@ -70,10 +73,12 @@ func (c *Commands) modelCtxWindow() int64 {
 
 // gitBranch finds the branch name (or short detached SHA) from the nearest
 // .git/HEAD upward.
-func gitBranch() string {
-	dir, err := os.Getwd()
-	if err != nil {
-		return ""
+func gitBranch(dir string) string {
+	if dir == "" {
+		var err error
+		if dir, err = os.Getwd(); err != nil {
+			return ""
+		}
 	}
 	for {
 		head, err := os.ReadFile(filepath.Join(dir, ".git/HEAD"))
@@ -96,10 +101,13 @@ func gitBranch() string {
 }
 
 func (c *Commands) StatusUpdate() {
-	cwd, _ := os.Getwd()
+	cwd := c.cfg.Cwd
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
 	base := filepath.Base(cwd)
 	s := fmt.Sprintf("%s · %s · %s", c.cfg.Model, c.cfg.Effort, base)
-	if branch := gitBranch(); branch != "" {
+	if branch := gitBranch(cwd); branch != "" {
 		s += fmt.Sprintf(" (%s)", branch)
 	}
 	if c.ctxUsed > 0 {
@@ -197,7 +205,7 @@ func (c *Commands) Dispatch(ag *agent.Agent, line string) (handled, quit bool, p
 // cmdResume switches the live agent to another session; no arg lists them.
 func (c *Commands) cmdResume(ag *agent.Agent, arg string) {
 	if arg == "" {
-		rows, err := session.List()
+		rows, err := session.List(c.cfg.Cwd)
 		if err != nil || len(rows) == 0 {
 			c.ui.Printf("📭 no sessions")
 			return
@@ -247,8 +255,11 @@ func (c *Commands) cmdStatus(ag *agent.Agent) {
 		}
 		c.ui.Printf("%s", s)
 	}
-	cwd, _ := os.Getwd()
-	if branch := gitBranch(); branch != "" {
+	cwd := c.cfg.Cwd
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
+	if branch := gitBranch(cwd); branch != "" {
 		cwd += fmt.Sprintf(" (%s)", branch)
 	}
 	c.ui.Printf("📁 %s", cwd)
@@ -256,7 +267,7 @@ func (c *Commands) cmdStatus(ag *agent.Agent) {
 
 // Sessions lists resumable sessions for the menu, current one excluded.
 func (c *Commands) Sessions() []session.Info {
-	rows, _ := session.List()
+	rows, _ := session.List(c.cfg.Cwd)
 	out := rows[:0]
 	for _, r := range rows {
 		if !strings.HasPrefix(c.cfg.SessionID, r.ID) && !strings.HasPrefix(r.ID, c.cfg.SessionID) {

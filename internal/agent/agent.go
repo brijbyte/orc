@@ -99,7 +99,7 @@ func (ag *Agent) runCall(ctx context.Context, call item) {
 		return
 	}
 	ag.IO.ToolCall(call.Name, call.Arguments)
-	output := tools.Run(ctx, call.Name, call.Arguments)
+	output := tools.Run(ctx, ag.Cfg.Cwd, call.Name, call.Arguments)
 	ag.commit(callOutput(call.CallID, output))
 }
 
@@ -201,7 +201,7 @@ func (ag *Agent) maybeCompact(ctx context.Context) {
 // Turn runs one user turn to completion (including tool rounds).
 func (ag *Agent) Turn(ctx context.Context, userText string) error {
 	if ag.Cfg.Instructions == "" {
-		ag.Cfg.Instructions = instructions.Build()
+		ag.Cfg.Instructions = instructions.Build(ag.Cfg.Cwd)
 	}
 	ag.maybeCompact(ctx)
 	ag.commit(userMessage(userText))

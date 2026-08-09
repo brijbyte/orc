@@ -2,8 +2,6 @@ package web
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -16,24 +14,25 @@ import (
 // IO implements agent.IO and commands.UI over the web hub, and gives the
 // driver the same queue/busy/cancel surface as the TUI.
 type IO struct {
-	hub   *hub
-	q     *queue
-	token string
-	cmds  *commands.Commands
+	hub  *hub
+	q    *queue
+	cmds *commands.Commands
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
 }
 
 func NewIO() *IO {
-	buf := make([]byte, 16)
-	rand.Read(buf)
-	return &IO{hub: newHub(), q: newQueue(), token: hex.EncodeToString(buf)}
+	return &IO{hub: newHub(), q: newQueue()}
 }
 
-func (w *IO) Token() string { return w.token }
-
 func (w *IO) SetCommands(c *commands.Commands) { w.cmds = c }
+
+// Busy reports whether a turn is running (for the session list).
+func (w *IO) Busy() bool {
+	_, busy, _ := w.hub.snapshot()
+	return busy
+}
 
 func text(s string) map[string]string { return map[string]string{"text": s} }
 
@@ -70,9 +69,22 @@ func (w *IO) ToolCall(name, argsJSON string) {
 	// full preview: the frontend truncates and expands client-side; write
 	// content is pre-highlighted to HTML lines so the browser needs no lexer
 	_, full := ui.ToolPreview(name, argsJSON, false, "")
+	desc := ui.ToolDesc(name, argsJSON)
+	if name == "bash" {
+		// bash previews are the raw command, no line-number gutter; the
+		// one-liner stays empty so the command is not shown twice
+		var a struct{ Cmd string }
+		full = ""
+		if json.Unmarshal([]byte(argsJSON), &a) == nil {
+			cmd := strings.TrimRight(a.Cmd, "\n")
+			if strings.Contains(cmd, "\n") || len([]rune(cmd)) > ui.DescMax {
+				full, desc = cmd, ""
+			}
+		}
+	}
 	data := map[string]any{
 		"name":    name,
-		"desc":    ui.ToolDesc(name, argsJSON),
+		"desc":    desc,
 		"preview": full,
 	}
 	if hl := ui.PreviewHTML(name, argsJSON); hl != nil {
