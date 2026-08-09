@@ -164,6 +164,56 @@ function BlockView({ b }: { b: Block }) {
   }
 }
 
+type Model = { slug: string; description: string };
+
+// StatusBar renders "model · effort · rest…" with model and effort as
+// selects that dispatch the matching slash command.
+function StatusBar({
+  status,
+  models,
+  send,
+}: {
+  status: string;
+  models: Model[];
+  send: (text: string) => void;
+}) {
+  if (!status) return <footer />;
+  const [model, effort, ...rest] = status.split(" · ");
+  return (
+    <footer>
+      <div>
+        <select
+          className="statSel"
+          value={model}
+          onChange={(e) => send("/model " + e.target.value)}
+        >
+          {!models.some((m) => m.slug === model) && (
+            <option value={model}>{model}</option>
+          )}
+          {models.map((m) => (
+            <option key={m.slug} value={m.slug} title={m.description}>
+              {m.slug}
+            </option>
+          ))}
+        </select>
+        {" · "}
+        <select
+          className="statSel"
+          value={effort}
+          onChange={(e) => send("/effort " + e.target.value)}
+        >
+          {["low", "medium", "high"].map((x) => (
+            <option key={x} value={x}>
+              {x}
+            </option>
+          ))}
+        </select>
+        {rest.length > 0 && " · " + rest.join(" · ")}
+      </div>
+    </footer>
+  );
+}
+
 export default function App() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [busy, setBusy] = useState(false);
@@ -171,6 +221,7 @@ export default function App() {
   const [input, setInput] = useState("");
   const [dead, setDead] = useState(false);
   const [spin, setSpin] = useState(0);
+  const [models, setModels] = useState<Model[]>([]);
   const lastID = useRef(0);
   const bottom = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -204,6 +255,10 @@ export default function App() {
         es.onmessage = (m) => onEvent(JSON.parse(m.data));
       })
       .catch(() => setDead(true));
+    fetch(`/api/models?token=${token}`)
+      .then((r) => r.json())
+      .then((d) => setModels(d.models ?? []))
+      .catch(() => {});
     return () => es?.close();
   }, [onEvent]);
 
@@ -237,17 +292,20 @@ export default function App() {
     el.style.height = el.scrollHeight + "px";
   };
 
+  const send = (text: string) =>
+    fetch(`/api/input`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ text }),
+    });
+
   const submit = (e?: React.FormEvent) => {
     e?.preventDefault();
     const text = input.trim();
     if (!text) return;
     setInput("");
     requestAnimationFrame(autosize);
-    fetch(`/api/input`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ text }),
-    });
+    send(text);
   };
 
   const interrupt = () =>
@@ -309,9 +367,7 @@ export default function App() {
           )}
         </div>
       </form>
-      <footer>
-        <div>{status}</div>
-      </footer>
+      <StatusBar status={status} models={models} send={send} />
     </div>
   );
 }

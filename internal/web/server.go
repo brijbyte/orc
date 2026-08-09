@@ -114,6 +114,19 @@ func (s *Server) handleInterrupt(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// handleModels serves the provider's model list (prefetched at startup, so
+// this reads a cached slice).
+func (s *Server) handleModels(rw http.ResponseWriter, r *http.Request) {
+	out := []map[string]string{}
+	if s.IO.cmds != nil {
+		for _, m := range s.IO.cmds.Models() {
+			out = append(out, map[string]string{"slug": m.Slug, "description": m.Description})
+		}
+	}
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(map[string]any{"models": out})
+}
+
 // handleStatic serves the embedded frontend; unknown paths fall back to
 // index.html (client-side routing), missing build falls back to placeholder.
 func handleStatic(rw http.ResponseWriter, r *http.Request) {
@@ -139,6 +152,7 @@ func (s *Server) mux() *http.ServeMux {
 	mux.HandleFunc("GET /api/events", s.auth(s.handleEvents))
 	mux.HandleFunc("POST /api/input", s.auth(s.handleInput))
 	mux.HandleFunc("POST /api/interrupt", s.auth(s.handleInterrupt))
+	mux.HandleFunc("GET /api/models", s.auth(s.handleModels))
 	mux.HandleFunc("/", handleStatic)
 	return mux
 }

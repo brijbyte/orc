@@ -284,6 +284,7 @@ func runServe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 	if opts.doResume {
 		ag.Replay() // seed the event log so browsers render the history
 	}
+	cmds.Models() // prefetch: /api/models reads the cached list
 	cmds.StatusUpdate()
 
 	srv := &web.Server{IO: w, Addr: opts.serveAddr, Domain: opts.domain}
