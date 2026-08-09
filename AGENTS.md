@@ -28,15 +28,19 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   Tea input line, the `/` menu, input queues, agent output (scrollback via
   `tea.Println`), and glamour markdown rendering; `Plain` serves `-p` and
   piped stdin.
+- `cmd/orc` is the Cobra CLI and REPL driver. `/model` and `/effort` persist
+  defaults for new sessions to `<orc home>/config.json`
+  (`internal/config/settings.go`); flags and resumed-session meta win over
+  them.
 
 ## Codex invariants
 
 - Send `store:false` and the full history. Replay reasoning
   `encrypted_content` without changes.
 - orc's `auth.json` holds one section per provider (`{"codex": {...}}`); the
-  codex section keeps the Codex CLI schema. Load order: orc's store, then flat
-  `~/.codex/auth.json` as fallback. Before token refresh, re-read the active
-  auth file; write rotated tokens atomically.
+  codex section keeps the Codex CLI token schema, but orc only reads its own
+  store — sign in with `orc --login`. Before token refresh, re-read the store;
+  write rotated tokens atomically.
 - Add a `function_call_output` for every committed `function_call`, including
   interrupted calls, before the next request.
 

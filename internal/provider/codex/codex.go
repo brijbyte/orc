@@ -1,6 +1,5 @@
 // Package codex implements the OpenAI Codex backend: ChatGPT-subscription
-// auth (own OAuth login with token refresh; falls back to ~/.codex/auth.json)
-// + Responses-API over SSE.
+// auth (orc's own OAuth login with token refresh) + Responses-API over SSE.
 package codex
 
 import (

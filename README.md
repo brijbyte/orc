@@ -9,10 +9,7 @@ caching via `prompt_cache_key`.
 
 - macOS or Linux
 - A ChatGPT subscription: sign in once with `orc --login` (browser OAuth;
-  credentials go to orc's own config dir). If the Codex CLI is already logged
-  in, orc can also reuse `~/.codex/auth.json` as a fallback — tokens are
-  refreshed in place either way (rotated refresh tokens are persisted so the
-  Codex CLI keeps working)
+  credentials go to orc's own config dir and are refreshed in place)
 
 ## Install
 

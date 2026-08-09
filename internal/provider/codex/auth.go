@@ -13,22 +13,20 @@ import (
 )
 
 const (
-	codexCLIAuthPath = "~/.codex/auth.json"
-	authBase         = "https://auth.openai.com"
-	authorizeURL     = authBase + "/oauth/authorize"
-	tokenURL         = authBase + "/oauth/token"
-	clientID         = "app_EMoamEEZ73f0CkXaXp7hrann"
-	refreshWindow    = 5 * time.Minute
-	staleAfter       = 8 * 24 * time.Hour
+	authBase      = "https://auth.openai.com"
+	authorizeURL  = authBase + "/oauth/authorize"
+	tokenURL      = authBase + "/oauth/token"
+	clientID      = "app_EMoamEEZ73f0CkXaXp7hrann"
+	refreshWindow = 5 * time.Minute
+	staleAfter    = 8 * 24 * time.Hour
 )
 
-// authFile is one loaded credentials file: sec is the codex section inside
-// root, or the whole file when flat (the Codex CLI schema).
+// authFile is orc's loaded credential store: sec is the codex section inside
+// root (the section itself keeps the Codex CLI token schema).
 type authFile struct {
 	root map[string]json.RawMessage
 	sec  map[string]json.RawMessage
 	path string
-	flat bool
 }
 
 func parseObject(data []byte) map[string]json.RawMessage {
@@ -39,46 +37,36 @@ func parseObject(data []byte) map[string]json.RawMessage {
 	return m
 }
 
-// loadAuthFile reads orc's provider-keyed store first; the Codex CLI's flat
-// file as a fallback.
+// loadAuthFile reads orc's provider-keyed store.
 func loadAuthFile() (*authFile, error) {
 	path := config.Path("auth.json")
-	if data, err := os.ReadFile(path); err == nil {
-		if root := parseObject(data); root != nil {
-			af := &authFile{root: root, path: path}
-			if sec, ok := root["codex"]; ok {
-				af.sec = parseObject(sec)
-			} else if _, wasFlat := root["tokens"]; wasFlat {
-				// migrate the flat pre-store layout written by early orc logins
-				af.sec = root
-				af.root = map[string]json.RawMessage{}
-				af.write()
-			}
-			if af.sec != nil {
-				return af, nil
-			}
-		}
-	}
-	path = config.ExpandHome(codexCLIAuthPath)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("no credentials — run `orc --login`")
 	}
-	sec := parseObject(data)
-	if sec == nil {
+	root := parseObject(data)
+	if root == nil {
 		return nil, fmt.Errorf("%s is not valid JSON", path)
 	}
-	return &authFile{root: sec, sec: sec, path: path, flat: true}, nil
+	af := &authFile{root: root, path: path}
+	if sec, ok := root["codex"]; ok {
+		af.sec = parseObject(sec)
+	} else if _, wasFlat := root["tokens"]; wasFlat {
+		// migrate the flat pre-store layout written by early orc logins
+		af.sec = root
+		af.root = map[string]json.RawMessage{}
+		af.write()
+	}
+	if af.sec == nil {
+		return nil, fmt.Errorf("no codex credentials in %s — run `orc --login`", path)
+	}
+	return af, nil
 }
 
 func (af *authFile) write() error {
-	top := af.sec
-	if !af.flat {
-		sec, _ := json.Marshal(af.sec)
-		af.root["codex"] = sec
-		top = af.root
-	}
-	out, _ := json.MarshalIndent(top, "", "  ")
+	sec, _ := json.Marshal(af.sec)
+	af.root["codex"] = sec
+	out, _ := json.MarshalIndent(af.root, "", "  ")
 	return config.WriteFileAtomic(af.path, out)
 }
 
