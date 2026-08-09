@@ -86,6 +86,9 @@
   flex: 1;
   min-width: 0;
 }
+.field.busy {
+  min-height: var(--hit);
+}
 .field.busy textarea {
   padding-right: 4rem;
 }
