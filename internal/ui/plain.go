@@ -128,22 +128,29 @@ func PrintSessionList(rows []session.Info) {
 	})
 }
 
-// Banner prints the startup line.
-func Banner(cfg *config.Config, resumed bool) {
+// Banner prints the startup line. showModel is false when a status bar
+// below the input already carries model and effort.
+func Banner(cfg *config.Config, resumed, showModel bool) {
 	prefix := ""
 	if resumed {
 		prefix = "resumed "
 	}
-	if stdoutTTY() {
+	switch {
+	case !stdoutTTY():
+		fmt.Printf("🧌 orc %s — %s (%s effort), %ssession %.8s. Ctrl-D or 'exit' to quit.\n",
+			config.Version, cfg.Model, cfg.Effort, prefix, cfg.SessionID)
+	case showModel:
 		fmt.Printf("%s%s — %s%s\n",
 			styleBoldCyan.Render("🧌 orc"),
 			styleDim.Render(" "+config.Version),
 			styleBold.Render(cfg.Model),
 			styleDim.Render(fmt.Sprintf(" (%s effort) · %ssession %.8s · Ctrl-D or 'exit' to quit",
 				cfg.Effort, prefix, cfg.SessionID)))
-	} else {
-		fmt.Printf("🧌 orc %s — %s (%s effort), %ssession %.8s. Ctrl-D or 'exit' to quit.\n",
-			config.Version, cfg.Model, cfg.Effort, prefix, cfg.SessionID)
+	default:
+		fmt.Printf("%s%s\n",
+			styleBoldCyan.Render("🧌 orc"),
+			styleDim.Render(fmt.Sprintf(" %s · %ssession %.8s · Ctrl-D or 'exit' to quit",
+				config.Version, prefix, cfg.SessionID)))
 	}
 }
 
