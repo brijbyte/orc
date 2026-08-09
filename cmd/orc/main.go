@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/brijbyte/orc/internal/agent"
 	"github.com/brijbyte/orc/internal/commands"
@@ -26,14 +27,15 @@ import (
 )
 
 type options struct {
-	prompt    string
-	resumeRef string
-	serveAddr string
-	domain    string
-	doResume  bool
-	doList    bool
-	doLogin   bool
-	doAuth    bool
+	prompt      string
+	resumeRef   string
+	serveAddr   string
+	domain      string
+	serviceFile string
+	doResume    bool
+	doList      bool
+	doLogin     bool
+	doAuth      bool
 }
 
 func main() {
@@ -71,11 +73,14 @@ func main() {
 	f.StringVar(&opts.serveAddr, "serve", "", "serve the session over HTTP (web UI) instead of the TUI")
 	f.Lookup("serve").NoOptDefVal = "127.0.0.1:7777"
 	f.StringVar(&opts.domain, "domain", "", "with --serve: public domain, TLS via Let's Encrypt on :443")
+	f.StringVar(&opts.serviceFile, "service-file", "", "write the service URL to this file")
+	_ = f.MarkHidden("service-file")
 	f.BoolVar(&opts.doList, "list", false, "list sessions for this directory, newest first")
 	f.BoolVar(&opts.doLogin, "login", false, "sign in to the provider (browser OAuth)")
 	f.BoolVar(&opts.doAuth, "auth", false, "show provider auth status")
 	root.CompletionOptions.DisableDefaultCmd = true
 	root.SetVersionTemplate("orc {{.Version}}\n")
+	root.AddCommand(newServiceCommand())
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
@@ -290,13 +295,24 @@ func runServe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 		fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
 		return 1
 	}
-	fmt.Printf("🧌 orc %s serving session %.8s\n🌐 %s\n", config.Version, cfg.SessionID, url)
+	if opts.serviceFile != "" {
+		if err := config.WriteFileAtomic(opts.serviceFile, []byte(url+"\n")); err != nil {
+			srv.Shutdown()
+			fmt.Fprintf(os.Stderr, "❌ orc: service URL: %v\n", err)
+			return 1
+		}
+		defer os.Remove(opts.serviceFile)
+	}
+	fmt.Printf("🧌 orc %s serving session %.8s\n", config.Version, cfg.SessionID)
+	if opts.serviceFile == "" {
+		fmt.Printf("🌐 %s\n", url)
+	}
 	if !prov.Authenticated() {
 		ui.PrintLoginHint(prov.Name())
 	}
 
-	// Ctrl-C stops the server and every runtime.
-	sig, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	// Ctrl-C and service-manager stops close every runtime.
+	sig, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	<-sig.Done()
 	srv.Shutdown()

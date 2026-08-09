@@ -15,8 +15,10 @@ curl -fsSL --connect-timeout 5 https://github.com/brijbyte/orc/releases/latest/d
 
 or `brew install brijbyte/orc/orc`. Installs to `/usr/local/bin` when
 writable, else `~/.local/bin`; pin with `ORC_VERSION=…`, redirect with
-`ORC_INSTALL_DIR=…`. Then sign in once with `orc --login` (browser OAuth;
-tokens live in orc's own config dir and refresh in place).
+`ORC_INSTALL_DIR=…`. Use `curl … | ORC_SERVICE=1 sh` to install and start the
+user service at the same time (`ORC_SERVICE_ADDR` and `ORC_SERVICE_DOMAIN`
+configure it). Then sign in once with `orc --login` (browser OAuth; tokens
+live in orc's own config dir and refresh in place).
 
 ## Use
 
@@ -67,6 +69,22 @@ so `orc --resume` reopens any of them in the terminal.
 For a public machine, `--serve --domain orc.example.com` serves HTTPS on :443
 via Let's Encrypt (needs ports 80/443 and DNS pointing at the host); plain
 HTTP never binds beyond loopback, and every request needs the URL token.
+
+Run the web UI as a per-user background service with launchd on macOS or
+systemd on Linux:
+
+```
+orc service install                         # install, start, and start at login
+orc service status                          # show status, tokenized URL, and log
+orc service stop | start | restart
+orc service uninstall
+orc service install --cwd ~/src --serve 127.0.0.1:7799
+```
+
+The service keeps running after the terminal closes. On Linux, enable user
+lingering if it must run when you are logged out:
+`loginctl enable-linger "$USER"`. Service installation keeps the current
+`PATH`, so agent tools use the same commands as your shell.
 
 ## Tools exposed to the model
 

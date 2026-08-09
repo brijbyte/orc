@@ -1,6 +1,6 @@
 #!/bin/sh
 # orc installer: curl -fsSL --connect-timeout 5 https://github.com/brijbyte/orc/releases/latest/download/install.sh | sh
-# Env: ORC_VERSION (default latest), ORC_INSTALL_DIR (default /usr/local/bin or ~/.local/bin)
+# Env: ORC_VERSION, ORC_INSTALL_DIR, ORC_SERVICE=1, ORC_SERVICE_ADDR, ORC_SERVICE_DOMAIN
 set -eu
 
 REPO="brijbyte/orc"
@@ -69,3 +69,13 @@ case ":$PATH:" in
     *":$dir:"*) ;;
     *) say "note: $dir is not in your PATH" ;;
 esac
+
+if [ "${ORC_SERVICE:-0}" = 1 ]; then
+    set -- service install --cwd "$HOME" --serve "${ORC_SERVICE_ADDR:-127.0.0.1:7777}"
+    if [ -n "${ORC_SERVICE_DOMAIN:-}" ]; then
+        set -- "$@" --domain "$ORC_SERVICE_DOMAIN"
+    fi
+    "$dir/orc" "$@"
+else
+    say "run '$dir/orc service install' to start the web UI in the background"
+fi
