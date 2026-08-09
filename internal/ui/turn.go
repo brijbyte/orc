@@ -154,8 +154,8 @@ func displayPath(path string) string {
 	return path
 }
 
-// toolLine formats the dim one-liner shown for a tool call.
-func toolLine(name, argsJSON string, tty bool) string {
+// ToolLine formats the dim one-liner shown for a tool call.
+func ToolLine(name, argsJSON string, tty bool) string {
 	var args struct {
 		Cmd  string `json:"cmd"`
 		Path string `json:"path"`
@@ -177,8 +177,8 @@ func toolLine(name, argsJSON string, tty bool) string {
 
 const diffMax = 20
 
-// editDiff renders a ±preview for the edit tool; "" for other tools.
-func editDiff(name, argsJSON string, tty bool) string {
+// EditDiff renders a ±preview for the edit tool; "" for other tools.
+func EditDiff(name, argsJSON string, tty bool) string {
 	if name != "edit" {
 		return ""
 	}
@@ -273,8 +273,8 @@ func replay(history []json.RawMessage, println func(string), width func() int, t
 		}
 		switch probe.Type {
 		case "function_call":
-			println(toolLine(probe.Name, probe.Arguments, tty))
-			if d := editDiff(probe.Name, probe.Arguments, tty); d != "" {
+			println(ToolLine(probe.Name, probe.Arguments, tty))
+			if d := EditDiff(probe.Name, probe.Arguments, tty); d != "" {
 				println(d)
 			}
 		case "message":

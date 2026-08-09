@@ -22,6 +22,16 @@ curl -fsSL --connect-timeout 5 https://github.com/brijbyte/orc/releases/latest/d
 Installs to `/usr/local/bin` when writable, else `~/.local/bin`. Pin a version
 with `ORC_VERSION=0.2`, change the destination with `ORC_INSTALL_DIR=...`.
 
+## Web UI
+
+`orc --serve` runs the session headless and prints a tokenized URL for the
+browser UI (default `127.0.0.1:7777`; `--serve=host:port` to change). The
+session file is the same JSONL, so `orc --resume` later reopens it in the
+terminal. For a public machine, `--serve --domain orc.example.com` serves
+HTTPS on :443 via Let's Encrypt (needs ports 80/443 and DNS pointing at the
+host); plain HTTP never binds beyond loopback. The frontend is embedded in
+the binary — `make web` rebuilds it (Node required).
+
 Or with Homebrew:
 
 ```

@@ -5,3 +5,9 @@ bin/
 .DS_Store
 vendor/
 dist/
+node_modules/
+# built web UI stays out of git, but .gitkeep must exist for go:embed
+!internal/web/dist/
+internal/web/dist/*
+!internal/web/dist/.gitkeep
+*.tsbuildinfo

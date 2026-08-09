@@ -116,8 +116,8 @@ func (t *TUI) TurnEnd() {
 }
 
 func (t *TUI) ToolCall(name, argsJSON string) {
-	t.println(toolLine(name, argsJSON, true))
-	if d := editDiff(name, argsJSON, true); d != "" {
+	t.println(ToolLine(name, argsJSON, true))
+	if d := EditDiff(name, argsJSON, true); d != "" {
 		t.println(d)
 	}
 }

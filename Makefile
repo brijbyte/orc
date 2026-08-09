@@ -68,9 +68,15 @@ RELEASE_BIN = bin/orc
 
 # Primary build: the Go implementation. The C targets below are legacy.
 GO_LDFLAGS = -X github.com/brijbyte/orc/internal/config.Version=$(VERSION)
-.PHONY: go release dist
+.PHONY: go release dist web
 go:
 	go build -mod=mod -ldflags '$(GO_LDFLAGS)' -o bin/orc ./cmd/orc
+
+# Frontend for --serve, embedded via internal/web. Plain go builds work
+# without it (placeholder page); releases run this first.
+web:
+	cd web && npm install --no-fund --no-audit && npm run build
+	@touch internal/web/dist/.gitkeep  # vite empties the dir; embed needs it
 
 release:
 	go build -mod=mod -trimpath -ldflags '-s -w $(GO_LDFLAGS)' -o bin/orc ./cmd/orc

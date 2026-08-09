@@ -17,6 +17,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Build web UI
+        run: make web
+
       # Pure Go, CGO off: one runner cross-compiles all four targets.
       - name: Build
         run: make dist VERSION="${GITHUB_REF_NAME#v}"

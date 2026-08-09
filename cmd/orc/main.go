@@ -19,6 +19,7 @@ import (
 	"github.com/brijbyte/orc/internal/session"
 	"github.com/brijbyte/orc/internal/tools"
 	"github.com/brijbyte/orc/internal/ui"
+	"github.com/brijbyte/orc/internal/web"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -27,6 +28,8 @@ import (
 type options struct {
 	prompt    string
 	resumeRef string
+	serveAddr string
+	domain    string
 	doResume  bool
 	doList    bool
 	doLogin   bool
@@ -65,6 +68,9 @@ func main() {
 	f.StringVar(&providerName, "provider", "", "provider (default codex; env ORC_PROVIDER)")
 	f.StringVar(&opts.resumeRef, "resume", "", "resume most recent (or given) session")
 	f.Lookup("resume").NoOptDefVal = "most-recent"
+	f.StringVar(&opts.serveAddr, "serve", "", "serve the session over HTTP (web UI) instead of the TUI")
+	f.Lookup("serve").NoOptDefVal = "127.0.0.1:7777"
+	f.StringVar(&opts.domain, "domain", "", "with --serve: public domain, TLS via Let's Encrypt on :443")
 	f.BoolVar(&opts.doList, "list", false, "list sessions for this directory, newest first")
 	f.BoolVar(&opts.doLogin, "login", false, "sign in to the provider (browser OAuth)")
 	f.BoolVar(&opts.doAuth, "auth", false, "show provider auth status")
@@ -165,7 +171,9 @@ func run(opts *options, model, effort, providerName string, effortExplicit bool)
 	defer tools.Cleanup()
 
 	rc := 0
-	if opts.prompt != "" {
+	if opts.serveAddr != "" {
+		rc = runServe(cfg, prov, sess, resumed, opts)
+	} else if opts.prompt != "" {
 		rc = runOneShot(cfg, prov, sess, resumed, opts.prompt)
 	} else if term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd())) {
 		rc = runTUI(cfg, prov, sess, resumed, opts.doResume)
@@ -262,6 +270,102 @@ func runPipe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 		stop()
 	}
 	fmt.Println()
+	return 0
+}
+
+// runServe drives the agent from the web UI: same loop as the TUI driver,
+// input and output travel over HTTP instead of the terminal.
+func runServe(cfg *config.Config, prov provider.Provider, sess *session.Session,
+	resumed []json.RawMessage, opts *options) int {
+	w := web.NewIO()
+	cmds := commands.New(prov, cfg, w)
+	w.SetCommands(cmds)
+	ag := agent.New(cfg, prov, sess, resumed, w)
+	if opts.doResume {
+		ag.Replay() // seed the event log so browsers render the history
+	}
+	cmds.StatusUpdate()
+
+	srv := &web.Server{IO: w, Addr: opts.serveAddr, Domain: opts.domain}
+	url, err := srv.Start(func(s string) { fmt.Println(s) })
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
+		return 1
+	}
+	fmt.Printf("🧌 orc %s serving session %.8s\n🌐 %s\n", config.Version, cfg.SessionID, url)
+	if !prov.Authenticated() {
+		ui.PrintLoginHint(prov.Name())
+	}
+
+	// Ctrl-C ends the input queue; the driver loop then drains out.
+	sig, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	go func() {
+		<-sig.Done()
+		w.Interrupt()
+		w.Close()
+	}()
+
+	for {
+		line, queued, ok := w.WaitTake()
+		if !ok {
+			break
+		}
+		if line == "exit" || line == "quit" {
+			break
+		}
+		if queued {
+			w.EchoQueued(line)
+		}
+		if strings.TrimSpace(line) == "/login" {
+			ctx, cancel := context.WithCancel(sig)
+			w.SetCancel(cancel)
+			w.SetBusy(true)
+			err := prov.Login(ctx, w.Notice)
+			w.SetBusy(false)
+			w.SetCancel(nil)
+			cancel()
+			if err != nil {
+				w.Printf("❌ orc: %v", err)
+			}
+			continue
+		}
+		if strings.TrimSpace(line) == "/compact" {
+			ctx, cancel := context.WithCancel(sig)
+			w.SetCancel(cancel)
+			w.SetBusy(true)
+			err := ag.Compact(ctx)
+			w.SetBusy(false)
+			w.SetCancel(nil)
+			cancel()
+			if err != nil && !errors.Is(err, provider.ErrInterrupted) {
+				w.Printf("❌ orc: %v", err)
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "/") {
+			handled, quit, prompt := cmds.Dispatch(ag, line)
+			if quit {
+				break
+			}
+			if prompt == "" && handled {
+				continue
+			}
+			line = prompt // custom command: run its prompt as the turn
+		}
+		ctx, cancel := context.WithCancel(sig)
+		w.SetCancel(cancel)
+		w.SetBusy(true)
+		err := ag.Turn(ctx, line)
+		w.SetBusy(false)
+		w.SetCancel(nil)
+		cancel()
+		if err != nil && !errors.Is(err, provider.ErrInterrupted) {
+			w.Printf("❌ orc: %v", err)
+		}
+	}
+	w.Close()
+	srv.Shutdown()
 	return 0
 }
 
