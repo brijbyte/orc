@@ -483,7 +483,7 @@ func (m *uiModel) View() string {
 		}
 	}
 	if m.status != "" {
-		b.WriteString("\n" + rule + "\n\n")
+		b.WriteString("\n" + rule + "\n")
 		b.WriteString(styleDim.Render(clipTo(m.status, w-1)))
 	}
 	return b.String()
