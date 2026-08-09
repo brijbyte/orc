@@ -1,9 +1,14 @@
 #!/bin/sh
-# orc installer: curl -fsSL https://raw.githubusercontent.com/brijbyte/orc/main/install.sh | sh
+# orc installer: curl -fsSL --connect-timeout 5 https://github.com/brijbyte/orc/releases/latest/download/install.sh | sh
 # Env: ORC_VERSION (default latest), ORC_INSTALL_DIR (default /usr/local/bin or ~/.local/bin)
 set -eu
 
 REPO="brijbyte/orc"
+# Some networks blackhole single CDN addresses; a short connect timeout makes
+# curl fail over to the next address instead of hanging for minutes.
+CURL="curl -fL --connect-timeout 5 --retry 2"
+
+say() { echo "orc: $*"; }
 
 os=$(uname -s)
 arch=$(uname -m)
@@ -18,6 +23,7 @@ case "$arch" in
     *) echo "orc: unsupported architecture: $arch" >&2; exit 1 ;;
 esac
 asset="orc-${os}-${arch}.tar.gz"
+say "platform ${os}/${arch}"
 
 if [ -n "${ORC_VERSION:-}" ]; then
     base="https://github.com/${REPO}/releases/download/v${ORC_VERSION#v}"
@@ -28,10 +34,12 @@ fi
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-echo "Downloading ${base}/${asset}"
-curl -fsSL -o "$tmp/$asset" "${base}/${asset}"
-curl -fsSL -o "$tmp/checksums.txt" "${base}/checksums.txt"
+say "downloading ${base}/${asset}"
+$CURL -# -o "$tmp/$asset" "${base}/${asset}"
+say "downloading checksums"
+$CURL -s -o "$tmp/checksums.txt" "${base}/checksums.txt"
 
+say "verifying checksum"
 cd "$tmp"
 expected=$(grep " ${asset}\$" checksums.txt | cut -d' ' -f1)
 if command -v sha256sum >/dev/null 2>&1; then
@@ -52,11 +60,12 @@ elif [ -w /usr/local/bin ]; then
 else
     dir="$HOME/.local/bin"
 fi
+say "installing to $dir/orc"
 mkdir -p "$dir"
 install -m 755 orc "$dir/orc"
 
-echo "Installed $("$dir/orc" --version) to $dir/orc"
+say "installed $("$dir/orc" --version)"
 case ":$PATH:" in
     *":$dir:"*) ;;
-    *) echo "Note: $dir is not in your PATH" ;;
+    *) say "note: $dir is not in your PATH" ;;
 esac

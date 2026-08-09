@@ -35,6 +35,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           merge-multiple: true
@@ -42,11 +44,14 @@ jobs:
       - name: Checksums
         run: sha256sum orc-*.tar.gz > checksums.txt
 
+      # install.sh ships as a release asset so the bootstrap avoids
+      # raw.githubusercontent.com (blackholed on some ISPs).
       - uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           files: |
             orc-*.tar.gz
             checksums.txt
+            install.sh
 
   tap:
     needs: release

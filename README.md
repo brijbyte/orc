@@ -16,7 +16,7 @@ caching via `prompt_cache_key`.
 Prebuilt binaries for macOS (arm64, x86_64) and Linux (x86_64, arm64):
 
 ```
-curl -fsSL https://raw.githubusercontent.com/brijbyte/orc/main/install.sh | sh
+curl -fsSL --connect-timeout 5 https://github.com/brijbyte/orc/releases/latest/download/install.sh | sh
 ```
 
 Installs to `/usr/local/bin` when writable, else `~/.local/bin`. Pin a version
