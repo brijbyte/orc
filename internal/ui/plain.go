@@ -59,6 +59,7 @@ func (p *Plain) Usage(tokens int64) {
 	}
 }
 
+func (p *Plain) Notice(line string)        { fmt.Fprintln(os.Stderr, line) }
 func (p *Plain) QueueDrain()               {}
 func (p *Plain) QueuePeek() (string, bool) { return "", false }
 func (p *Plain) QueueTake() (string, bool) { return "", false }

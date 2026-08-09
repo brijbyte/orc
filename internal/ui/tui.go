@@ -99,6 +99,7 @@ func (t *TUI) TurnEnd() {
 
 func (t *TUI) ToolCall(name, argsJSON string) { t.println(toolLine(name, argsJSON, true)) }
 func (t *TUI) UserLine(line string)           { t.println(userEcho(line, true)) }
+func (t *TUI) Notice(line string)             { t.println(line) }
 
 // Replay runs before the program starts; plain prints land in scrollback.
 func (t *TUI) Replay(history []json.RawMessage) {

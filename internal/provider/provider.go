@@ -22,6 +22,8 @@ type Callbacks struct {
 	OnItemDone func(json.RawMessage)
 	// Tokens now occupying the context (usage total after a request).
 	OnUsage func(int64)
+	// Progress diagnostics (retries, token refresh) as whole lines.
+	OnNotice func(string)
 }
 
 type Model struct {

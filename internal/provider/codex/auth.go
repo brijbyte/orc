@@ -143,7 +143,7 @@ func (af *authFile) needsRefresh() bool {
 }
 
 // refresh rotates tokens in place and rewrites the auth file.
-func (af *authFile) refresh() error {
+func (af *authFile) refresh(notify func(string)) error {
 	tokens := af.tokens()
 	rt := tokens["refresh_token"]
 	if rt == "" {
@@ -175,12 +175,12 @@ func (af *authFile) refresh() error {
 	if err := af.write(); err != nil {
 		return fmt.Errorf("failed to write %s", af.path)
 	}
-	fmt.Fprintln(os.Stderr, "✅ orc: refreshed tokens")
+	notify("✅ orc: refreshed tokens")
 	return nil
 }
 
 // loadAuth returns a valid access token and account id, refreshing if due.
-func loadAuth() (accessToken, accountID string, err error) {
+func loadAuth(notify func(string)) (accessToken, accountID string, err error) {
 	af, err := loadAuthFile()
 	if err != nil {
 		return "", "", err
@@ -191,7 +191,7 @@ func loadAuth() (accessToken, accountID string, err error) {
 			return "", "", err
 		}
 		if af.needsRefresh() {
-			if err := af.refresh(); err != nil {
+			if err := af.refresh(notify); err != nil {
 				return "", "", err
 			}
 		}

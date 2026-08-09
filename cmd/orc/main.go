@@ -132,6 +132,7 @@ func run(opts *options, model, effort, providerName string, effortExplicit bool)
 	}
 	if opts.doAuth {
 		if err := prov.AuthStatus(); err != nil {
+			fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
 			return 1
 		}
 		return 0
@@ -191,6 +192,7 @@ func runOneShot(cfg *config.Config, prov provider.Provider, sess *session.Sessio
 	case errors.Is(err, provider.ErrInterrupted):
 		return 130
 	case err != nil:
+		fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
 		return 1
 	}
 	return 0
@@ -231,7 +233,9 @@ func runPipe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 			}
 		}
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-		ag.Turn(ctx, line)
+		if err := ag.Turn(ctx, line); err != nil && !errors.Is(err, provider.ErrInterrupted) {
+			fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
+		}
 		stop()
 	}
 	fmt.Println()
@@ -279,10 +283,13 @@ func runTUI(cfg *config.Config, prov provider.Provider, sess *session.Session,
 			ctx, cancel := context.WithCancel(context.Background())
 			t.SetCancel(cancel)
 			t.SetBusy(true)
-			ag.Turn(ctx, line)
+			err := ag.Turn(ctx, line)
 			t.SetBusy(false)
 			t.SetCancel(nil)
 			cancel()
+			if err != nil && !errors.Is(err, provider.ErrInterrupted) {
+				t.Printf("❌ orc: %v", err)
+			}
 		}
 	}()
 	if err := t.Run(); err != nil {

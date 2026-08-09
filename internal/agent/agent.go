@@ -23,6 +23,7 @@ type IO interface {
 	UserLine(line string)
 	Replay(history []json.RawMessage)
 	Usage(tokens int64)
+	Notice(line string)
 	QueueDrain()
 	QueuePeek() (string, bool)
 	QueueTake() (string, bool)
@@ -150,6 +151,7 @@ func (ag *Agent) Turn(ctx context.Context, userText string) error {
 				ag.Sess.SetCtx(tokens)
 				ag.IO.Usage(tokens)
 			},
+			OnNotice: ag.IO.Notice,
 		}
 		err := ag.Prov.Turn(ctx, ag.History, ag.tools, ag.Cfg, cb)
 		ag.IO.TurnEnd()

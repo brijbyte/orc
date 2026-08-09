@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -143,9 +142,12 @@ func readSSE(body io.Reader, st *streamState) error {
 
 func (p *Codex) Turn(ctx context.Context, history []json.RawMessage,
 	tools json.RawMessage, cfg *config.Config, cb *provider.Callbacks) error {
-	accessToken, accountID, err := loadAuth()
+	notify := cb.OnNotice
+	if notify == nil {
+		notify = func(string) {}
+	}
+	accessToken, accountID, err := loadAuth(notify)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
 		return err
 	}
 
@@ -178,8 +180,7 @@ func (p *Codex) Turn(ctx context.Context, history []json.RawMessage,
 		switch {
 		case err == nil && status >= 200 && status < 300:
 			if st.failed != "" {
-				fmt.Fprintf(os.Stderr, "\n❌ orc: model error: %s\n", st.failed)
-				return errors.New(st.failed)
+				return fmt.Errorf("model error: %s", st.failed)
 			}
 			for _, item := range st.items {
 				if cb.OnItemDone != nil {
@@ -192,9 +193,9 @@ func (p *Codex) Turn(ctx context.Context, history []json.RawMessage,
 			// from scratch; buffered items are dropped.
 			wait := 2 << attempt
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "\n🔄 orc: connection dropped, retrying in %ds...\n", wait)
+				notify(fmt.Sprintf("🔄 orc: connection dropped, retrying in %ds...", wait))
 			} else {
-				fmt.Fprintf(os.Stderr, "\n🔄 orc: HTTP %d, retrying in %ds...\n", status, wait)
+				notify(fmt.Sprintf("🔄 orc: HTTP %d, retrying in %ds...", status, wait))
 			}
 			select {
 			case <-time.After(time.Duration(wait) * time.Second):
@@ -202,11 +203,9 @@ func (p *Codex) Turn(ctx context.Context, history []json.RawMessage,
 				return provider.ErrInterrupted
 			}
 		case err != nil || status == 429 || status >= 500:
-			fmt.Fprintf(os.Stderr, "\n❌ orc: giving up after %d attempts\n", attempt+1)
-			return fmt.Errorf("request failed")
+			return fmt.Errorf("giving up after %d attempts", attempt+1)
 		default:
-			fmt.Fprintf(os.Stderr, "\n❌ orc: HTTP %d: %.500s\n", status, st.failed)
-			return fmt.Errorf("HTTP %d", status)
+			return fmt.Errorf("HTTP %d: %.500s", status, st.failed)
 		}
 	}
 }
