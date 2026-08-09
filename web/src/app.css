@@ -29,6 +29,9 @@ body {
 main {
   flex: 1;
   overflow-y: auto;
+  /* reserve symmetric scrollbar space so the centered column never
+     shifts when content starts to overflow */
+  scrollbar-gutter: stable both-edges;
   padding: 1rem 1rem 0.5rem;
 }
 main > div {
