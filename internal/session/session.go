@@ -223,6 +223,39 @@ func chainFiles(id string) ([]string, []string) {
 	return paths, ids
 }
 
+// latestInChain returns the newest session file sharing path's chain root, so
+// resuming any id in a compaction chain lands on the latest compacted state.
+func latestInChain(path string) string {
+	m, ok := fileMeta(path)
+	if !ok {
+		return path
+	}
+	root := m.Root
+	if root == "" {
+		root = m.ID
+	}
+	best := path
+	entries, _ := os.ReadDir(config.Path("sessions"))
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".jsonl") {
+			continue
+		}
+		p := filepath.Join(config.Path("sessions"), e.Name())
+		fm, ok := fileMeta(p)
+		if !ok {
+			continue
+		}
+		memberRoot := fm.Root
+		if memberRoot == "" {
+			memberRoot = fm.ID
+		}
+		if memberRoot == root && filepath.Base(p) > filepath.Base(best) {
+			best = p
+		}
+	}
+	return best
+}
+
 // Delete removes all files in a logical conversation.
 func Delete(id string) error {
 	paths, ids := chainFiles(id)
@@ -251,6 +284,9 @@ func Resume(ref string, cfg *config.Config) (*Session, []json.RawMessage, error)
 		resolved = ref
 	default:
 		resolved = findSession(ref)
+	}
+	if resolved != "" {
+		resolved = latestInChain(resolved)
 	}
 	if resolved == "" {
 		if ref != "" {

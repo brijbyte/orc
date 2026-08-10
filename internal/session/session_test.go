@@ -49,6 +49,42 @@ func TestListAllSkipsEmptySession(t *testing.T) {
 	}
 }
 
+func TestResumeFollowsCompactionChain(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	rootID := "11111111-1111-1111-1111-111111111111"
+	childID := "22222222-2222-2222-2222-222222222222"
+	cfg := &config.Config{SessionID: rootID, Cwd: "/tmp"}
+	root, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendUser(root, "full history")
+	root.Close()
+
+	cfg.SessionID = childID
+	next, err := NewCompacted(cfg, rootID, rootID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendUser(next, "compaction summary")
+	next.Close()
+
+	// Resuming by the root id must land on the newest chain member, or the
+	// reopened session replays the full pre-compaction history.
+	rcfg := &config.Config{}
+	s, history, err := Resume(rootID, rcfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if rcfg.SessionID != childID {
+		t.Fatalf("Resume(%.8s) opened %.8s, want %.8s", rootID, rcfg.SessionID, childID)
+	}
+	if len(history) != 1 {
+		t.Fatalf("history = %d items, want 1 (the summary)", len(history))
+	}
+}
+
 func TestCompactionChainListsAndDeletesAsOneConversation(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	rootID := "11111111-1111-1111-1111-111111111111"
