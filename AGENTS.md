@@ -28,9 +28,11 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
 - `internal/provider` defines providers. Implement each provider in its own
   package under `internal/provider/` and register it from `init()`.
 - `internal/agent` owns the turn and tool-call loop, plus `Compact`
-  (summarize into a fresh session file; auto-runs at 80% of the model's
-  context window, at turn entry and between tool rounds — the points where
-  every committed `function_call` has its output).
+  (write a terse LLM handoff into a fresh session file without repeating
+  instructions; auto-runs at 80% of the model's context window, at turn entry
+  and between tool rounds — the points where every committed `function_call`
+  has its output). Resuming any member of a compaction chain opens its newest
+  member.
 - Tools are in `internal/tools`; `internal/skills` backs the `skill` tool;
   `internal/instructions` builds agent instructions on the first turn.
 - `internal/commands` implements slash commands (/model /effort /new /compact
@@ -51,7 +53,8 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   an append-only SSE event log (hub) and a TUI-style input queue. Routes are
   session-scoped: `/api/sessions` (list all + create),
   `/api/sessions/{id}/open|state|events|input|interrupt|retry|pin`, `DELETE`
-  to stop, plus `/api/models` and `/api/dirs` (directory picker, POST creates).
+  to stop, file GET/PUT, and Git status/compare/diff/mutation routes; plus
+  `/api/models` and `/api/dirs` (directory picker, POST creates).
   `retry` queues the `/retry` control line (no user echo) so the driver calls
   `agent.Retry`: a failed turn commits nothing, so the same request goes out
   again. The frontend shows it as a "try again" button on the last block when
@@ -84,7 +87,10 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   tab close); `Sidebar` lists sessions grouped by cwd; `SessionView` mounts
   only for the active session and subscribes to the store via
   useSyncExternalStore, over
-  `Transcript`/`BlockView`/`Preview`/`InputBar`/`StatusBar`; `lib/theme.ts`
+  `Transcript`/`BlockView`/`Preview`/`InputBar`/`StatusBar`; `FileDrawer` uses
+  `CodeEditor` for revision-checked text edits, diffs, and Markdown preview;
+  `GitDrawer` handles branch comparison, staging, discard, and discard undo.
+  Browser previews and Markdown code highlight client-side. `lib/theme.ts`
   resolves light/dark/system onto `<html data-theme>`. Overlays and
   popups use Base UI (`@base-ui/react`): `ui/Select.tsx` wraps its Select,
   `ui/Button.tsx` its Tooltip; `DirPicker` is a Dialog, session delete an
