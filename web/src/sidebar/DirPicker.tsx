@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
+import { Folder, FolderPlus, FolderUp, Play, X } from "lucide-react";
 import { api } from "../lib/api";
 import { Button } from "../ui/Button";
 import s from "./DirPicker.module.css";
@@ -97,7 +98,8 @@ export function DirPicker({
           <div className={s.list}>
             {parent && (
               <Button className={s.dir} onClick={() => browse(parent)}>
-                ..
+                <FolderUp size={14} strokeWidth={1.8} aria-hidden />
+                parent
               </Button>
             )}
             {dirs.map((d) => (
@@ -106,14 +108,16 @@ export function DirPicker({
                 className={s.dir}
                 onClick={() => browse(path.replace(/\/$/, "") + "/" + d)}
               >
-                {d}/
+                <Folder size={14} strokeWidth={1.8} aria-hidden />
+                {d}
               </Button>
             ))}
           </div>
           <div className={d.foot}>
             {newName === null ? (
               <Button outline onClick={() => setNewName("")}>
-                + new folder
+                <FolderPlus size={14} strokeWidth={1.8} aria-hidden />
+                new folder
               </Button>
             ) : (
               <form
@@ -139,7 +143,10 @@ export function DirPicker({
                 />
               </form>
             )}
-            <Dialog.Close render={<Button outline />}>cancel</Dialog.Close>
+            <Dialog.Close render={<Button outline />}>
+              <X size={13} strokeWidth={1.8} aria-hidden />
+              cancel
+            </Dialog.Close>
             <Button
               outline
               tone="success"
@@ -148,6 +155,7 @@ export function DirPicker({
                 onCancel();
               }}
             >
+              <Play size={13} strokeWidth={1.8} aria-hidden />
               start here
             </Button>
           </div>

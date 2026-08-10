@@ -2,6 +2,7 @@ import "./preflight.css";
 import "./app.css";
 
 import { createRoot } from "react-dom/client";
+import { Bot } from "lucide-react";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import App, { rootLoader } from "./App";
 import { revalidateSoon, setRevalidator } from "./lib/revalidate";
@@ -20,7 +21,8 @@ const router = createBrowserRouter([
         index: true,
         element: (
           <div className={s.empty}>
-            🧌 pick a session on the left, or start one
+            <Bot size={17} strokeWidth={1.8} aria-hidden />
+            pick a session on the left, or start one
           </div>
         ),
       },

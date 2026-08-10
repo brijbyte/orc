@@ -62,6 +62,11 @@
   color: var(--dim);
   font: 0.75rem/1.5 var(--font-ui);
 }
+.summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
 .summary strong {
   width: 100%;
   overflow: hidden;
@@ -156,6 +161,14 @@
   color: var(--dim);
   font: 0.8125rem/1.5 var(--font-mono);
 }
+.message {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.spinner {
+  animation: spin 750ms linear infinite;
+}
 .error {
   color: var(--red);
 }
@@ -177,6 +190,15 @@
 @media (prefers-reduced-motion: reduce) {
   .drawer {
     transition: none;
+  }
+  .spinner {
+    animation: none;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
   }
 }
 

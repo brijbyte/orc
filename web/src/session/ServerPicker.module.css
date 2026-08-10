@@ -1,0 +1,61 @@
+.popup {
+  width: min(38rem, calc(100vw - 2rem));
+  font-family: var(--font-mono);
+}
+.path input {
+  width: 100%;
+  min-height: var(--hit);
+  padding: 0.25em 0.5em;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  outline: none;
+  font: inherit;
+}
+.err {
+  color: var(--red);
+}
+.list {
+  max-height: min(50vh, 28rem);
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+}
+.parent,
+.row {
+  width: 100%;
+  min-height: var(--hit);
+}
+.parent {
+  justify-content: flex-start;
+  border-radius: 0;
+}
+.row {
+  display: flex;
+  align-items: center;
+}
+.row:hover,
+.row[data-selected] {
+  background: var(--panel);
+}
+.select {
+  flex: none;
+  margin-left: 0.15rem;
+}
+.entry {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  border-radius: 0;
+}
+.entry span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.count {
+  margin-right: auto;
+  color: var(--dim);
+  font-size: 0.75rem;
+}

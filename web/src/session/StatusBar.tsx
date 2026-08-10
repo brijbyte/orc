@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GitBranch } from "lucide-react";
+import { GitBranch, Minimize2 } from "lucide-react";
 import { api } from "../lib/api";
 import { setThemePref, themePref, type ThemePref } from "../lib/theme";
 import type { Model } from "../lib/types";
@@ -59,9 +59,10 @@ export function StatusBar({
           disabled={compactDisabled}
           onClick={onCompact}
         >
+          <Minimize2 size={13} strokeWidth={1.8} aria-hidden />
           compact
         </Button>
-        <Button small onClick={onOpenGit}>
+        <Button small tip="open Git (Ctrl/⌘ G)" onClick={onOpenGit}>
           <GitBranch size={13} strokeWidth={1.8} aria-hidden /> Git
         </Button>
         <Select

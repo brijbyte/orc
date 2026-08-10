@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { Bot, LoaderCircle, LogIn } from "lucide-react";
 import { api } from "../lib/api";
 import { Button } from "../ui/Button";
 import s from "./Login.module.css";
@@ -22,7 +23,9 @@ export function Login({ onLogin }: { onLogin: () => void }) {
   return (
     <main className={s.page}>
       <form className={s.form} onSubmit={submit}>
-        <div className={s.mark}>🧌</div>
+        <div className={s.mark}>
+          <Bot size={30} strokeWidth={1.6} aria-hidden />
+        </div>
         <h1>orc</h1>
         <label htmlFor="password">web password</label>
         <input
@@ -40,6 +43,16 @@ export function Login({ onLogin }: { onLogin: () => void }) {
           className={s.submit}
           disabled={busy || !password}
         >
+          {busy ? (
+            <LoaderCircle
+              className={s.spinner}
+              size={14}
+              strokeWidth={1.8}
+              aria-hidden
+            />
+          ) : (
+            <LogIn size={14} strokeWidth={1.8} aria-hidden />
+          )}
           {busy ? "signing in…" : "sign in"}
         </Button>
       </form>

@@ -17,6 +17,23 @@ export type Block = { id: number } & (
 
 export type Model = { slug: string; description: string };
 
+export type ServerAttachment = {
+  kind: "server";
+  name: string;
+  path: string;
+  dir: boolean;
+  size: number;
+};
+
+export type ComposerAttachment = File | ServerAttachment;
+
+export type BrowseEntry = { name: string; dir: boolean; size: number };
+export type BrowseResult = {
+  path: string;
+  parent: string;
+  entries: BrowseEntry[];
+};
+
 export type GitBranch = {
   name: string;
   ref: string;

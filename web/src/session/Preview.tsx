@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "../ui/Button";
 import s from "./Preview.module.css";
 
@@ -54,6 +55,11 @@ export function Preview({
           className={s.expander}
           onClick={() => setOpen(!open)}
         >
+          {open ? (
+            <ChevronUp size={13} strokeWidth={1.8} aria-hidden />
+          ) : (
+            <ChevronDown size={13} strokeWidth={1.8} aria-hidden />
+          )}
           {open ? "collapse" : `show ${lines.length - max} more lines`}
         </Button>
       )}

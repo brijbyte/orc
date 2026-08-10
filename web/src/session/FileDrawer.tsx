@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { X } from "lucide-react";
+import { Code2, Eye, LoaderCircle, X } from "lucide-react";
 import { api } from "../lib/api";
 import { Button } from "../ui/Button";
 import d from "../ui/dialog.module.css";
@@ -101,6 +101,11 @@ export function FileDrawer({
                     onClick={() => setView(tab)}
                     key={tab}
                   >
+                    {tab === "code" ? (
+                      <Code2 size={13} strokeWidth={1.8} aria-hidden />
+                    ) : (
+                      <Eye size={13} strokeWidth={1.8} aria-hidden />
+                    )}
                     {tab === "code" ? "Code" : "Preview"}
                   </Button>
                 ))}
@@ -115,7 +120,12 @@ export function FileDrawer({
             </Dialog.Close>
           </header>
           <div className={s.body} data-preview={preview || undefined}>
-            {!data && !err && <div className={s.message}>loading…</div>}
+            {!data && !err && (
+              <div className={s.message}>
+                <LoaderCircle size={14} strokeWidth={1.8} aria-hidden />
+                loading
+              </div>
+            )}
             {err && <div className={`${s.message} ${s.error}`}>{err}</div>}
             {data && preview && !data.content && (
               <div className={s.message} role="tabpanel">

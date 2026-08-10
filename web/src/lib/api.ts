@@ -103,6 +103,10 @@ export const api = {
     get(`/api/sessions/${id}/history?before=${before}`),
   catchup: (id: string, after: number) =>
     get(`/api/sessions/${id}/catchup?after=${after}`),
+  browse: (id: string, path?: string) =>
+    get(
+      `/api/sessions/${id}/browse${path ? `?path=${encodeURIComponent(path)}` : ""}`,
+    ),
   file: (id: string, ref: string) =>
     fetch(`/api/sessions/${id}/file`, {
       headers: { "X-Orc-File-Ref": ref },
@@ -122,11 +126,17 @@ export const api = {
   dirs: (path?: string) =>
     get(`/api/dirs${path ? `?path=${encodeURIComponent(path)}` : ""}`),
   mkdir: (path: string) => post("/api/dirs", { path }),
-  send: (id: string, text: string, files?: AttachedFile[]) =>
-    post(
-      `/api/sessions/${id}/input`,
-      files?.length ? { text, files } : { text },
-    ),
+  send: (
+    id: string,
+    text: string,
+    files: AttachedFile[] = [],
+    paths: string[] = [],
+  ) =>
+    post(`/api/sessions/${id}/input`, {
+      text,
+      ...(files.length ? { files } : {}),
+      ...(paths.length ? { paths } : {}),
+    }),
   compact: (id: string) => post(`/api/sessions/${id}/compact`),
   retry: (id: string) => post(`/api/sessions/${id}/retry`),
   interrupt: (id: string) =>

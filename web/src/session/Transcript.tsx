@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
+import { LoaderCircle } from "lucide-react";
 import * as store from "../lib/store";
 import type { Block } from "../lib/types";
 import { BlockView } from "./BlockView";
@@ -81,7 +82,8 @@ export function Transcript({
     >
       {loadingOlder && (
         <div className={s.loading} role="status">
-          loading...
+          <LoaderCircle size={13} strokeWidth={1.8} aria-hidden />
+          loading
         </div>
       )}
       {blocks.map((b, i) => (

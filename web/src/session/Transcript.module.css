@@ -24,8 +24,26 @@
   width: fit-content;
   height: 0;
   margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   color: var(--dim);
   background: var(--bg);
+}
+.loading svg {
+  animation: spin 750ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading svg {
+    animation: none;
+  }
 }
 
 @media (max-width: 48rem) {

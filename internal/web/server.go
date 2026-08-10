@@ -442,6 +442,26 @@ func (s *Server) handleEvents(rw http.ResponseWriter, r *http.Request, rt *Runti
 
 // inputMax caps one input request (base64 attachments included).
 const inputMax = 24 << 20
+const attachmentMax = 16 << 20
+
+func serverAttachment(path string) (agent.Attachment, error) {
+	path = filepath.Clean(config.ExpandHome(path))
+	if !filepath.IsAbs(path) {
+		return agent.Attachment{}, fmt.Errorf("path must be absolute")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return agent.Attachment{}, err
+	}
+	if !info.IsDir() && !info.Mode().IsRegular() {
+		return agent.Attachment{}, fmt.Errorf("path is not attachable")
+	}
+	name := path
+	if info.IsDir() {
+		name += string(filepath.Separator)
+	}
+	return agent.Attachment{Name: name, Path: path}, nil
+}
 
 func (s *Server) handleInput(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
 	var in struct {
@@ -451,6 +471,7 @@ func (s *Server) handleInput(rw http.ResponseWriter, r *http.Request, rt *Runtim
 			Type string `json:"type"`
 			Data string `json:"data"` // base64
 		} `json:"files"`
+		Paths []string `json:"paths"`
 	}
 	r.Body = http.MaxBytesReader(rw, r.Body, inputMax)
 	if json.NewDecoder(r.Body).Decode(&in) != nil {
@@ -459,13 +480,32 @@ func (s *Server) handleInput(rw http.ResponseWriter, r *http.Request, rt *Runtim
 	}
 	line := strings.TrimSpace(in.Text)
 	var atts []agent.Attachment
+	total := 0
 	for _, f := range in.Files {
 		data, err := base64.StdEncoding.DecodeString(f.Data)
 		if err != nil || f.Name == "" {
 			http.Error(rw, "bad attachment", http.StatusBadRequest)
 			return
 		}
+		total += len(data)
 		atts = append(atts, agent.Attachment{Name: f.Name, Mime: f.Type, Data: data})
+	}
+	if len(in.Paths) > 64 {
+		http.Error(rw, "too many attachments", http.StatusBadRequest)
+		return
+	}
+	for _, path := range in.Paths {
+		attachment, err := serverAttachment(path)
+		if err != nil {
+			http.Error(rw, "cannot attach server path", http.StatusBadRequest)
+			return
+		}
+		total += len(attachment.Data)
+		atts = append(atts, attachment)
+	}
+	if total > attachmentMax {
+		http.Error(rw, "attachments are too large", http.StatusRequestEntityTooLarge)
+		return
 	}
 	if line == "" && len(atts) == 0 {
 		http.Error(rw, "bad input", http.StatusBadRequest)
@@ -538,6 +578,48 @@ func (s *Server) handleFile(rw http.ResponseWriter, r *http.Request, rt *Runtime
 	writeJSON(rw, map[string]any{
 		"path": path, "content": content, "html": ui.HighlightHTML(path, content),
 	})
+}
+
+// handleBrowse lists files and directories for server-side attachments.
+func (s *Server) handleBrowse(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
+	path := config.ExpandHome(r.URL.Query().Get("path"))
+	if path == "" {
+		path = rt.Cfg.Cwd
+	}
+	path = filepath.Clean(path)
+	if !filepath.IsAbs(path) {
+		http.Error(rw, "path must be absolute", http.StatusBadRequest)
+		return
+	}
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		http.Error(rw, "cannot read directory", http.StatusNotFound)
+		return
+	}
+	type entry struct {
+		Name string `json:"name"`
+		Dir  bool   `json:"dir"`
+		Size int64  `json:"size,omitempty"`
+	}
+	out := make([]entry, 0, len(entries))
+	for _, item := range entries {
+		info, err := item.Info()
+		if err != nil {
+			continue
+		}
+		out = append(out, entry{Name: item.Name(), Dir: info.IsDir(), Size: info.Size()})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Dir != out[j].Dir {
+			return out[i].Dir
+		}
+		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
+	})
+	parent := filepath.Dir(path)
+	if parent == path {
+		parent = ""
+	}
+	writeJSON(rw, map[string]any{"path": path, "parent": parent, "entries": out})
 }
 
 // handleModels serves the provider's model list.
@@ -658,6 +740,7 @@ func (s *Server) router() http.Handler {
 			api.Post("/sessions/{id}/compact", s.withRuntime(handleControl("/compact")))
 			api.Post("/sessions/{id}/retry", s.withRuntime(handleControl("/retry")))
 			api.Post("/sessions/{id}/interrupt", s.withRuntime(s.handleInterrupt))
+			api.Get("/sessions/{id}/browse", s.withRuntime(s.handleBrowse))
 			api.Get("/sessions/{id}/file", s.withRuntime(s.handleFile))
 			api.Get("/sessions/{id}/git/status", s.withRuntime(s.handleGitStatus))
 			api.Get("/sessions/{id}/git/compare", s.withRuntime(s.handleGitCompare))

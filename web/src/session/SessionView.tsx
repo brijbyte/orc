@@ -5,11 +5,13 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { CircleAlert, LoaderCircle, Paperclip } from "lucide-react";
 import { useOutletContext, useParams } from "react-router";
 import * as store from "../lib/store";
 import { api } from "../lib/api";
 import { revalidateSoon } from "../lib/revalidate";
-import type { Block } from "../lib/types";
+import { modShortcut, overlayOpen } from "../lib/shortcuts";
+import type { Block, ComposerAttachment } from "../lib/types";
 
 const fileMax = 16 << 20; // per-file cap, matches the server's request cap
 const hasFiles = (dt: DataTransfer) => dt.types.includes("Files");
@@ -36,7 +38,7 @@ export function SessionRoute() {
 // view is mounted; streams live in store.ts and keep running across
 // switches (App calls store.ensure for every open tab).
 export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<ComposerAttachment[]>([]);
   const [dragging, setDragging] = useState(false);
   const [complete, setComplete] = useState(false);
   const [compacting, setCompacting] = useState(false);
@@ -58,6 +60,16 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
     );
 
   useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!modShortcut(event, "g") || overlayOpen()) return;
+      event.preventDefault();
+      setGitOpen(true);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
     const didComplete = !busy && wasBusy.current;
     if (busy) setComplete(false);
     else if (didComplete) setComplete(true);
@@ -73,9 +85,22 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
 
   const addFiles = (list: FileList | null) => {
     if (!list) return;
-    const ok = [...list].filter((f) => f.size <= fileMax);
+    const ok = [...list].filter((file) => file.size <= fileMax);
     if (ok.length < list.length) alert("files over 16 MB were skipped");
-    if (ok.length) setFiles((prev) => [...prev, ...ok]);
+    setFiles((current) => {
+      const keys = new Set(
+        current
+          .filter((file): file is File => file instanceof File)
+          .map((file) => `${file.name}:${file.size}:${file.lastModified}`),
+      );
+      const added = ok.filter((file) => {
+        const key = `${file.name}:${file.size}:${file.lastModified}`;
+        if (keys.has(key)) return false;
+        keys.add(key);
+        return true;
+      });
+      return added.length ? [...current, ...added] : current;
+    });
   };
 
   const openFile = (path: string, ref: string, line?: number) => {
@@ -114,9 +139,15 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
       }}
     >
       {err ? (
-        <div className={s.dead}>🧌 {err}</div>
+        <div className={s.dead}>
+          <CircleAlert size={17} strokeWidth={1.8} aria-hidden />
+          {err}
+        </div>
       ) : blocks === null ? (
-        <div className={s.loader}>🧌 loading session…</div>
+        <div className={s.loader}>
+          <LoaderCircle size={17} strokeWidth={1.8} aria-hidden />
+          loading session…
+        </div>
       ) : (
         <>
           <Transcript
@@ -181,7 +212,8 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
         data-active={dragging || undefined}
         aria-hidden={!dragging}
       >
-        📎 drop to attach
+        <Paperclip size={18} strokeWidth={1.8} aria-hidden />
+        drop to attach
       </div>
     </div>
   );

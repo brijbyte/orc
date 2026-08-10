@@ -78,9 +78,15 @@
   background: var(--bg);
 }
 .message {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   padding: 1rem;
   color: var(--dim);
   font: 0.8125rem/1.5 var(--font-mono);
+}
+.message svg {
+  animation: spin 750ms linear infinite;
 }
 .error {
   color: var(--red);
@@ -217,5 +223,14 @@
 @media (prefers-reduced-motion: reduce) {
   .drawer {
     transition: none;
+  }
+  .message svg {
+    animation: none;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
   }
 }

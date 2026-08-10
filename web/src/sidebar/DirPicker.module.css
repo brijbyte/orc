@@ -25,7 +25,9 @@
 .dir {
   --btn-color: var(--fg);
   --btn-hover: var(--cyan);
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
   width: 100%;
   text-align: left;
   border-radius: 0;

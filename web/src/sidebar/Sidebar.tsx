@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { Link } from "react-router";
-import { Pin, Trash2, X } from "lucide-react";
+import { Circle, LoaderCircle, Pin, Plus, Trash2, X } from "lucide-react";
 import * as store from "../lib/store";
 import type { SessionRow } from "../lib/types";
 import { Button } from "../ui/Button";
@@ -64,8 +64,26 @@ function Row({
         title={`${row.id.slice(0, 8)} · started ${row.when}`}
         onClick={onOpen}
       >
-        <span className={s.dot}>
-          {busy ? <span className={s.busydot}>●</span> : row.live ? "●" : "○"}
+        <span
+          className={s.dot}
+          data-live={row.live || undefined}
+          role="img"
+          aria-label={busy ? "busy" : row.live ? "live" : "stopped"}
+        >
+          {busy ? (
+            <LoaderCircle
+              className={s.busydot}
+              size={11}
+              strokeWidth={2}
+              aria-hidden
+            />
+          ) : (
+            <Circle
+              size={8}
+              fill={row.live ? "currentColor" : "none"}
+              aria-hidden
+            />
+          )}
         </span>
         <span className={s.title}>{row.title || row.id.slice(0, 8)}</span>
       </Link>
@@ -152,10 +170,20 @@ export function Sidebar({
     openIds.includes(r.id) || (!!r.rid && openIds.includes(r.rid));
   const isActive = (r: SessionRow) => active === r.id || active === r.rid;
 
-  const group = (label: string, list: SessionRow[], showDir = false) => (
+  const group = (
+    label: string,
+    list: SessionRow[],
+    showDir = false,
+    pinnedGroup = false,
+  ) => (
     <div className={s.group} key={label}>
       {/* bdi isolates the LTR path from the rtl left-ellipsis trick */}
-      <div className={s.head} title={label}>
+      <div
+        className={s.head}
+        title={label}
+        data-pinned={pinnedGroup || undefined}
+      >
+        {pinnedGroup && <Pin size={11} strokeWidth={1.8} aria-hidden />}
         <bdi>{showDir ? label : prettyDir(label, home)}</bdi>
       </div>
       {list.map((r) => (
@@ -198,9 +226,10 @@ export function Sidebar({
           <X size={16} strokeWidth={1.8} aria-hidden />
         </Button>
         <Button outline tone="success" className={s.new} onClick={onNew}>
-          + new session
+          <Plus size={13} strokeWidth={1.8} aria-hidden />
+          new session
         </Button>
-        {!!pinned.length && group("📌 pinned", pinned, true)}
+        {!!pinned.length && group("pinned", pinned, true, true)}
         {[...groups.entries()].map(([cwd, list]) => group(cwd, list))}
       </nav>
     </>

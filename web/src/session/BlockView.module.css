@@ -3,16 +3,37 @@
   gap: 0.5rem;
   color: var(--cyan);
 }
-.user > span {
-  font-weight: bold;
+.user > svg {
+  flex: none;
+  margin-top: 0.2rem;
 }
 .user .md {
   flex: 1;
   min-width: 0;
 }
 .pending {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   color: var(--dim);
   white-space: pre-wrap;
+}
+.pending svg {
+  flex: none;
+}
+.pendingText {
+  display: flex;
+  flex-direction: column;
+}
+.attachment {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--dim);
+  font-size: 0.75rem;
+}
+.md > .attachment {
+  margin-top: 0.25rem;
 }
 /* reasoning summary: a quieter sibling of the assistant block. Its markdown
    section titles carry the structure, so the body needs no italics. */
@@ -46,6 +67,10 @@
 .notice {
   color: var(--dim);
   white-space: pre-wrap;
+}
+.noticeIcon {
+  margin-right: 0.4rem;
+  vertical-align: -0.15rem;
 }
 .retry {
   margin-left: 0.6rem;

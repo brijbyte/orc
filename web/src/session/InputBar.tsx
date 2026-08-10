@@ -1,7 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, LoaderCircle, Paperclip, Send, Square } from "lucide-react";
+import { Menu } from "@base-ui/react/menu";
+import {
+  Check,
+  ChevronRight,
+  Files,
+  HardDrive,
+  LoaderCircle,
+  Paperclip,
+  Send,
+  Square,
+  X,
+} from "lucide-react";
 import { api, type AttachedFile } from "../lib/api";
+import type { ComposerAttachment, ServerAttachment } from "../lib/types";
 import { Button } from "../ui/Button";
+import { ServerPicker } from "./ServerPicker";
 import s from "./InputBar.module.css";
 
 const readB64 = (f: File) =>
@@ -52,12 +65,13 @@ export function InputBar({
   sid: string;
   busy: boolean;
   complete: boolean;
-  files: File[];
-  setFiles: (f: File[]) => void;
+  files: ComposerAttachment[];
+  setFiles: (f: ComposerAttachment[]) => void;
   addFiles: (f: FileList | null) => void;
   draft?: { text: string; request: number };
 }) {
   const [input, setInput] = useState("");
+  const [serverPicker, setServerPicker] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const pickRef = useRef<HTMLInputElement>(null);
 
@@ -108,12 +122,12 @@ export function InputBar({
     setInput("");
     setFiles([]);
     requestAnimationFrame(autosize);
-    if (pending.length === 0) {
-      api.send(sid, text);
-      return;
-    }
-    Promise.all(pending.map(readB64))
-      .then((atts) => api.send(sid, text, atts))
+    const local = pending.filter((file): file is File => file instanceof File);
+    const paths = pending
+      .filter((file): file is ServerAttachment => !(file instanceof File))
+      .map((file) => file.path);
+    Promise.all(local.map(readB64))
+      .then((atts) => api.send(sid, text, atts, paths))
       .catch(() => setFiles(pending)); // unreadable file: restore the chips
   };
 
@@ -122,15 +136,21 @@ export function InputBar({
       {files.length > 0 && (
         <div className={s.chips}>
           {files.map((f, i) => (
-            <span key={i} className={s.chip}>
-              📎 {f.name} <em>{sizeLabel(f.size)}</em>
+            <span
+              key={i}
+              className={s.chip}
+              title={f instanceof File ? f.name : f.path}
+            >
+              <Paperclip size={12} strokeWidth={1.8} aria-hidden />
+              {f.name}
+              {(f instanceof File || !f.dir) && <em>{sizeLabel(f.size)}</em>}
               <Button
                 icon
                 tone="danger"
                 tip="remove attachment"
                 onClick={() => setFiles(files.filter((_, j) => j !== i))}
               >
-                ✕
+                <X size={12} strokeWidth={1.8} aria-hidden />
               </Button>
             </span>
           ))}
@@ -152,7 +172,7 @@ export function InputBar({
           ) : complete ? (
             <Check size={13} strokeWidth={2} />
           ) : (
-            ">"
+            <ChevronRight size={13} strokeWidth={2} />
           )}
         </span>
         <span className={s.live} role="status" aria-live="polite" aria-atomic>
@@ -204,15 +224,40 @@ export function InputBar({
             e.target.value = "";
           }}
         />
-        <Button
-          icon
-          tip="attach files"
-          className={s.attach}
-          onClick={() => pickRef.current?.click()}
-        >
-          <Paperclip size={14} strokeWidth={1.8} aria-hidden />
-        </Button>
+        <Menu.Root>
+          <Menu.Trigger
+            render={<Button icon aria-label="attach" title="attach" />}
+          >
+            <Paperclip size={14} strokeWidth={1.8} aria-hidden />
+          </Menu.Trigger>
+          <Menu.Portal>
+            <Menu.Positioner className={s.menuPositioner} sideOffset={5}>
+              <Menu.Popup className={s.menu}>
+                <Menu.Item
+                  render={<Button className={s.menuItem} />}
+                  onClick={() => pickRef.current?.click()}
+                >
+                  <Files size={14} strokeWidth={1.8} aria-hidden />
+                  from local
+                </Menu.Item>
+                <Menu.Item
+                  render={<Button className={s.menuItem} />}
+                  onClick={() => setServerPicker(true)}
+                >
+                  <HardDrive size={14} strokeWidth={1.8} aria-hidden />
+                  from server
+                </Menu.Item>
+              </Menu.Popup>
+            </Menu.Positioner>
+          </Menu.Portal>
+        </Menu.Root>
       </div>
+      <ServerPicker
+        sid={sid}
+        open={serverPicker}
+        onCancel={() => setServerPicker(false)}
+        onAttach={(selected) => setFiles([...files, ...selected])}
+      />
     </form>
   );
 }

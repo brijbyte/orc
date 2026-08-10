@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { PanelLeft } from "lucide-react";
+import { PanelLeft, ServerOff, Trash2, X } from "lucide-react";
 import {
   Outlet,
   useLoaderData,
@@ -251,7 +251,10 @@ export default function App() {
 
   if (dead)
     return (
-      <div className={s.dead}>🧌 cannot reach orc — is it still running?</div>
+      <div className={s.dead}>
+        <ServerOff size={17} strokeWidth={1.8} aria-hidden />
+        cannot reach orc — is it still running?
+      </div>
     );
 
   return (
@@ -307,6 +310,7 @@ export default function App() {
             </AlertDialog.Description>
             <div className={d.foot}>
               <AlertDialog.Close render={<Button outline />}>
+                <X size={13} strokeWidth={1.8} aria-hidden />
                 cancel
               </AlertDialog.Close>
               <Button
@@ -315,6 +319,7 @@ export default function App() {
                 disabled={!doomed}
                 onClick={() => doomed && doDelete(doomed)}
               >
+                <Trash2 size={13} strokeWidth={1.8} aria-hidden />
                 delete
               </Button>
             </div>

@@ -29,6 +29,15 @@
   direction: rtl;
   text-align: left;
 }
+.head[data-pinned] {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  direction: ltr;
+}
+.head svg {
+  flex: none;
+}
 .row {
   position: relative;
   display: flex;
@@ -69,13 +78,18 @@
   inset: 0;
 }
 .dot {
+  display: flex;
   flex-shrink: 0;
+  width: 0.7rem;
+  justify-content: center;
   color: var(--dim);
-  font-size: 0.625rem;
+}
+.dot[data-live] {
+  color: var(--green);
 }
 .busydot {
   color: var(--green);
-  animation: pulse 0.9s ease-in-out infinite alternate;
+  animation: spin 750ms linear infinite;
 }
 .title {
   flex: 1;
@@ -210,11 +224,8 @@
   }
 }
 
-@keyframes pulse {
-  from {
-    opacity: 0.35;
-  }
+@keyframes spin {
   to {
-    opacity: 1;
+    transform: rotate(1turn);
   }
 }

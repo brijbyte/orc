@@ -44,6 +44,50 @@ func TestHandleCatchupReturnsEventsAfterCursor(t *testing.T) {
 	}
 }
 
+func TestHandleInputAttachesServerPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "notes.txt")
+	if err := os.WriteFile(path, []byte("server notes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	body, _ := json.Marshal(map[string]any{"text": "review", "paths": []string{path}})
+	rt := &Runtime{IO: NewIO(nil)}
+	rw := httptest.NewRecorder()
+	new(Server).handleInput(rw, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(body))), rt)
+	item, ok := rt.IO.q.take()
+	if rw.Code != http.StatusNoContent || !ok || len(item.atts) != 1 {
+		t.Fatalf("response=%d item=%#v", rw.Code, item)
+	}
+	if item.atts[0].Name != path || item.atts[0].Path != path || len(item.atts[0].Data) != 0 {
+		t.Fatalf("attachment = %#v", item.atts[0])
+	}
+}
+
+func TestHandleBrowseListsSessionDirectory(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "folder"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "file.txt"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rt := &Runtime{Cfg: &config.Config{Cwd: dir}}
+	rw := httptest.NewRecorder()
+	new(Server).handleBrowse(rw, httptest.NewRequest(http.MethodGet, "/", nil), rt)
+	var got struct {
+		Path    string `json:"path"`
+		Entries []struct {
+			Name string `json:"name"`
+			Dir  bool   `json:"dir"`
+		} `json:"entries"`
+	}
+	if rw.Code != http.StatusOK || json.NewDecoder(rw.Body).Decode(&got) != nil {
+		t.Fatalf("response: status=%d body=%s", rw.Code, rw.Body.String())
+	}
+	if got.Path != dir || len(got.Entries) != 2 || got.Entries[0].Name != "folder" || !got.Entries[0].Dir {
+		t.Fatalf("browse = %#v", got)
+	}
+}
+
 func TestHandleControlQueuesCommandWhenIdle(t *testing.T) {
 	for _, command := range []string{"/compact", "/retry"} {
 		t.Run(command, func(t *testing.T) {

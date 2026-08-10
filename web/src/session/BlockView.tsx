@@ -2,13 +2,25 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   BookOpen,
+  Bot,
   Brain,
+  CheckCircle2,
+  ChevronRight,
+  CircleX,
+  Clock3,
   Cog,
   FilePen,
-  Pencil,
+  Inbox,
+  LockKeyhole,
+  Minimize2,
+  Paperclip,
+  TextCursor,
+  RefreshCw,
+  RotateCcw,
   RotateCw,
   Sparkles,
   SquareTerminal,
+  TriangleAlert,
   Wrench,
 } from "lucide-react";
 import type { Block } from "../lib/types";
@@ -22,9 +34,34 @@ const toolIcons: Record<string, typeof Wrench> = {
   process: Cog,
   read: BookOpen,
   write: FilePen,
-  edit: Pencil,
+  edit: TextCursor,
   skill: Brain,
 };
+
+const noticeIcons = [
+  ["❌", CircleX],
+  ["⚠️", TriangleAlert],
+  ["📭", Inbox],
+  ["🗜️", Minimize2],
+  ["🔐", LockKeyhole],
+  ["✅", CheckCircle2],
+  ["🔄", RefreshCw],
+  ["↩️", RotateCcw],
+  ["🧌", Bot],
+  ["📎", Paperclip],
+] as const;
+
+function Notice({ text }: { text: string }) {
+  const match = noticeIcons.find(([mark]) => text.startsWith(mark));
+  if (!match) return text;
+  const [mark, Icon] = match;
+  return (
+    <>
+      <Icon className={s.noticeIcon} size={14} strokeWidth={1.8} aria-hidden />
+      {text.slice(mark.length).trimStart()}
+    </>
+  );
+}
 
 // wide tables scroll in their own container instead of widening the column
 const mdComponents: Components = {
@@ -40,6 +77,32 @@ function Markdown({ text }: { text: string }) {
     <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
       {text}
     </ReactMarkdown>
+  );
+}
+
+function EchoContent({
+  text,
+  markdown = false,
+}: {
+  text: string;
+  markdown?: boolean;
+}) {
+  const lines = text.split("\n");
+  const first = lines.findIndex((line) => line.startsWith("📎 "));
+  const hasAttachments =
+    first >= 0 && lines.slice(first).every((line) => line.startsWith("📎 "));
+  const body = hasAttachments ? lines.slice(0, first).join("\n") : text;
+  const attachments = hasAttachments ? lines.slice(first) : [];
+  return (
+    <>
+      {markdown ? <Markdown text={body} /> : body}
+      {attachments.map((line, index) => (
+        <span className={s.attachment} key={index}>
+          <Paperclip size={12} strokeWidth={1.8} aria-hidden />
+          {line.slice(3)}
+        </span>
+      ))}
+    </>
   );
 }
 
@@ -63,9 +126,9 @@ export function BlockView({
     case "user":
       return (
         <div className={s.user} {...blockAttrs}>
-          <span>&gt;</span>
+          <ChevronRight size={14} strokeWidth={2} aria-hidden />
           <div className={s.md}>
-            <Markdown text={b.text} />
+            <EchoContent text={b.text} markdown />
           </div>
           <CopyButton text={b.text} />
         </div>
@@ -73,7 +136,11 @@ export function BlockView({
     case "pending":
       return (
         <div className={s.pending} {...blockAttrs}>
-          &gt; {b.text} ⏳
+          <ChevronRight size={14} strokeWidth={2} aria-hidden />
+          <span className={s.pendingText}>
+            <EchoContent text={b.text} />
+          </span>
+          <Clock3 size={13} strokeWidth={1.8} aria-label="queued" />
         </div>
       );
     case "think":
@@ -92,7 +159,7 @@ export function BlockView({
     case "notice":
       return (
         <div className={s.notice} {...blockAttrs}>
-          {b.text}
+          <Notice text={b.text} />
           {onRetry && (
             <Button
               outline

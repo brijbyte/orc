@@ -10,7 +10,8 @@
   gap: 0.75rem;
 }
 .mark {
-  font-size: 2rem;
+  display: flex;
+  color: var(--cyan);
 }
 .form h1 {
   margin: -0.5rem 0 1rem;
@@ -45,4 +46,19 @@
 }
 .error {
   color: var(--red);
+}
+.spinner {
+  animation: spin 750ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
 }

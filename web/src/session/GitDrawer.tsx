@@ -3,8 +3,12 @@ import { Dialog } from "@base-ui/react/dialog";
 import type { GitStatusEntry } from "@pierre/trees";
 import { FileTree, useFileTree } from "@pierre/trees/react";
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpRight,
   ExternalLink,
   GitBranch as BranchIcon,
+  LoaderCircle,
   Paperclip,
   RefreshCw,
   X,
@@ -300,7 +304,17 @@ export function GitDrawer({
               <X size={17} strokeWidth={1.8} aria-hidden />
             </Dialog.Close>
           </header>
-          {!status && !err && <div className={s.message}>loading…</div>}
+          {!status && !err && (
+            <div className={s.message}>
+              <LoaderCircle
+                className={s.spinner}
+                size={14}
+                strokeWidth={1.8}
+                aria-hidden
+              />
+              loading
+            </div>
+          )}
           {err && <div className={`${s.message} ${s.error}`}>{err}</div>}
           {status && !status.repo && (
             <div className={s.message}>
@@ -314,10 +328,22 @@ export function GitDrawer({
                   <strong>
                     {status.detached ? "detached HEAD" : status.branch}
                   </strong>
-                  {status.upstream && <span>↗ {status.upstream}</span>}
+                  {status.upstream && (
+                    <span>
+                      <ArrowUpRight size={12} strokeWidth={1.8} aria-hidden />
+                      {status.upstream}
+                    </span>
+                  )}
                   {(status.ahead > 0 || status.behind > 0) && (
                     <span>
-                      ↑{status.ahead} ↓{status.behind}
+                      <ArrowUp size={12} strokeWidth={1.8} aria-label="ahead" />
+                      {status.ahead}
+                      <ArrowDown
+                        size={12}
+                        strokeWidth={1.8}
+                        aria-label="behind"
+                      />
+                      {status.behind}
                     </span>
                   )}
                   <span>{changes.length} changed</span>
@@ -369,7 +395,15 @@ export function GitDrawer({
                   </div>
                 )}
                 {selected && !diff && !diffErr && (
-                  <div className={s.message}>loading diff…</div>
+                  <div className={s.message}>
+                    <LoaderCircle
+                      className={s.spinner}
+                      size={14}
+                      strokeWidth={1.8}
+                      aria-hidden
+                    />
+                    loading diff
+                  </div>
                 )}
                 {diffErr && (
                   <div className={`${s.message} ${s.error}`}>{diffErr}</div>

@@ -23,6 +23,7 @@ type Attachment struct {
 	Name string
 	Mime string
 	Data []byte
+	Path string // server path; content is not loaded
 }
 
 // IO is the interface the UI supplies for agent events and queued input.
@@ -82,6 +83,11 @@ func userMessage(text string, atts []Attachment) json.RawMessage {
 	}
 	for _, a := range atts {
 		switch {
+		case a.Path != "":
+			content = append(content, map[string]string{
+				"type": "input_text",
+				"text": fmt.Sprintf("[attached server path: %s]", a.Path),
+			})
 		case strings.HasPrefix(a.Mime, "image/"):
 			content = append(content, map[string]string{
 				"type":      "input_image",
@@ -143,7 +149,11 @@ func Echo(line string, atts []Attachment) string {
 		if sb.Len() > 0 {
 			sb.WriteString("\n")
 		}
-		fmt.Fprintf(&sb, "📎 %s (%d KB)", a.Name, (len(a.Data)+1023)/1024)
+		if a.Path != "" {
+			fmt.Fprintf(&sb, "📎 %s", a.Name)
+		} else {
+			fmt.Fprintf(&sb, "📎 %s (%d KB)", a.Name, (len(a.Data)+1023)/1024)
+		}
 	}
 	return sb.String()
 }
