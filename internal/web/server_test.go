@@ -84,25 +84,34 @@ func TestLoginSetsAuthCookie(t *testing.T) {
 	s := &Server{}
 	login := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(`{"password":"`+password+`"}`))
 	loginRW := httptest.NewRecorder()
-	s.handleLogin(loginRW, login)
+	s.router().ServeHTTP(loginRW, login)
 	cookies := loginRW.Result().Cookies()
 	if loginRW.Code != http.StatusNoContent || len(cookies) != 1 || !cookies[0].HttpOnly {
 		t.Fatalf("login: status=%d cookies=%#v", loginRW.Code, cookies)
 	}
 
-	next := s.auth(func(rw http.ResponseWriter, r *http.Request) { rw.WriteHeader(http.StatusNoContent) })
+	next := s.auth(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusNoContent)
+	}))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(cookies[0])
 	rw := httptest.NewRecorder()
-	next(rw, req)
+	next.ServeHTTP(rw, req)
 	if rw.Code != http.StatusNoContent {
 		t.Fatalf("cookie status = %d", rw.Code)
+	}
+	badRef := httptest.NewRequest(http.MethodGet, "/api/sessions/bad!/state", nil)
+	badRef.AddCookie(cookies[0])
+	rw = httptest.NewRecorder()
+	s.router().ServeHTTP(rw, badRef)
+	if rw.Code != http.StatusBadRequest {
+		t.Fatalf("path parameter status = %d", rw.Code)
 	}
 	if _, err := config.RotateWebPassword(); err != nil {
 		t.Fatal(err)
 	}
 	rw = httptest.NewRecorder()
-	next(rw, req)
+	next.ServeHTTP(rw, req)
 	if rw.Code != http.StatusUnauthorized {
 		t.Fatalf("rotated cookie status = %d", rw.Code)
 	}
@@ -115,16 +124,35 @@ func TestAuthRejectsPasswordOutsideCookie(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := &Server{}
-	next := s.auth(func(rw http.ResponseWriter, r *http.Request) { rw.WriteHeader(http.StatusNoContent) })
+	next := s.auth(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusNoContent)
+	}))
 	for _, req := range []*http.Request{
 		httptest.NewRequest(http.MethodGet, "/?password="+password, nil),
 		httptest.NewRequest(http.MethodGet, "/", nil),
 	} {
 		req.Header.Set("Authorization", "Bearer "+password)
 		rw := httptest.NewRecorder()
-		next(rw, req)
+		next.ServeHTTP(rw, req)
 		if rw.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d", rw.Code)
+		}
+	}
+}
+
+func TestRouterSeparatesAPIAndStaticFallback(t *testing.T) {
+	h := new(Server).router()
+	for _, test := range []struct {
+		path string
+		want int
+	}{
+		{"/some/client/route", http.StatusOK},
+		{"/api/missing", http.StatusNotFound},
+	} {
+		rw := httptest.NewRecorder()
+		h.ServeHTTP(rw, httptest.NewRequest(http.MethodGet, test.path, nil))
+		if rw.Code != test.want {
+			t.Errorf("GET %s = %d; want %d", test.path, rw.Code, test.want)
 		}
 	}
 }

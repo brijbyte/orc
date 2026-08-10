@@ -27,6 +27,7 @@ import (
 	"github.com/brijbyte/orc/internal/provider"
 	"github.com/brijbyte/orc/internal/session"
 	"github.com/brijbyte/orc/internal/ui"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -110,8 +111,8 @@ func (s *Server) runtime(id string) *Runtime {
 	return nil
 }
 
-func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
-	return func(rw http.ResponseWriter, r *http.Request) {
+func (s *Server) auth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(authCookie)
 		if err != nil || !validAuthCookie(cookie.Value) {
 			http.Error(rw, "unauthorized", http.StatusUnauthorized)
@@ -122,8 +123,8 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 			max = inputMax
 		}
 		r.Body = http.MaxBytesReader(rw, r.Body, max)
-		next(rw, r)
-	}
+		next.ServeHTTP(rw, r)
+	})
 }
 
 func validAuthCookie(value string) bool {
@@ -207,7 +208,7 @@ func validSessionRef(id string) bool {
 // withRuntime resolves {id} to a live runtime or 404s.
 func (s *Server) withRuntime(next func(http.ResponseWriter, *http.Request, *Runtime)) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
+		id := chi.URLParam(r, "id")
 		if !validSessionRef(id) {
 			http.Error(rw, "bad session id", http.StatusBadRequest)
 			return
@@ -289,7 +290,7 @@ func (s *Server) handleNew(rw http.ResponseWriter, r *http.Request) {
 func (s *Server) handleOpen(rw http.ResponseWriter, r *http.Request) {
 	s.openMu.Lock()
 	defer s.openMu.Unlock()
-	id := r.PathValue("id")
+	id := chi.URLParam(r, "id")
 	if !validSessionRef(id) {
 		http.Error(rw, "bad session id", http.StatusBadRequest)
 		return
@@ -319,7 +320,7 @@ func (s *Server) handleOpen(rw http.ResponseWriter, r *http.Request) {
 // handleCloseSession stops a runtime; with ?purge=1 it also deletes the
 // session file (live or not).
 func (s *Server) handleCloseSession(rw http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	id := chi.URLParam(r, "id")
 	if !validSessionRef(id) {
 		http.Error(rw, "bad session id", http.StatusBadRequest)
 		return
@@ -346,7 +347,7 @@ func (s *Server) handleCloseSession(rw http.ResponseWriter, r *http.Request) {
 
 // handlePin keeps a session at the top of every list, across restarts.
 func (s *Server) handlePin(rw http.ResponseWriter, r *http.Request) {
-	if !validSessionRef(r.PathValue("id")) {
+	if !validSessionRef(chi.URLParam(r, "id")) {
 		http.Error(rw, "bad session id", http.StatusBadRequest)
 		return
 	}
@@ -354,7 +355,7 @@ func (s *Server) handlePin(rw http.ResponseWriter, r *http.Request) {
 		Pinned bool `json:"pinned"`
 	}
 	json.NewDecoder(r.Body).Decode(&in)
-	if err := session.Pin(r.PathValue("id"), in.Pinned); err != nil {
+	if err := session.Pin(chi.URLParam(r, "id"), in.Pinned); err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -625,37 +626,43 @@ func (s *Server) secure(next http.Handler) http.Handler {
 	})
 }
 
-func (s *Server) mux() *http.ServeMux {
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/login", s.handleLogin)
-	mux.HandleFunc("POST /api/logout", s.auth(s.handleLogout))
-	mux.HandleFunc("GET /api/sessions", s.auth(s.handleSessions))
-	mux.HandleFunc("POST /api/sessions", s.auth(s.handleNew))
-	mux.HandleFunc("POST /api/sessions/{id}/open", s.auth(s.handleOpen))
-	mux.HandleFunc("DELETE /api/sessions/{id}", s.auth(s.handleCloseSession))
-	mux.HandleFunc("POST /api/sessions/{id}/pin", s.auth(s.handlePin))
-	mux.HandleFunc("GET /api/sessions/{id}/state", s.auth(s.withRuntime(s.handleState)))
-	mux.HandleFunc("GET /api/sessions/{id}/history", s.auth(s.withRuntime(s.handleHistory)))
-	mux.HandleFunc("GET /api/sessions/{id}/catchup", s.auth(s.withRuntime(s.handleCatchup)))
-	mux.HandleFunc("GET /api/sessions/{id}/events", s.auth(s.withRuntime(s.handleEvents)))
-	mux.HandleFunc("POST /api/sessions/{id}/input", s.auth(s.withRuntime(s.handleInput)))
-	mux.HandleFunc("POST /api/sessions/{id}/interrupt", s.auth(s.withRuntime(s.handleInterrupt)))
-	mux.HandleFunc("GET /api/sessions/{id}/file", s.auth(s.withRuntime(s.handleFile)))
-	mux.HandleFunc("GET /api/models", s.auth(s.handleModels))
-	mux.HandleFunc("GET /api/dirs", s.auth(s.handleDirs))
-	mux.HandleFunc("POST /api/dirs", s.auth(s.handleMkdir))
-	// chroma palettes for preview spans; colors only, no auth needed
-	mux.HandleFunc("GET /hl.css", func(rw http.ResponseWriter, r *http.Request) {
+func (s *Server) router() http.Handler {
+	router := chi.NewRouter()
+	router.Route("/api", func(api chi.Router) {
+		api.Post("/login", s.handleLogin)
+		api.Group(func(api chi.Router) {
+			api.Use(s.auth)
+			api.Post("/logout", s.handleLogout)
+			api.Get("/sessions", s.handleSessions)
+			api.Post("/sessions", s.handleNew)
+			api.Post("/sessions/{id}/open", s.handleOpen)
+			api.Delete("/sessions/{id}", s.handleCloseSession)
+			api.Post("/sessions/{id}/pin", s.handlePin)
+			api.Get("/sessions/{id}/state", s.withRuntime(s.handleState))
+			api.Get("/sessions/{id}/history", s.withRuntime(s.handleHistory))
+			api.Get("/sessions/{id}/catchup", s.withRuntime(s.handleCatchup))
+			api.Get("/sessions/{id}/events", s.withRuntime(s.handleEvents))
+			api.Post("/sessions/{id}/input", s.withRuntime(s.handleInput))
+			api.Post("/sessions/{id}/interrupt", s.withRuntime(s.handleInterrupt))
+			api.Get("/sessions/{id}/file", s.withRuntime(s.handleFile))
+			api.Get("/models", s.handleModels)
+			api.Get("/dirs", s.handleDirs)
+			api.Post("/dirs", s.handleMkdir)
+		})
+		api.NotFound(http.NotFound)
+	})
+	// Chroma palettes have no session data, so they do not need auth.
+	router.Get("/hl.css", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Content-Type", "text/css")
 		fmt.Fprint(rw, hlCSS())
 	})
-	mux.HandleFunc("/", handleStatic)
-	return mux
+	router.Get("/*", handleStatic)
+	return router
 }
 
 func (s *Server) httpServer() *http.Server {
 	return &http.Server{
-		Handler:           s.secure(s.mux()),
+		Handler:           s.secure(s.router()),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       2 * time.Minute,
