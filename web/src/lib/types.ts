@@ -8,7 +8,6 @@ export type Block = { id: number } & (
       name: string;
       desc: string;
       preview: string;
-      html?: string[];
       copy?: string;
       path?: string;
       file?: string;

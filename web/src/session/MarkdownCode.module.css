@@ -1,0 +1,27 @@
+.comment {
+  color: var(--cm-comment);
+}
+.keyword {
+  color: var(--cm-keyword);
+}
+.string {
+  color: var(--cm-string);
+}
+.number {
+  color: var(--cm-number);
+}
+.function {
+  color: var(--cm-function);
+}
+.type {
+  color: var(--cm-type);
+}
+.property {
+  color: var(--cm-property);
+}
+.operator {
+  color: var(--cm-operator);
+}
+.invalid {
+  color: var(--red);
+}

@@ -26,6 +26,7 @@ import {
 import type { Block } from "../lib/types";
 import { Preview } from "./Preview";
 import { CopyButton } from "./CopyButton";
+import { MarkdownCode } from "./MarkdownCode";
 import { Button } from "../ui/Button";
 import s from "./BlockView.module.css";
 
@@ -70,6 +71,22 @@ const mdComponents: Components = {
       <table {...props} />
     </div>
   ),
+  code: ({ node: _, className, children, ...props }) => {
+    const language = /(?:^|\s)language-([^\s]+)/.exec(className ?? "")?.[1];
+    if (!language)
+      return (
+        <code className={className} {...props}>
+          {children}
+        </code>
+      );
+    return (
+      <MarkdownCode
+        code={String(children)}
+        language={language}
+        className={className}
+      />
+    );
+  },
 };
 
 function Markdown({ text }: { text: string }) {
@@ -182,7 +199,7 @@ export function BlockView({
         <div className={s.tool} {...blockAttrs}>
           <div className={s.toolLine}>
             <Icon size={14} strokeWidth={1.8} aria-hidden />
-            <span>{b.name}</span>
+            <span className={s.toolName}>{b.name}</span>
             {b.path && b.file ? (
               <Button
                 link
@@ -197,10 +214,10 @@ export function BlockView({
               <span>{b.desc}</span>
             )}
           </div>
-          {(b.preview || b.html) && (
+          {b.preview && (
             <Preview
               text={b.preview}
-              html={b.html}
+              path={bash ? "command.sh" : b.path}
               gutter={!bash}
               max={bash ? 5 : b.name === "edit" ? 10 : 20}
             />

@@ -26,7 +26,6 @@ import (
 	"github.com/brijbyte/orc/internal/config"
 	"github.com/brijbyte/orc/internal/provider"
 	"github.com/brijbyte/orc/internal/session"
-	"github.com/brijbyte/orc/internal/ui"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/acme/autocert"
@@ -34,8 +33,6 @@ import (
 
 //go:embed all:dist
 var distFS embed.FS
-
-var hlCSS = sync.OnceValue(ui.HighlightCSS)
 
 const (
 	authCookie = "orc_session"
@@ -753,11 +750,6 @@ func (s *Server) router() http.Handler {
 			api.Post("/dirs", s.handleMkdir)
 		})
 		api.NotFound(http.NotFound)
-	})
-	// Chroma palettes have no session data, so they do not need auth.
-	router.Get("/hl.css", func(rw http.ResponseWriter, r *http.Request) {
-		rw.Header().Set("Content-Type", "text/css")
-		fmt.Fprint(rw, hlCSS())
 	})
 	router.Get("/*", handleStatic)
 	return router

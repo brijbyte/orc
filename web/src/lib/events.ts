@@ -39,7 +39,6 @@ export function apply(blocks: Block[], ev: Ev): Block[] {
         name: ev.data.name,
         desc: ev.data.desc,
         preview: ev.data.preview,
-        html: ev.data.html,
         copy: ev.data.copy,
         path: ev.data.path,
         file: ev.data.file,

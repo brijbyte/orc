@@ -5,9 +5,8 @@
   color: var(--code-fg);
   padding: 0.5rem 0.6rem;
   border-radius: 6px;
+  font: 0.8125rem/1.55 var(--font-mono);
 }
-/* diff lines paint a background so chroma keeps the token colors; the
-   gutter and ± marker stay green/red. Rows span the scrolled width. */
 .add,
 .del {
   width: max-content;
@@ -15,20 +14,27 @@
 }
 .add {
   background: var(--diff-add-bg);
-  color: var(--code-fg);
 }
 .del {
   background: var(--diff-del-bg);
-  color: var(--code-fg);
+}
+.add .prefix {
+  color: var(--green);
+}
+.del .prefix {
+  color: var(--red);
 }
 .ctx {
   color: var(--dim);
 }
 .row {
-  color: var(--code-fg); /* unstyled tokens; chroma classes carry the rest */
+  color: var(--code-fg);
+}
+.prefix {
+  color: var(--dim);
 }
 .expander {
-  margin: 0.35rem 0 0.1rem 5ch; /* align with the code past the gutter */
+  margin: 0.35rem 0 0.1rem 5ch;
   user-select: none;
 }
 .nogut .expander {

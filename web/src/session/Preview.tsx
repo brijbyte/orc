@@ -1,53 +1,68 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "../ui/Button";
+import { syntaxNodes, useSyntaxRanges } from "./MarkdownCode";
 import s from "./Preview.module.css";
 
-// lineClass reads the ± marker after the line-number gutter; numbered
-// lines without a marker are write content (plain code). "row" is ours —
-// chroma owns short class names like "hl" inside .chroma.
-const lineClass = (l: string) =>
-  /^\s*\d+ \+ /.test(l)
-    ? s.add
-    : /^\s*\d+ - /.test(l)
-      ? s.del
-      : /^\s*\d+ /.test(l)
-        ? s.row
-        : s.ctx;
+type PreviewLine = {
+  code: string;
+  prefix: string;
+  kind: "add" | "del" | "row" | "ctx";
+  from: number;
+  to: number;
+};
 
-// Preview shows a tool call body truncated to max lines with an
-// expand/collapse toggle. html lines arrive pre-highlighted from the
-// server, gutter and ± markers included; gutter only says whether those
-// prefixes are there (bash renders bare).
+function previewLines(text: string, gutter: boolean): PreviewLine[] {
+  let offset = 0;
+  return text.split("\n").map((text) => {
+    let code = text;
+    let prefix = "";
+    let kind: PreviewLine["kind"] = gutter ? "ctx" : "row";
+    if (gutter) {
+      const diff = text.match(/^(\s*\d+ [+-] )(.*)$/);
+      const numbered = text.match(/^(\s*\d+ )(.*)$/);
+      if (diff) {
+        [, prefix, code] = diff;
+        kind = prefix.includes(" + ") ? "add" : "del";
+      } else if (numbered) {
+        [, prefix, code] = numbered;
+        kind = "row";
+      }
+    }
+    const line = { code, prefix, kind, from: offset, to: offset + code.length };
+    offset = line.to + 1;
+    return line;
+  });
+}
+
 export function Preview({
   text,
-  html,
+  path,
   gutter,
   max,
 }: {
   text: string;
-  html?: string[];
+  path?: string;
   gutter: boolean;
   max: number;
 }) {
   const [open, setOpen] = useState(false);
-  const lines = html ?? text.split("\n");
+  const lines = useMemo(() => previewLines(text, gutter), [text, gutter]);
+  const code = useMemo(
+    () => lines.map((line) => line.code).join("\n"),
+    [lines],
+  );
+  const ranges = useSyntaxRanges({ code, path });
   const shown = open ? lines : lines.slice(0, max);
+
   return (
-    <pre className={`${s.preview} chroma${gutter ? "" : " " + s.nogut}`}>
-      {shown.map((l, i) =>
-        html ? (
-          <div
-            key={i}
-            className={gutter ? lineClass(l) : s.row}
-            dangerouslySetInnerHTML={{ __html: l }}
-          />
-        ) : (
-          <div key={i} className={gutter ? lineClass(l) : s.row}>
-            {l}
-          </div>
-        ),
-      )}
+    <pre className={`${s.preview}${gutter ? "" : " " + s.nogut}`}>
+      {shown.map((line, i) => (
+        <div key={i} className={s[line.kind]}>
+          {line.prefix && <span className={s.prefix}>{line.prefix}</span>}
+          <code>{syntaxNodes(code, ranges, line.from, line.to)}</code>
+        </div>
+      ))}
       {lines.length > max && (
         <Button
           outline

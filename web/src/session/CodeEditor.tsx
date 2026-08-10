@@ -111,7 +111,13 @@ const editorTheme = EditorView.theme({
   },
   ".cm-diff-meta": { color: "var(--dim)" },
   ".cm-diff-number": { cursor: "pointer", textDecoration: "underline" },
-  ".cm-diff-marker": { width: "2ch", padding: "0", textAlign: "center" },
+  ".cm-diff-markers .cm-gutterElement": {
+    minWidth: "2.5rem",
+    padding: "0 0.75rem",
+    overflow: "visible",
+    textAlign: "center",
+    whiteSpace: "nowrap",
+  },
   ".cm-diff-marker-add": { color: "var(--green)" },
   ".cm-diff-marker-del": { color: "var(--red)" },
 });
@@ -323,7 +329,7 @@ export function DiffEditor({
       },
     });
     const markerGutter = gutter({
-      class: "cm-diff-marker",
+      class: "cm-diff-markers",
       lineMarker: (editor, block) => {
         const item =
           linesRef.current[editor.state.doc.lineAt(block.from).number - 1];

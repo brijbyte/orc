@@ -121,8 +121,9 @@ func TestToolCallCreatesFileReference(t *testing.T) {
 	w.ToolCall("read", `{"path":"src/main.go"}`)
 	events, _, _ := w.hub.snapshot()
 	var data struct {
-		Path string `json:"path"`
-		File string `json:"file"`
+		Path string          `json:"path"`
+		File string          `json:"file"`
+		HTML json.RawMessage `json:"html"`
 	}
 	if len(events) != 1 || json.Unmarshal(events[0].Data, &data) != nil {
 		t.Fatalf("bad tool event: %#v", events)
@@ -132,6 +133,9 @@ func TestToolCallCreatesFileReference(t *testing.T) {
 	path, ok := w.filePath(data.File)
 	if data.Path != "src/main.go" || !ok || path != want {
 		t.Fatalf("file reference: data=%#v path=%q", data, path)
+	}
+	if data.HTML != nil {
+		t.Fatalf("tool event includes server-rendered HTML: %s", data.HTML)
 	}
 }
 

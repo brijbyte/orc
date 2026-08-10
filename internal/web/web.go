@@ -109,8 +109,7 @@ func (w *IO) filePath(ref string) (string, bool) {
 }
 
 func (w *IO) ToolCall(name, argsJSON string) {
-	// full preview: the frontend truncates and expands client-side; write
-	// content is pre-highlighted to HTML lines so the browser needs no lexer
+	// The frontend truncates and highlights the full plain-text preview.
 	_, full := ui.ToolPreview(name, argsJSON, false, "")
 	desc := ui.ToolDesc(name, argsJSON)
 	if name == "bash" {
@@ -135,9 +134,6 @@ func (w *IO) ToolCall(name, argsJSON string) {
 		if ref := w.allowFile(args.Path); ref != "" {
 			data["path"], data["file"] = args.Path, ref
 		}
-	}
-	if hl := ui.PreviewHTML(name, argsJSON); hl != nil {
-		data["html"] = hl
 	}
 	if c := toolCopyText(name, argsJSON); c != "" {
 		data["copy"] = c
