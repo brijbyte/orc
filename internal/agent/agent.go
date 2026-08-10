@@ -181,8 +181,8 @@ func (ag *Agent) steer() {
 
 func (ag *Agent) Replay() { ag.IO.Replay(ag.History) }
 
-const compactPrompt = "Summarize this conversation so a fresh instance can " +
-	"continue the work. Cover: the user's goals and constraints, decisions " +
+const compactPrompt = "Write a handoff summary for another LLM instance " +
+	"that will resume this work. Cover: the user's goals and constraints, decisions " +
 	"made, current state (including uncommitted changes), and immediate next " +
 	"steps. Be terse: plain bullets, under 400 words. Name file paths so the " +
 	"next instance can read them, but do not quote file contents, code, " +
