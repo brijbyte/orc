@@ -15,6 +15,33 @@ const keepGitkeep: Plugin = {
 // running `orc --serve`.
 export default defineConfig({
   plugins: [react(), keepGitkeep],
-  build: { outDir: "../internal/web/dist", emptyOutDir: true },
+  build: {
+    outDir: "../internal/web/dist",
+    emptyOutDir: true,
+    sourcemap: true,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: "react-router",
+              test: /node_modules[\\/]react-router/,
+              priority: 2,
+            },
+            {
+              name: "react",
+              test: /node_modules[\\/](react|react-dom)/,
+              priority: 2,
+            },
+            {
+              name: "all-libs",
+              test: /node_modules/,
+              priority: 1,
+            },
+          ],
+        },
+      },
+    },
+  },
   server: { proxy: { "/api": "http://127.0.0.1:7777" } },
 });

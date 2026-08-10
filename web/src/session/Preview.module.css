@@ -14,12 +14,12 @@
   min-width: 100%;
 }
 .add {
-  color: var(--green);
-  background: color-mix(in srgb, var(--green) 14%, transparent);
+  background: var(--diff-add-bg);
+  color: var(--code-fg);
 }
 .del {
-  color: var(--red);
-  background: color-mix(in srgb, var(--red) 14%, transparent);
+  background: var(--diff-del-bg);
+  color: var(--code-fg);
 }
 .ctx {
   color: var(--dim);

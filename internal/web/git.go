@@ -17,7 +17,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/brijbyte/orc/internal/config"
 	"github.com/brijbyte/orc/internal/ui"
+	"github.com/google/uuid"
 )
 
 const gitOutputMax = 8 << 20
@@ -51,24 +53,40 @@ type gitActivity struct {
 	Hunks  int      `json:"hunks,omitempty"`
 }
 
+type gitRecoverySummary struct {
+	At     string   `json:"at"`
+	Action string   `json:"action"`
+	Paths  []string `json:"paths"`
+	Hunks  int      `json:"hunks,omitempty"`
+}
+
+type gitRecovery struct {
+	gitRecoverySummary
+	Root  string `json:"root"`
+	Patch []byte `json:"patch"`
+	file  string
+}
+
 type gitStatus struct {
-	Repo     bool          `json:"repo"`
-	Root     string        `json:"root,omitempty"`
-	Branch   string        `json:"branch,omitempty"`
-	Detached bool          `json:"detached,omitempty"`
-	Upstream string        `json:"upstream,omitempty"`
-	Ahead    int           `json:"ahead"`
-	Behind   int           `json:"behind"`
-	Clean    bool          `json:"clean"`
-	Changes  []gitChange   `json:"changes"`
-	Branches []gitBranch   `json:"branches"`
-	Activity []gitActivity `json:"activity"`
+	Repo     bool                `json:"repo"`
+	Root     string              `json:"root,omitempty"`
+	Branch   string              `json:"branch,omitempty"`
+	Detached bool                `json:"detached,omitempty"`
+	Upstream string              `json:"upstream,omitempty"`
+	Ahead    int                 `json:"ahead"`
+	Behind   int                 `json:"behind"`
+	Clean    bool                `json:"clean"`
+	Changes  []gitChange         `json:"changes"`
+	Branches []gitBranch         `json:"branches"`
+	Activity []gitActivity       `json:"activity"`
+	Recovery *gitRecoverySummary `json:"recovery,omitempty"`
 }
 
 type gitMutationRequest struct {
-	Paths []string `json:"paths"`
-	Hunks []int    `json:"hunks,omitempty"`
-	Hash  string   `json:"hash,omitempty"`
+	Paths   []string `json:"paths"`
+	Hunks   []int    `json:"hunks,omitempty"`
+	Hash    string   `json:"hash,omitempty"`
+	Confirm bool     `json:"confirm,omitempty"`
 }
 
 type gitCompare struct {
@@ -144,6 +162,79 @@ func (rt *Runtime) gitActivities() []gitActivity {
 	return append([]gitActivity(nil), rt.gitActivity...)
 }
 
+func gitRecoveryDir() string {
+	return config.Path("recoveries")
+}
+
+func saveGitRecovery(root, action string, paths []string, hunks int, patch []byte) (*gitRecovery, error) {
+	dir := gitRecoveryDir()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, err
+	}
+	recovery := &gitRecovery{
+		gitRecoverySummary: gitRecoverySummary{
+			At: time.Now().UTC().Format(time.RFC3339Nano), Action: action,
+			Paths: append([]string(nil), paths...), Hunks: hunks,
+		},
+		Root: root, Patch: append([]byte(nil), patch...),
+	}
+	recovery.file = filepath.Join(dir, fmt.Sprintf("%020d-%s.json", time.Now().UnixNano(), uuid.NewString()))
+	data, err := json.Marshal(recovery)
+	if err != nil {
+		return nil, err
+	}
+	if err := config.WriteFileAtomic(recovery.file, data); err != nil {
+		return nil, err
+	}
+	pruneGitRecoveries(dir)
+	return recovery, nil
+}
+
+func pruneGitRecoveries(dir string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	files := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
+			files = append(files, entry.Name())
+		}
+	}
+	sort.Strings(files)
+	for len(files) > 50 {
+		_ = os.Remove(filepath.Join(dir, files[0]))
+		files = files[1:]
+	}
+}
+
+func latestGitRecovery(root string) (*gitRecovery, error) {
+	entries, err := os.ReadDir(gitRecoveryDir())
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() > entries[j].Name() })
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		path := filepath.Join(gitRecoveryDir(), entry.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var recovery gitRecovery
+		if json.Unmarshal(data, &recovery) == nil && recovery.Root == root && len(recovery.Patch) > 0 {
+			recovery.file = path
+			return &recovery, nil
+		}
+	}
+	return nil, nil
+}
+
 func loadGitStatus(ctx context.Context, rt *Runtime) (gitStatus, error) {
 	root, err := gitRoot(ctx, rt.Cfg.Cwd)
 	if err != nil {
@@ -172,6 +263,10 @@ func loadGitStatus(ctx context.Context, rt *Runtime) (gitStatus, error) {
 		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
 			status.Changes[i].File = rt.IO.allowFile(path)
 		}
+	}
+	if recovery, err := latestGitRecovery(root); err == nil && recovery != nil {
+		summary := recovery.gitRecoverySummary
+		status.Recovery = &summary
 	}
 	return status, nil
 }
@@ -565,6 +660,186 @@ func gitMutate(ctx context.Context, rt *Runtime, request gitMutationRequest, sta
 	return loadGitStatus(ctx, rt)
 }
 
+func discardPaths(status gitStatus, requested []string, untracked bool) ([]string, []string, error) {
+	if len(requested) == 0 || len(requested) > 256 {
+		return nil, nil, errors.New("select one or more files")
+	}
+	changes := make(map[string]gitChange, len(status.Changes))
+	for _, change := range status.Changes {
+		changes[change.Path] = change
+	}
+	seen := map[string]bool{}
+	paths := []string{}
+	selected := []string{}
+	for _, path := range requested {
+		change, ok := changes[path]
+		if !ok || (change.Index == "?") != untracked {
+			return nil, nil, fmt.Errorf("%s has no matching changes", path)
+		}
+		if !untracked && change.Worktree == "." {
+			return nil, nil, fmt.Errorf("%s has no unstaged changes", path)
+		}
+		for _, candidate := range []string{change.Path, change.OldPath} {
+			if candidate == "" || seen[candidate] {
+				continue
+			}
+			if _, ok := repoPath(status.Root, candidate); !ok {
+				return nil, nil, errors.New("bad path")
+			}
+			seen[candidate] = true
+			paths = append(paths, candidate)
+		}
+		selected = append(selected, path)
+	}
+	return paths, selected, nil
+}
+
+func gitDiscard(ctx context.Context, rt *Runtime, request gitMutationRequest) (gitStatus, error) {
+	if !request.Confirm {
+		return gitStatus{}, errors.New("confirmation required")
+	}
+	status, err := loadGitStatus(ctx, rt)
+	if err != nil {
+		return gitStatus{}, err
+	}
+	paths, selected, err := discardPaths(status, request.Paths, false)
+	if err != nil {
+		return gitStatus{}, err
+	}
+	var patch []byte
+	if len(request.Hunks) > 0 {
+		if len(selected) != 1 || request.Hash == "" {
+			return gitStatus{}, errors.New("hunks require one file and a diff hash")
+		}
+		patch, _, err = gitDiff(ctx, rt, "", "worktree", selected[0])
+		if err != nil {
+			return gitStatus{}, err
+		}
+		if diffHash(patch) != request.Hash {
+			return gitStatus{}, errGitStale
+		}
+		patch, err = selectDiffHunks(patch, request.Hunks)
+		if err != nil {
+			return gitStatus{}, err
+		}
+	} else {
+		args := append([]string{"diff", "--binary", "--find-renames", "--src-prefix=a/", "--dst-prefix=b/", "--"}, paths...)
+		patch, err = runGit(ctx, status.Root, args...)
+		if err != nil {
+			return gitStatus{}, err
+		}
+	}
+	if len(patch) == 0 {
+		return gitStatus{}, errors.New("no recoverable changes")
+	}
+	recovery, err := saveGitRecovery(status.Root, "discard", selected, len(request.Hunks), patch)
+	if err != nil {
+		return gitStatus{}, fmt.Errorf("save recovery patch: %w", err)
+	}
+	if len(request.Hunks) > 0 {
+		args := []string{"apply", "--binary", "--reverse", "--whitespace=nowarn"}
+		if _, err = runGitInput(ctx, status.Root, patch, append(args, "--check")...); err == nil {
+			_, err = runGitInput(ctx, status.Root, patch, args...)
+		}
+	} else {
+		_, err = runGit(ctx, status.Root, append([]string{"restore", "--worktree", "--"}, paths...)...)
+	}
+	if err != nil {
+		_ = os.Remove(recovery.file)
+		return gitStatus{}, err
+	}
+	rt.recordGitActivity("discard", selected, len(request.Hunks))
+	return loadGitStatus(ctx, rt)
+}
+
+func untrackedDiff(ctx context.Context, root, path string) ([]byte, error) {
+	out, err := runGit(ctx, root, "diff", "--no-index", "--binary", "--src-prefix=a/", "--dst-prefix=b/", "--", "/dev/null", path)
+	var exit *exec.ExitError
+	if err != nil && (!errors.As(err, &exit) || exit.ExitCode() != 1) {
+		return nil, err
+	}
+	return out, nil
+}
+
+func gitRemoveUntracked(ctx context.Context, rt *Runtime, request gitMutationRequest) (gitStatus, error) {
+	if !request.Confirm {
+		return gitStatus{}, errors.New("confirmation required")
+	}
+	status, err := loadGitStatus(ctx, rt)
+	if err != nil {
+		return gitStatus{}, err
+	}
+	paths, selected, err := discardPaths(status, request.Paths, true)
+	if err != nil {
+		return gitStatus{}, err
+	}
+	var patch bytes.Buffer
+	for _, path := range paths {
+		full, _ := repoPath(status.Root, path)
+		info, err := os.Lstat(full)
+		if err != nil || !info.Mode().IsRegular() {
+			return gitStatus{}, fmt.Errorf("%s is not a regular file", path)
+		}
+		part, err := untrackedDiff(ctx, status.Root, path)
+		if err != nil {
+			return gitStatus{}, err
+		}
+		if patch.Len()+len(part) > gitOutputMax {
+			return gitStatus{}, errGitOutput
+		}
+		patch.Write(part)
+	}
+	if patch.Len() == 0 {
+		return gitStatus{}, errors.New("no recoverable changes")
+	}
+	recovery, err := saveGitRecovery(status.Root, "remove", selected, 0, patch.Bytes())
+	if err != nil {
+		return gitStatus{}, fmt.Errorf("save recovery patch: %w", err)
+	}
+	removed := false
+	for _, path := range paths {
+		full, _ := repoPath(status.Root, path)
+		if err := os.Remove(full); err != nil {
+			if !removed {
+				_ = os.Remove(recovery.file)
+			}
+			return gitStatus{}, err
+		}
+		removed = true
+	}
+	rt.recordGitActivity("remove", selected, 0)
+	return loadGitStatus(ctx, rt)
+}
+
+func gitUndoDiscard(ctx context.Context, rt *Runtime) (gitStatus, error) {
+	status, err := loadGitStatus(ctx, rt)
+	if err != nil {
+		return gitStatus{}, err
+	}
+	recovery, err := latestGitRecovery(status.Root)
+	if err != nil {
+		return gitStatus{}, err
+	}
+	if recovery == nil {
+		return gitStatus{}, errors.New("no discard to undo")
+	}
+	args := []string{"apply", "--binary", "--whitespace=nowarn"}
+	if _, err := runGitInput(ctx, status.Root, recovery.Patch, append(args, "--check")...); err != nil {
+		return gitStatus{}, err
+	}
+	if _, err := runGitInput(ctx, status.Root, recovery.Patch, args...); err != nil {
+		return gitStatus{}, err
+	}
+	if err := os.Remove(recovery.file); err != nil {
+		used := strings.TrimSuffix(recovery.file, ".json") + ".used"
+		if renameErr := os.Rename(recovery.file, used); renameErr != nil {
+			return gitStatus{}, err
+		}
+	}
+	rt.recordGitActivity("undo", recovery.Paths, recovery.Hunks)
+	return loadGitStatus(ctx, rt)
+}
+
 func gitHTTPError(rw http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, errNotRepo):
@@ -613,7 +888,7 @@ func (s *Server) handleGitDiff(rw http.ResponseWriter, r *http.Request, rt *Runt
 	}
 	writeJSON(rw, map[string]any{
 		"path": r.URL.Query().Get("path"), "root": root, "patch": string(patch),
-		"html": ui.HighlightHTML("changes.diff", string(patch)), "size": len(patch),
+		"html": ui.DiffHTML(r.URL.Query().Get("path"), string(patch)), "size": len(patch),
 		"hash": diffHash(patch),
 	})
 }
@@ -628,6 +903,35 @@ func (s *Server) handleGitMutation(stage bool) func(http.ResponseWriter, *http.R
 		rt.gitMu.Lock()
 		defer rt.gitMu.Unlock()
 		status, err := gitMutate(r.Context(), rt, request, stage)
+		if err != nil {
+			gitHTTPError(rw, err)
+			return
+		}
+		writeJSON(rw, status)
+	}
+}
+
+func (s *Server) handleGitRecoveryMutation(kind string) func(http.ResponseWriter, *http.Request, *Runtime) {
+	return func(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
+		var request gitMutationRequest
+		if kind != "undo" && json.NewDecoder(r.Body).Decode(&request) != nil {
+			http.Error(rw, "bad input", http.StatusBadRequest)
+			return
+		}
+		rt.gitMu.Lock()
+		defer rt.gitMu.Unlock()
+		var status gitStatus
+		var err error
+		switch kind {
+		case "discard":
+			status, err = gitDiscard(r.Context(), rt, request)
+		case "remove":
+			status, err = gitRemoveUntracked(r.Context(), rt, request)
+		case "undo":
+			status, err = gitUndoDiscard(r.Context(), rt)
+		default:
+			err = errors.New("unknown Git mutation")
+		}
 		if err != nil {
 			gitHTTPError(rw, err)
 			return

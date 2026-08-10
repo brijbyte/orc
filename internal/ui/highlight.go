@@ -3,11 +3,12 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	stdhtml "html"
 	"strings"
 
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/formatters"
-	"github.com/alecthomas/chroma/v2/formatters/html"
+	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 )
@@ -16,8 +17,8 @@ var hlStyle = styles.Get("github-dark")
 
 // hlHTML emits class-based spans so the browser can theme them; the
 // palettes ship via HighlightCSS.
-var hlHTML = html.New(html.WithClasses(true), html.WithCSSComments(false),
-	html.PreventSurroundingPre(true))
+var hlHTML = chromahtml.New(chromahtml.WithClasses(true), chromahtml.WithCSSComments(false),
+	chromahtml.PreventSurroundingPre(true))
 
 // HighlightCSS is the stylesheet for class-based preview spans: github-dark
 // by default, github (light) when the light theme is active. Background
@@ -92,6 +93,67 @@ func HighlightHTML(path, text string) []string {
 		return nil
 	}
 	return formatLines(tl, hlHTML)
+}
+
+type diffHTMLRef struct {
+	line  int
+	side  byte
+	index int
+}
+
+// DiffHTML keeps diff markers plain and highlights source with the file lexer.
+func DiffHTML(path, patch string) []string {
+	lines := strings.Split(patch, "\n")
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	out := make([]string, len(lines))
+	for i, line := range lines {
+		out[i] = stdhtml.EscapeString(line)
+	}
+	for start := 0; start < len(lines); start++ {
+		if !strings.HasPrefix(lines[start], "@@ ") {
+			continue
+		}
+		end := start + 1
+		for end < len(lines) && !strings.HasPrefix(lines[end], "@@ ") &&
+			!strings.HasPrefix(lines[end], "diff --git ") {
+			end++
+		}
+		oldLines, newLines := []string{}, []string{}
+		refs := []diffHTMLRef{}
+		for i := start + 1; i < end; i++ {
+			line := lines[i]
+			if line == "" {
+				continue
+			}
+			switch line[0] {
+			case '-':
+				refs = append(refs, diffHTMLRef{i, 'o', len(oldLines)})
+				oldLines = append(oldLines, line[1:])
+			case '+':
+				refs = append(refs, diffHTMLRef{i, 'n', len(newLines)})
+				newLines = append(newLines, line[1:])
+			case ' ':
+				refs = append(refs, diffHTMLRef{i, 'n', len(newLines)})
+				oldLines = append(oldLines, line[1:])
+				newLines = append(newLines, line[1:])
+			}
+		}
+		oldHTML := HighlightHTML(path, strings.Join(oldLines, "\n"))
+		newHTML := HighlightHTML(path, strings.Join(newLines, "\n"))
+		for _, ref := range refs {
+			highlighted := newHTML
+			if ref.side == 'o' {
+				highlighted = oldHTML
+			}
+			if ref.index < len(highlighted) {
+				out[ref.line] = stdhtml.EscapeString(lines[ref.line][:1]) + highlighted[ref.index]
+			}
+		}
+		start = end - 1
+	}
+	return out
 }
 
 // hlLines highlights preview text without trailing blank lines.

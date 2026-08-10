@@ -191,6 +191,123 @@ func TestGitHunkRejectsStaleDiff(t *testing.T) {
 	}
 }
 
+func TestGitDiscardFileAndUndo(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	rt, dir := testRepo(t)
+	path := filepath.Join(dir, "tracked file.txt")
+	if err := os.WriteFile(path, []byte("two\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	status, err := gitDiscard(context.Background(), rt, gitMutationRequest{
+		Paths: []string{"tracked file.txt"}, Confirm: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, _ := os.ReadFile(path)
+	if string(content) != "one\n" || status.Recovery == nil {
+		t.Fatalf("discard content=%q recovery=%#v", content, status.Recovery)
+	}
+	status, err = gitUndoDiscard(context.Background(), rt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, _ = os.ReadFile(path)
+	if string(content) != "two\n" || status.Recovery != nil {
+		t.Fatalf("undo content=%q recovery=%#v", content, status.Recovery)
+	}
+}
+
+func TestGitDiscardHunkAndUndo(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	rt, dir := testRepo(t)
+	lines := make([]string, 24)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("line %02d", i+1)
+	}
+	path := filepath.Join(dir, "hunks.txt")
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	testGit(t, dir, "add", "hunks.txt")
+	testGit(t, dir, "commit", "-m", "add hunks")
+	lines[1], lines[21] = "first change", "second change"
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	patch, _, err := gitDiff(context.Background(), rt, "", "worktree", "hunks.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = gitDiscard(context.Background(), rt, gitMutationRequest{
+		Paths: []string{"hunks.txt"}, Hunks: []int{0}, Hash: diffHash(patch), Confirm: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, _ := os.ReadFile(path)
+	if strings.Contains(string(content), "first change") || !strings.Contains(string(content), "second change") {
+		t.Fatalf("content after discard:\n%s", content)
+	}
+	if _, err := gitUndoDiscard(context.Background(), rt); err != nil {
+		t.Fatal(err)
+	}
+	content, _ = os.ReadFile(path)
+	if !strings.Contains(string(content), "first change") || !strings.Contains(string(content), "second change") {
+		t.Fatalf("content after undo:\n%s", content)
+	}
+}
+
+func TestGitRemoveUntrackedAndUndo(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	rt, dir := testRepo(t)
+	path := filepath.Join(dir, "new.txt")
+	if err := os.WriteFile(path, []byte("new\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gitRemoveUntracked(context.Background(), rt, gitMutationRequest{
+		Paths: []string{"new.txt"}, Confirm: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("removed file stat error = %v", err)
+	}
+	if _, err := gitUndoDiscard(context.Background(), rt); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil || string(content) != "new\n" {
+		t.Fatalf("restored content=%q err=%v", content, err)
+	}
+}
+
+func TestGitDiscardRestoresDeletedFile(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	rt, dir := testRepo(t)
+	path := filepath.Join(dir, "tracked file.txt")
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gitDiscard(context.Background(), rt, gitMutationRequest{
+		Paths: []string{"tracked file.txt"}, Confirm: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil || string(content) != "one\n" {
+		t.Fatalf("restored content=%q err=%v", content, err)
+	}
+}
+
+func TestGitDiscardRequiresConfirmation(t *testing.T) {
+	rt, _ := testRepo(t)
+	_, err := gitDiscard(context.Background(), rt, gitMutationRequest{Paths: []string{"tracked file.txt"}})
+	if err == nil || err.Error() != "confirmation required" {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestGitBranchCompare(t *testing.T) {
 	rt, dir := testRepo(t)
 	testGit(t, dir, "checkout", "-b", "feature")

@@ -52,7 +52,14 @@ export type GitChange = {
 
 export type GitActivity = {
   at: string;
-  action: "stage" | "unstage";
+  action: "stage" | "unstage" | "discard" | "remove" | "undo";
+  paths: string[];
+  hunks?: number;
+};
+
+export type GitRecovery = {
+  at: string;
+  action: "discard" | "remove";
   paths: string[];
   hunks?: number;
 };
@@ -69,6 +76,7 @@ export type GitStatus = {
   changes: GitChange[];
   branches: GitBranch[];
   activity: GitActivity[];
+  recovery?: GitRecovery;
 };
 
 export type GitCompare = { base: string; changes: GitChange[] };

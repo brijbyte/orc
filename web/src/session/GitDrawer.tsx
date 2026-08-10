@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertDialog } from "@base-ui/react/alert-dialog";
 import { Dialog } from "@base-ui/react/dialog";
 import type { GitStatusEntry } from "@pierre/trees";
 import { FileTree, useFileTree } from "@pierre/trees/react";
@@ -14,6 +15,8 @@ import {
   LoaderCircle,
   Paperclip,
   RefreshCw,
+  RotateCcw,
+  Trash2,
   Undo2,
   X,
 } from "lucide-react";
@@ -45,6 +48,12 @@ type DiffLine = {
   kind: "add" | "del" | "hunk" | "meta" | "plain";
   line?: number;
   hunk?: number;
+};
+
+type RecoveryRequest = {
+  kind: "discard" | "remove";
+  entry: TreeChange;
+  hunks?: number[];
 };
 
 function parseDiff(diff: GitDiff): DiffLine[] {
@@ -266,6 +275,8 @@ export function GitDrawer({
   const [selectedHunks, setSelectedHunks] = useState<number[]>([]);
   const [refresh, setRefresh] = useState(0);
   const [mutating, setMutating] = useState(false);
+  const [recoveryRequest, setRecoveryRequest] =
+    useState<RecoveryRequest | null>(null);
   const [err, setErr] = useState("");
   const [diffErr, setDiffErr] = useState("");
   const [mutationErr, setMutationErr] = useState("");
@@ -365,6 +376,26 @@ export function GitDrawer({
       })),
   ];
 
+  const applyStatus = (next: GitStatus) => {
+    setStatus(next);
+    if (source === WORKTREE) {
+      const list = workingTreeChanges(next);
+      setChanges(list);
+      const kept = selectedIDs.filter((id) =>
+        list.some((entry) => entry.id === id),
+      );
+      const nextSelection = kept.length ? kept : list[0] ? [list[0].id] : [];
+      setSelectedIDs(nextSelection);
+      setActiveID((old) =>
+        list.some((entry) => entry.id === old)
+          ? old
+          : (nextSelection.at(-1) ?? ""),
+      );
+    }
+    setSelectedHunks([]);
+    setRefresh((value) => value + 1);
+  };
+
   const mutate = async (
     stage: boolean,
     entries: TreeChange[],
@@ -381,27 +412,56 @@ export function GitDrawer({
         hunks,
         hunks?.length ? diff?.hash : undefined,
       )) as GitStatus;
-      setStatus(next);
-      const list = workingTreeChanges(next);
-      setChanges(list);
-      const kept = selectedIDs.filter((id) =>
-        list.some((entry) => entry.id === id),
-      );
-      const nextSelection = kept.length ? kept : list[0] ? [list[0].id] : [];
-      setSelectedIDs(nextSelection);
-      setActiveID((old) =>
-        list.some((entry) => entry.id === old)
-          ? old
-          : (nextSelection.at(-1) ?? ""),
-      );
-      setSelectedHunks([]);
-      setRefresh((value) => value + 1);
+      applyStatus(next);
     } catch (error) {
       setMutationErr(
         error instanceof APIError && error.status === 409
           ? "The diff changed. Review it and try again."
           : `cannot ${mutation} the selected changes`,
       );
+      setRefresh((value) => value + 1);
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const runRecoveryRequest = async () => {
+    if (!recoveryRequest) return;
+    const { kind, entry, hunks } = recoveryRequest;
+    setMutating(true);
+    setMutationErr("");
+    try {
+      const next = (await (kind === "remove"
+        ? api.gitRemove(sid, [entry.change.path])
+        : api.gitDiscard(
+            sid,
+            [entry.change.path],
+            hunks,
+            hunks?.length ? diff?.hash : undefined,
+          ))) as GitStatus;
+      setRecoveryRequest(null);
+      applyStatus(next);
+    } catch (error) {
+      setMutationErr(
+        error instanceof APIError && error.status === 409
+          ? "The diff changed. Review it and try again."
+          : `cannot ${kind} the selected changes`,
+      );
+      setRecoveryRequest(null);
+      setRefresh((value) => value + 1);
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const undoDiscard = async () => {
+    if (!status?.recovery) return;
+    setMutating(true);
+    setMutationErr("");
+    try {
+      applyStatus((await api.gitUndoDiscard(sid)) as GitStatus);
+    } catch {
+      setMutationErr("cannot undo the last discard");
       setRefresh((value) => value + 1);
     } finally {
       setMutating(false);
@@ -430,321 +490,465 @@ export function GitDrawer({
     );
   };
 
+  const recoveryTitle = recoveryRequest
+    ? recoveryRequest.kind === "remove"
+      ? "remove untracked file?"
+      : recoveryRequest.hunks?.length
+        ? "discard selected hunks?"
+        : recoveryRequest.entry.change.worktree === "D"
+          ? "restore deleted file?"
+          : "discard file?"
+    : "discard changes?";
+  const recoveryAction = recoveryRequest
+    ? recoveryRequest.kind === "remove"
+      ? "remove"
+      : recoveryRequest.entry.change.worktree === "D"
+        ? "restore"
+        : "discard"
+    : "discard";
+
   return (
-    <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Backdrop className={d.overlay} />
-        <Dialog.Popup className={s.drawer} initialFocus={close}>
-          <header className={s.head}>
-            <Dialog.Title className={s.title}>
-              <BranchIcon size={16} strokeWidth={1.8} aria-hidden /> Git
-            </Dialog.Title>
-            {status?.repo && (
-              <Select
-                value={source}
-                options={branchOptions}
-                onChange={setSource}
-              />
+    <>
+      <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
+        <Dialog.Portal>
+          <Dialog.Backdrop className={d.overlay} />
+          <Dialog.Popup className={s.drawer} initialFocus={close}>
+            <header className={s.head}>
+              <Dialog.Title className={s.title}>
+                <BranchIcon size={16} strokeWidth={1.8} aria-hidden /> Git
+              </Dialog.Title>
+              {status?.repo && (
+                <Select
+                  value={source}
+                  options={branchOptions}
+                  onChange={setSource}
+                />
+              )}
+              <Button
+                outline
+                small
+                disabled={mutating || !status?.recovery}
+                onClick={() => void undoDiscard()}
+              >
+                <RotateCcw size={13} strokeWidth={1.8} aria-hidden />
+                undo discard
+              </Button>
+              <Button
+                icon
+                tip="refresh Git status"
+                disabled={mutating}
+                onClick={() => setRefresh((value) => value + 1)}
+              >
+                <RefreshCw size={16} strokeWidth={1.8} aria-hidden />
+              </Button>
+              <Dialog.Close
+                ref={close}
+                render={<Button icon />}
+                aria-label="close Git"
+              >
+                <X size={17} strokeWidth={1.8} aria-hidden />
+              </Dialog.Close>
+            </header>
+            {!status && !err && (
+              <div className={s.message}>
+                <LoaderCircle
+                  className={s.spinner}
+                  size={14}
+                  strokeWidth={1.8}
+                  aria-hidden
+                />
+                loading
+              </div>
             )}
-            <Button
-              icon
-              tip="refresh Git status"
-              disabled={mutating}
-              onClick={() => setRefresh((value) => value + 1)}
-            >
-              <RefreshCw size={16} strokeWidth={1.8} aria-hidden />
-            </Button>
-            <Dialog.Close
-              ref={close}
-              render={<Button icon />}
-              aria-label="close Git"
-            >
-              <X size={17} strokeWidth={1.8} aria-hidden />
-            </Dialog.Close>
-          </header>
-          {!status && !err && (
-            <div className={s.message}>
-              <LoaderCircle
-                className={s.spinner}
-                size={14}
-                strokeWidth={1.8}
-                aria-hidden
-              />
-              loading
-            </div>
-          )}
-          {err && <div className={`${s.message} ${s.error}`}>{err}</div>}
-          {status && !status.repo && (
-            <div className={s.message}>
-              This directory is not a Git repository.
-            </div>
-          )}
-          {status?.repo && (
-            <div className={s.body}>
-              <aside className={s.side}>
-                <div className={s.summary}>
-                  <strong>
-                    {status.detached ? "detached HEAD" : status.branch}
-                  </strong>
-                  {status.upstream && (
-                    <span>
-                      <ArrowUpRight size={12} strokeWidth={1.8} aria-hidden />
-                      {status.upstream}
-                    </span>
-                  )}
-                  {(status.ahead > 0 || status.behind > 0) && (
-                    <span>
-                      <ArrowUp size={12} strokeWidth={1.8} aria-label="ahead" />
-                      {status.ahead}
-                      <ArrowDown
-                        size={12}
-                        strokeWidth={1.8}
-                        aria-label="behind"
-                      />
-                      {status.behind}
-                    </span>
-                  )}
-                  {source === WORKTREE ? (
-                    <>
-                      <span>
-                        {
-                          changes.filter((entry) => entry.mode === "staged")
-                            .length
-                        }{" "}
-                        staged
-                      </span>
-                      <span>
-                        {
-                          changes.filter((entry) => entry.mode === "worktree")
-                            .length
-                        }{" "}
-                        unstaged
-                      </span>
-                    </>
-                  ) : (
-                    <span>{changes.length} changed</span>
-                  )}
-                </div>
-                {canMutate && changes.length > 0 && (
-                  <div className={s.selectionBar}>
-                    <span>{selectedIDs.length} selected</span>
-                    <Button
-                      link
-                      small
-                      onClick={() => {
-                        setSelectedIDs(changes.map((entry) => entry.id));
-                        setActiveID(changes.at(-1)?.id ?? "");
-                      }}
-                    >
-                      select all
-                    </Button>
-                    <Button
-                      link
-                      small
-                      disabled={!selectedIDs.length}
-                      onClick={() => setSelectedIDs([])}
-                    >
-                      clear
-                    </Button>
-                    <Button
-                      outline
-                      small
-                      tone="success"
-                      disabled={mutating || !unstagedSelected.length}
-                      onClick={() => void mutate(true, unstagedSelected)}
-                    >
-                      <Check size={13} strokeWidth={1.8} aria-hidden />
-                      stage files
-                    </Button>
-                    <Button
-                      outline
-                      small
-                      disabled={mutating || !stagedSelected.length}
-                      onClick={() => void mutate(false, stagedSelected)}
-                    >
-                      <Undo2 size={13} strokeWidth={1.8} aria-hidden />
-                      unstage files
-                    </Button>
-                  </div>
-                )}
-                {changes.length === 0 && (
-                  <div className={s.empty}>
-                    {source === WORKTREE
-                      ? "Working tree is clean."
-                      : "No branch changes."}
-                  </div>
-                )}
-                {changes.length > 0 && (
-                  <ChangeTree
-                    changes={changes}
-                    selected={selectedIDs}
-                    onSelection={(next) => {
-                      const ids = next.map((entry) => entry.id);
-                      setSelectedIDs(ids);
-                      if (ids.length) setActiveID(ids.at(-1)!);
-                    }}
-                  />
-                )}
-                <Activity entries={status.activity ?? []} />
-              </aside>
-              <main className={s.diff}>
-                {selected && (
-                  <div className={s.diffHead}>
-                    <strong title={selected.change.path}>
-                      {selected.change.path}
+            {err && <div className={`${s.message} ${s.error}`}>{err}</div>}
+            {status && !status.repo && (
+              <div className={s.message}>
+                This directory is not a Git repository.
+              </div>
+            )}
+            {status?.repo && (
+              <div className={s.body}>
+                <aside className={s.side}>
+                  <div className={s.summary}>
+                    <strong>
+                      {status.detached ? "detached HEAD" : status.branch}
                     </strong>
-                    {selected.change.file && (
+                    {status.upstream && (
+                      <span>
+                        <ArrowUpRight size={12} strokeWidth={1.8} aria-hidden />
+                        {status.upstream}
+                      </span>
+                    )}
+                    {(status.ahead > 0 || status.behind > 0) && (
+                      <span>
+                        <ArrowUp
+                          size={12}
+                          strokeWidth={1.8}
+                          aria-label="ahead"
+                        />
+                        {status.ahead}
+                        <ArrowDown
+                          size={12}
+                          strokeWidth={1.8}
+                          aria-label="behind"
+                        />
+                        {status.behind}
+                      </span>
+                    )}
+                    {source === WORKTREE ? (
+                      <>
+                        <span>
+                          {
+                            changes.filter((entry) => entry.mode === "staged")
+                              .length
+                          }{" "}
+                          staged
+                        </span>
+                        <span>
+                          {
+                            changes.filter((entry) => entry.mode === "worktree")
+                              .length
+                          }{" "}
+                          unstaged
+                        </span>
+                      </>
+                    ) : (
+                      <span>{changes.length} changed</span>
+                    )}
+                  </div>
+                  {canMutate && changes.length > 0 && (
+                    <div className={s.selectionBar}>
+                      <span>{selectedIDs.length} selected</span>
+                      <Button
+                        link
+                        small
+                        onClick={() => {
+                          setSelectedIDs(changes.map((entry) => entry.id));
+                          setActiveID(changes.at(-1)?.id ?? "");
+                        }}
+                      >
+                        select all
+                      </Button>
+                      <Button
+                        link
+                        small
+                        disabled={!selectedIDs.length}
+                        onClick={() => setSelectedIDs([])}
+                      >
+                        clear
+                      </Button>
                       <Button
                         outline
                         small
-                        onClick={() =>
-                          onOpenFile(
-                            selected.change.path,
-                            selected.change.file!,
-                          )
-                        }
+                        tone="success"
+                        disabled={mutating || !unstagedSelected.length}
+                        onClick={() => void mutate(true, unstagedSelected)}
                       >
-                        <ExternalLink size={13} strokeWidth={1.8} aria-hidden />
-                        open
+                        <Check size={13} strokeWidth={1.8} aria-hidden />
+                        stage files
                       </Button>
-                    )}
-                    {selected.change.file && (
-                      <Button outline small onClick={addFile}>
-                        <Paperclip size={13} strokeWidth={1.8} aria-hidden />{" "}
-                        file
+                      <Button
+                        outline
+                        small
+                        disabled={mutating || !stagedSelected.length}
+                        onClick={() => void mutate(false, stagedSelected)}
+                      >
+                        <Undo2 size={13} strokeWidth={1.8} aria-hidden />
+                        unstage files
                       </Button>
-                    )}
-                    {diff?.patch && (
-                      <Button outline small onClick={addDiff}>
-                        <Paperclip size={13} strokeWidth={1.8} aria-hidden />{" "}
-                        diff
-                      </Button>
-                    )}
-                    {canMutate &&
-                      selected.mode !== "compare" &&
-                      selectedHunks.length > 0 && (
+                    </div>
+                  )}
+                  {changes.length === 0 && (
+                    <div className={s.empty}>
+                      {source === WORKTREE
+                        ? "Working tree is clean."
+                        : "No branch changes."}
+                    </div>
+                  )}
+                  {changes.length > 0 && (
+                    <ChangeTree
+                      changes={changes}
+                      selected={selectedIDs}
+                      onSelection={(next) => {
+                        const ids = next.map((entry) => entry.id);
+                        setSelectedIDs(ids);
+                        if (ids.length) setActiveID(ids.at(-1)!);
+                      }}
+                    />
+                  )}
+                  <Activity entries={status.activity ?? []} />
+                </aside>
+                <main className={s.diff}>
+                  {selected && (
+                    <div className={s.diffHead}>
+                      <strong title={selected.change.path}>
+                        {selected.change.path}
+                      </strong>
+                      {selected.change.file && (
+                        <Button
+                          outline
+                          small
+                          onClick={() =>
+                            onOpenFile(
+                              selected.change.path,
+                              selected.change.file!,
+                            )
+                          }
+                        >
+                          <ExternalLink
+                            size={13}
+                            strokeWidth={1.8}
+                            aria-hidden
+                          />
+                          open
+                        </Button>
+                      )}
+                      {selected.change.file && (
+                        <Button outline small onClick={addFile}>
+                          <Paperclip size={13} strokeWidth={1.8} aria-hidden />{" "}
+                          file
+                        </Button>
+                      )}
+                      {diff?.patch && (
+                        <Button outline small onClick={addDiff}>
+                          <Paperclip size={13} strokeWidth={1.8} aria-hidden />{" "}
+                          diff
+                        </Button>
+                      )}
+                      {canMutate && selected.mode === "worktree" && (
                         <Button
                           outline
                           small
                           tone={
-                            selected.mode === "worktree" ? "success" : undefined
+                            selected.change.worktree === "D"
+                              ? "success"
+                              : "danger"
                           }
                           disabled={mutating}
                           onClick={() =>
-                            void mutate(
-                              selected.mode === "worktree",
-                              [selected],
-                              selectedHunks,
-                            )
+                            setRecoveryRequest({
+                              kind:
+                                selected.change.index === "?"
+                                  ? "remove"
+                                  : "discard",
+                              entry: selected,
+                            })
                           }
                         >
-                          <ListChecks size={13} strokeWidth={1.8} aria-hidden />
-                          {action} {selectedHunks.length} hunk
-                          {selectedHunks.length === 1 ? "" : "s"}
+                          {selected.change.worktree === "D" ? (
+                            <RotateCcw
+                              size={13}
+                              strokeWidth={1.8}
+                              aria-hidden
+                            />
+                          ) : (
+                            <Trash2 size={13} strokeWidth={1.8} aria-hidden />
+                          )}
+                          {selected.change.index === "?"
+                            ? "remove file"
+                            : selected.change.worktree === "D"
+                              ? "restore file"
+                              : "discard file"}
                         </Button>
                       )}
-                  </div>
-                )}
-                {mutationErr && (
-                  <div className={`${s.message} ${s.error}`}>{mutationErr}</div>
-                )}
-                {selected && !diff && !diffErr && (
-                  <div className={s.message}>
-                    <LoaderCircle
-                      className={s.spinner}
-                      size={14}
-                      strokeWidth={1.8}
-                      aria-hidden
-                    />
-                    loading diff
-                  </div>
-                )}
-                {diffErr && (
-                  <div className={`${s.message} ${s.error}`}>{diffErr}</div>
-                )}
-                {diff && !diff.patch && (
-                  <div className={s.message}>No text diff.</div>
-                )}
-                {diff && diff.patch && (
-                  <pre className={`${s.patch} chroma`}>
-                    {lines.map((line, i) => (
-                      <div
-                        className={s.diffLine}
-                        data-kind={line.kind}
-                        data-selected={
-                          line.hunk !== undefined &&
-                          selectedHunks.includes(line.hunk)
-                            ? true
-                            : undefined
-                        }
-                        key={i}
-                      >
-                        <span className={s.lineNumber}>
-                          {line.line && selected?.change.file ? (
-                            <Button
-                              link
-                              tip={`open line ${line.line}`}
-                              onClick={() =>
-                                onOpenFile(
-                                  selected.change.path,
-                                  selected.change.file!,
-                                  line.line,
-                                )
-                              }
-                            >
-                              {line.line}
-                            </Button>
-                          ) : null}
-                        </span>
-                        {line.html ? (
-                          <span
-                            dangerouslySetInnerHTML={{ __html: line.html }}
-                          />
-                        ) : (
-                          <span>{line.text}</span>
-                        )}
-                        {canMutate && line.hunk !== undefined && (
+                      {canMutate &&
+                        selected.mode !== "compare" &&
+                        selectedHunks.length > 0 && (
                           <Button
                             outline
                             small
-                            className={s.hunkButton}
                             tone={
-                              selectedHunks.includes(line.hunk)
+                              selected.mode === "worktree"
                                 ? "success"
                                 : undefined
                             }
+                            disabled={mutating}
                             onClick={() =>
-                              setSelectedHunks((old) =>
-                                old.includes(line.hunk!)
-                                  ? old.filter((hunk) => hunk !== line.hunk)
-                                  : [...old, line.hunk!].sort((a, b) => a - b),
+                              void mutate(
+                                selected.mode === "worktree",
+                                [selected],
+                                selectedHunks,
                               )
                             }
                           >
-                            {selectedHunks.includes(line.hunk)
-                              ? "selected"
-                              : "select hunk"}
+                            <ListChecks
+                              size={13}
+                              strokeWidth={1.8}
+                              aria-hidden
+                            />
+                            {action} {selectedHunks.length} hunk
+                            {selectedHunks.length === 1 ? "" : "s"}
                           </Button>
                         )}
-                      </div>
-                    ))}
-                  </pre>
+                      {canMutate &&
+                        selected.mode === "worktree" &&
+                        selected.change.index !== "?" &&
+                        selectedHunks.length > 0 && (
+                          <Button
+                            outline
+                            small
+                            tone="danger"
+                            disabled={mutating}
+                            onClick={() =>
+                              setRecoveryRequest({
+                                kind: "discard",
+                                entry: selected,
+                                hunks: selectedHunks,
+                              })
+                            }
+                          >
+                            <Trash2 size={13} strokeWidth={1.8} aria-hidden />
+                            discard {selectedHunks.length} hunk
+                            {selectedHunks.length === 1 ? "" : "s"}
+                          </Button>
+                        )}
+                    </div>
+                  )}
+                  {mutationErr && (
+                    <div className={`${s.message} ${s.error}`}>
+                      {mutationErr}
+                    </div>
+                  )}
+                  {selected && !diff && !diffErr && (
+                    <div className={s.message}>
+                      <LoaderCircle
+                        className={s.spinner}
+                        size={14}
+                        strokeWidth={1.8}
+                        aria-hidden
+                      />
+                      loading diff
+                    </div>
+                  )}
+                  {diffErr && (
+                    <div className={`${s.message} ${s.error}`}>{diffErr}</div>
+                  )}
+                  {diff && !diff.patch && (
+                    <div className={s.message}>No text diff.</div>
+                  )}
+                  {diff && diff.patch && (
+                    <pre className={`${s.patch} chroma`}>
+                      {lines.map((line, i) => (
+                        <div
+                          className={s.diffLine}
+                          data-kind={line.kind}
+                          data-selected={
+                            line.hunk !== undefined &&
+                            selectedHunks.includes(line.hunk)
+                              ? true
+                              : undefined
+                          }
+                          key={i}
+                        >
+                          <span className={s.lineNumber}>
+                            {line.line && selected?.change.file ? (
+                              <Button
+                                link
+                                tip={`open line ${line.line}`}
+                                onClick={() =>
+                                  onOpenFile(
+                                    selected.change.path,
+                                    selected.change.file!,
+                                    line.line,
+                                  )
+                                }
+                              >
+                                {line.line}
+                              </Button>
+                            ) : null}
+                          </span>
+                          {line.html ? (
+                            <span
+                              dangerouslySetInnerHTML={{ __html: line.html }}
+                            />
+                          ) : (
+                            <span>{line.text}</span>
+                          )}
+                          {canMutate && line.hunk !== undefined && (
+                            <Button
+                              outline
+                              small
+                              className={s.hunkButton}
+                              tone={
+                                selectedHunks.includes(line.hunk)
+                                  ? "success"
+                                  : undefined
+                              }
+                              onClick={() =>
+                                setSelectedHunks((old) =>
+                                  old.includes(line.hunk!)
+                                    ? old.filter((hunk) => hunk !== line.hunk)
+                                    : [...old, line.hunk!].sort(
+                                        (a, b) => a - b,
+                                      ),
+                                )
+                              }
+                            >
+                              {selectedHunks.includes(line.hunk)
+                                ? "selected"
+                                : "select hunk"}
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </pre>
+                  )}
+                  {canMutate && diff?.patch && hunkCount === 0 && (
+                    <div className={s.message}>
+                      This change can only be {action}d as a file.
+                    </div>
+                  )}
+                  {!selected && changes.length > 0 && (
+                    <div className={s.message}>
+                      Select a file to view its diff.
+                    </div>
+                  )}
+                </main>
+              </div>
+            )}
+          </Dialog.Popup>
+        </Dialog.Portal>
+      </Dialog.Root>
+      <AlertDialog.Root
+        open={recoveryRequest !== null}
+        onOpenChange={(next) => !next && setRecoveryRequest(null)}
+      >
+        <AlertDialog.Portal>
+          <AlertDialog.Backdrop
+            className={`${d.overlay} ${s.confirmOverlay}`}
+          />
+          <AlertDialog.Popup className={`${d.popup} ${d.confirm} ${s.confirm}`}>
+            <AlertDialog.Title className={d.head}>
+              {recoveryTitle}
+            </AlertDialog.Title>
+            <AlertDialog.Description className={d.desc}>
+              {recoveryRequest?.hunks?.length
+                ? `${recoveryRequest.hunks.length} selected hunk${recoveryRequest.hunks.length === 1 ? "" : "s"} in “${recoveryRequest.entry.change.path}” will be discarded.`
+                : `“${recoveryRequest?.entry.change.path ?? ""}” will be ${recoveryAction === "remove" ? "removed" : recoveryAction === "restore" ? "restored" : "discarded"}.`}{" "}
+              A recovery patch will let you undo this action.
+            </AlertDialog.Description>
+            <div className={d.foot}>
+              <AlertDialog.Close render={<Button outline />}>
+                <X size={13} strokeWidth={1.8} aria-hidden />
+                cancel
+              </AlertDialog.Close>
+              <Button
+                outline
+                tone={recoveryAction === "restore" ? "success" : "danger"}
+                disabled={mutating || !recoveryRequest}
+                onClick={() => void runRecoveryRequest()}
+              >
+                {recoveryAction === "restore" ? (
+                  <RotateCcw size={13} strokeWidth={1.8} aria-hidden />
+                ) : (
+                  <Trash2 size={13} strokeWidth={1.8} aria-hidden />
                 )}
-                {canMutate && diff?.patch && hunkCount === 0 && (
-                  <div className={s.message}>
-                    This change can only be {action}d as a file.
-                  </div>
-                )}
-                {!selected && changes.length > 0 && (
-                  <div className={s.message}>
-                    Select a file to view its diff.
-                  </div>
-                )}
-              </main>
+                {recoveryAction}
+              </Button>
             </div>
-          )}
-        </Dialog.Popup>
-      </Dialog.Portal>
-    </Dialog.Root>
+          </AlertDialog.Popup>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
+    </>
   );
 }

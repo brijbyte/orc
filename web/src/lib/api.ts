@@ -127,6 +127,16 @@ export const api = {
     post(`/api/sessions/${id}/git/stage`, { paths, hunks, hash }),
   gitUnstage: (id: string, paths: string[], hunks?: number[], hash?: string) =>
     post(`/api/sessions/${id}/git/unstage`, { paths, hunks, hash }),
+  gitDiscard: (id: string, paths: string[], hunks?: number[], hash?: string) =>
+    post(`/api/sessions/${id}/git/discard`, {
+      paths,
+      hunks,
+      hash,
+      confirm: true,
+    }),
+  gitRemove: (id: string, paths: string[]) =>
+    post(`/api/sessions/${id}/git/remove`, { paths, confirm: true }),
+  gitUndoDiscard: (id: string) => post(`/api/sessions/${id}/git/undo-discard`),
   models: () => get("/api/models"),
   dirs: (path?: string) =>
     get(`/api/dirs${path ? `?path=${encodeURIComponent(path)}` : ""}`),

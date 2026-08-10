@@ -11,6 +11,8 @@
   --line: #2a2c38;
   --code-bg: #191b24;
   --code-fg: #d8dae2;
+  --diff-add-bg: #20382b;
+  --diff-del-bg: #3d252b;
   --panel: #191b24;
   --material: color-mix(in srgb, var(--bg) 88%, transparent);
   --font-ui:
@@ -71,4 +73,6 @@ body {
   --panel: #e9ecef;
   --code-bg: #f0f2f4;
   --code-fg: #1f2328;
+  --diff-add-bg: #dafbe1;
+  --diff-del-bg: #ffebe9;
 }
