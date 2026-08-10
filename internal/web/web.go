@@ -2,13 +2,17 @@ package web
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/brijbyte/orc/internal/agent"
 	"github.com/brijbyte/orc/internal/commands"
+	"github.com/brijbyte/orc/internal/config"
 	"github.com/brijbyte/orc/internal/ui"
 )
 
@@ -18,13 +22,15 @@ type IO struct {
 	hub  *hub
 	q    *queue
 	cmds *commands.Commands
+	cfg  *config.Config
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
+	files  map[string]string
 }
 
-func NewIO() *IO {
-	return &IO{hub: newHub(), q: newQueue()}
+func NewIO(cfg *config.Config) *IO {
+	return &IO{hub: newHub(), q: newQueue(), cfg: cfg, files: map[string]string{}}
 }
 
 func (w *IO) SetCommands(c *commands.Commands) { w.cmds = c }
@@ -66,6 +72,33 @@ func toolCopyText(name, argsJSON string) string {
 	return ""
 }
 
+// allowFile makes an unguessable reference to a tool path resolved now.
+func (w *IO) allowFile(path string) string {
+	if !filepath.IsAbs(path) && w.cfg != nil {
+		path = filepath.Join(w.cfg.Cwd, path)
+	}
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return ""
+	}
+	var key [16]byte
+	if _, err := rand.Read(key[:]); err != nil {
+		return ""
+	}
+	ref := hex.EncodeToString(key[:])
+	w.mu.Lock()
+	w.files[ref] = filepath.Clean(path)
+	w.mu.Unlock()
+	return ref
+}
+
+func (w *IO) filePath(ref string) (string, bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	path, ok := w.files[ref]
+	return path, ok
+}
+
 func (w *IO) ToolCall(name, argsJSON string) {
 	// full preview: the frontend truncates and expands client-side; write
 	// content is pre-highlighted to HTML lines so the browser needs no lexer
@@ -90,7 +123,9 @@ func (w *IO) ToolCall(name, argsJSON string) {
 	}
 	var args struct{ Path string }
 	if json.Unmarshal([]byte(argsJSON), &args) == nil && args.Path != "" {
-		data["path"] = args.Path
+		if ref := w.allowFile(args.Path); ref != "" {
+			data["path"], data["file"] = args.Path, ref
+		}
 	}
 	if hl := ui.PreviewHTML(name, argsJSON); hl != nil {
 		data["html"] = hl

@@ -76,6 +76,9 @@ so `orc --resume` reopens any of them in the terminal.
 For a public machine, `--serve --domain orc.example.com` serves HTTPS on :443
 via Let's Encrypt (needs ports 80/443 and DNS pointing at the host); plain
 HTTP never binds beyond loopback, and every request needs the URL token.
+Do not publish the loopback HTTP endpoint through a plain-HTTP proxy. The URL
+token grants access to an agent that can run commands with the orc user's
+permissions, so public access must use TLS and a dedicated, restricted VM user.
 
 Run the web UI as a per-user background service with launchd on macOS or
 systemd on Linux:
@@ -105,6 +108,12 @@ lingering if it must run when you are logged out:
 | skill   | search installed skills (`.agents/skills`, `~/.agents/skills`)   |
 
 All tool outputs are clamped to ~20KB (head + tail) before entering history.
+
+orc is not a sandbox or a multi-tenant service. The session directory is a
+working directory, not a filesystem boundary: tools can use absolute paths,
+and `bash` can access anything allowed to the orc OS user. Use a dedicated VM
+or container, a restricted user, minimal filesystem mounts, and restricted
+network egress for any public deployment.
 
 ## Design
 

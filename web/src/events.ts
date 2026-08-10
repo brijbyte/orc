@@ -36,6 +36,7 @@ export function apply(blocks: Block[], ev: Ev): Block[] {
         html: ev.data.html,
         copy: ev.data.copy,
         path: ev.data.path,
+        file: ev.data.file,
       });
       break;
     case "notice":

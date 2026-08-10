@@ -2,6 +2,7 @@ package session
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/brijbyte/orc/internal/config"
@@ -15,6 +16,13 @@ func TestListAllSkipsEmptySession(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
+	info, err := os.Stat(s.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("session mode = %v", info.Mode().Perm())
+	}
 
 	rows, err := ListAll()
 	if err != nil {

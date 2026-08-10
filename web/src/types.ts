@@ -11,6 +11,7 @@ export type Block = { id: number } & (
       html?: string[];
       copy?: string;
       path?: string;
+      file?: string;
     }
 );
 

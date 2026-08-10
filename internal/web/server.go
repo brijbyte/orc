@@ -52,6 +52,7 @@ type Server struct {
 	openMu   sync.Mutex // serializes open: one runtime per session file
 	runtimes map[string]*Runtime
 	http     *http.Server
+	acmeHTTP *http.Server
 }
 
 func NewServer(prov provider.Provider, base *config.Config, addr, domain string) *Server {
@@ -102,14 +103,16 @@ func (s *Server) runtime(id string) *Runtime {
 
 func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		got := r.URL.Query().Get("token")
-		if h := r.Header.Get("Authorization"); got == "" {
-			got = strings.TrimPrefix(h, "Bearer ")
-		}
+		got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if subtle.ConstantTimeCompare([]byte(got), []byte(s.token)) != 1 {
 			http.Error(rw, "unauthorized", http.StatusUnauthorized)
 			return
 		}
+		max := int64(1 << 20)
+		if strings.HasSuffix(r.URL.Path, "/input") {
+			max = inputMax
+		}
+		r.Body = http.MaxBytesReader(rw, r.Body, max)
 		next(rw, r)
 	}
 }
@@ -119,10 +122,28 @@ func writeJSON(rw http.ResponseWriter, v any) {
 	json.NewEncoder(rw).Encode(v)
 }
 
+func validSessionRef(id string) bool {
+	if id == "" || len(id) > 64 {
+		return false
+	}
+	for _, c := range []byte(id) {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') &&
+			(c < '0' || c > '9') && c != '-' && c != '_' {
+			return false
+		}
+	}
+	return true
+}
+
 // withRuntime resolves {id} to a live runtime or 404s.
 func (s *Server) withRuntime(next func(http.ResponseWriter, *http.Request, *Runtime)) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		rt := s.runtime(r.PathValue("id"))
+		id := r.PathValue("id")
+		if !validSessionRef(id) {
+			http.Error(rw, "bad session id", http.StatusBadRequest)
+			return
+		}
+		rt := s.runtime(id)
 		if rt == nil {
 			http.Error(rw, "no such live session", http.StatusNotFound)
 			return
@@ -200,6 +221,10 @@ func (s *Server) handleOpen(rw http.ResponseWriter, r *http.Request) {
 	s.openMu.Lock()
 	defer s.openMu.Unlock()
 	id := r.PathValue("id")
+	if !validSessionRef(id) {
+		http.Error(rw, "bad session id", http.StatusBadRequest)
+		return
+	}
 	if rt := s.runtime(id); rt != nil {
 		writeJSON(rw, map[string]string{"id": rt.ID})
 		return
@@ -226,6 +251,10 @@ func (s *Server) handleOpen(rw http.ResponseWriter, r *http.Request) {
 // session file (live or not).
 func (s *Server) handleCloseSession(rw http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	if !validSessionRef(id) {
+		http.Error(rw, "bad session id", http.StatusBadRequest)
+		return
+	}
 	rt := s.runtime(id)
 	if rt != nil {
 		s.mu.Lock()
@@ -248,6 +277,10 @@ func (s *Server) handleCloseSession(rw http.ResponseWriter, r *http.Request) {
 
 // handlePin keeps a session at the top of every list, across restarts.
 func (s *Server) handlePin(rw http.ResponseWriter, r *http.Request) {
+	if !validSessionRef(r.PathValue("id")) {
+		http.Error(rw, "bad session id", http.StatusBadRequest)
+		return
+	}
 	var in struct {
 		Pinned bool `json:"pinned"`
 	}
@@ -376,21 +409,26 @@ const fileMax = 8 << 20
 
 // handleFile reads the current file from the session working directory.
 func (s *Server) handleFile(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
-	path := r.URL.Query().Get("path")
-	if path == "" {
-		http.Error(rw, "missing path", http.StatusBadRequest)
+	path, ok := rt.IO.filePath(r.Header.Get("X-Orc-File-Ref"))
+	if !ok {
+		http.Error(rw, "unknown file reference", http.StatusNotFound)
 		return
 	}
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(rt.Cfg.Cwd, path)
-	}
-	path = filepath.Clean(path)
 	f, err := os.Open(path)
 	if err != nil {
 		http.Error(rw, "cannot read file", http.StatusNotFound)
 		return
 	}
 	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		http.Error(rw, "not a regular file", http.StatusBadRequest)
+		return
+	}
+	if info.Size() > fileMax {
+		http.Error(rw, "file is too large", http.StatusRequestEntityTooLarge)
+		return
+	}
 	data, err := io.ReadAll(io.LimitReader(f, fileMax+1))
 	if err != nil {
 		http.Error(rw, "cannot read file", http.StatusInternalServerError)
@@ -473,7 +511,7 @@ func (s *Server) handleMkdir(rw http.ResponseWriter, r *http.Request) {
 func handleStatic(rw http.ResponseWriter, r *http.Request) {
 	dist, _ := fs.Sub(distFS, "dist")
 	path := strings.TrimPrefix(r.URL.Path, "/")
-	if path == "" {
+	if path == "" || !fs.ValidPath(path) {
 		path = "index.html"
 	}
 	if _, err := fs.Stat(dist, path); err != nil {
@@ -485,6 +523,24 @@ func handleStatic(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.ServeFileFS(rw, r, dist, path)
+}
+
+func (s *Server) secure(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		h := rw.Header()
+		h.Set("Content-Security-Policy", "default-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; style-src 'self' 'unsafe-inline'")
+		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		h.Set("Referrer-Policy", "no-referrer")
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		if s.Domain != "" {
+			h.Set("Strict-Transport-Security", "max-age=31536000")
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			h.Set("Cache-Control", "no-store")
+		}
+		next.ServeHTTP(rw, r)
+	})
 }
 
 func (s *Server) mux() *http.ServeMux {
@@ -513,6 +569,16 @@ func (s *Server) mux() *http.ServeMux {
 	return mux
 }
 
+func (s *Server) httpServer() *http.Server {
+	return &http.Server{
+		Handler:           s.secure(s.mux()),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+		MaxHeaderBytes:    64 << 10,
+	}
+}
+
 // Start begins serving and returns the URL to open (with the token).
 // notify receives progress lines; the server runs until Shutdown.
 func (s *Server) Start(notify func(string)) (string, error) {
@@ -530,7 +596,7 @@ func (s *Server) Start(notify func(string)) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	s.http = &http.Server{Handler: s.mux()}
+	s.http = s.httpServer()
 	go s.http.Serve(ln)
 	return fmt.Sprintf("http://%s/#%s", ln.Addr(), s.token), nil
 }
@@ -545,14 +611,24 @@ func (s *Server) startTLS(notify func(string)) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("port 80 (ACME challenge): %w", err)
 	}
-	go http.Serve(ln80, m.HTTPHandler(nil)) // also redirects to https
-	ln, err := tls.Listen("tcp", ":443", m.TLSConfig())
+	s.acmeHTTP = &http.Server{
+		Handler:           m.HTTPHandler(nil),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+		MaxHeaderBytes:    64 << 10,
+	}
+	go s.acmeHTTP.Serve(ln80) // also redirects to https
+	tlsConfig := m.TLSConfig()
+	tlsConfig.MinVersion = tls.VersionTLS12
+	ln, err := tls.Listen("tcp", ":443", tlsConfig)
 	if err != nil {
+		s.acmeHTTP.Close()
 		return "", fmt.Errorf("port 443: %w", err)
 	}
 	notify(fmt.Sprintf("🔒 TLS for %s via Let's Encrypt (cert cached in %s)",
 		s.Domain, config.Path("autocert")))
-	s.http = &http.Server{Handler: s.mux()}
+	s.http = s.httpServer()
 	go s.http.Serve(ln)
 	return fmt.Sprintf("https://%s/#%s", s.Domain, s.token), nil
 }
@@ -569,9 +645,12 @@ func (s *Server) Shutdown() {
 	for _, rt := range all {
 		rt.Close()
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 	if s.http != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
 		s.http.Shutdown(ctx)
+	}
+	if s.acmeHTTP != nil {
+		s.acmeHTTP.Shutdown(ctx)
 	}
 }

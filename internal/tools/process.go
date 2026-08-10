@@ -55,7 +55,12 @@ func processStart(cwd, cmd string) string {
 	jobsMu.Unlock()
 
 	dir := config.Path("processes")
-	os.MkdirAll(dir, 0o755)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "error: cannot create process log directory"
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		return "error: cannot secure process log directory"
+	}
 	logPath := filepath.Join(dir, fmt.Sprintf("%d-%s.log", os.Getpid(), id))
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {

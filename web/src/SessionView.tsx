@@ -32,7 +32,7 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
   const [complete, setComplete] = useState(false);
-  const [file, setFile] = useState<{ path: string; request: number } | null>(null);
+  const [file, setFile] = useState<{ path: string; ref: string; request: number } | null>(null);
   const dragDepth = useRef(0);
   const wasBusy = useRef(false);
 
@@ -95,8 +95,8 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
             blocks={blocks}
             hasMore={hasMore}
             loadingOlder={loadingOlder}
-            onOpenFile={(path) =>
-              setFile((current) => ({ path, request: (current?.request ?? 0) + 1 }))
+            onOpenFile={(path, ref) =>
+              setFile((current) => ({ path, ref, request: (current?.request ?? 0) + 1 }))
             }
           />
           <InputBar
@@ -113,6 +113,7 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
       <FileDrawer
         sid={sid}
         path={file?.path ?? ""}
+        fileRef={file?.ref ?? ""}
         request={file?.request ?? 0}
         onClose={() => setFile(null)}
       />

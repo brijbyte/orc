@@ -4,7 +4,6 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"strconv"
 )
 
 const DefaultEffort = "medium"
@@ -43,15 +42,24 @@ func Home() string {
 
 func Path(rel string) string { return filepath.Join(Home(), rel) }
 
-// WriteFileAtomic writes via a temp file and rename.
+// WriteFileAtomic writes via a private temp file and rename.
 func WriteFileAtomic(path string, data []byte) error {
-	tmp := path + ".tmp." + strconv.Itoa(os.Getpid())
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
+	if err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
+	tmp := f.Name()
+	defer os.Remove(tmp)
+	if err := f.Chmod(0o600); err != nil {
+		f.Close()
 		return err
 	}
-	return nil
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }

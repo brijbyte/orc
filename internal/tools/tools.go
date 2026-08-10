@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,12 +19,13 @@ import (
 )
 
 const (
-	outCap       = 20480
-	outHead      = 12288
-	outTail      = 8192
-	bashTimeout  = 60 * time.Second
-	readLimit    = 1000
-	lineMaxChars = 500
+	outCap        = 20480
+	outHead       = 12288
+	outTail       = 8192
+	bashTimeout   = 60 * time.Second
+	readLimit     = 1000
+	readSourceMax = 8 << 20
+	lineMaxChars  = 500
 )
 
 // SchemaJSON is the tool definitions array sent to the provider.
@@ -180,12 +182,27 @@ func toolRead(cwd string, a args) string {
 	if path == "" {
 		return "error: missing path"
 	}
-	offset := a.num("offset", 0)
-	limit := a.num("limit", readLimit)
+	offset := max(a.num("offset", 0), 0)
+	limit := min(max(a.num("limit", readLimit), 0), readLimit)
 
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Sprintf("error: cannot open %s", path)
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return fmt.Sprintf("error: not a regular file: %s", path)
+	}
+	if info.Size() > readSourceMax {
+		return fmt.Sprintf("error: file exceeds %d MB: %s", readSourceMax>>20, path)
+	}
+	data, err := io.ReadAll(io.LimitReader(f, readSourceMax+1))
+	if err != nil {
+		return fmt.Sprintf("error: cannot read %s", path)
+	}
+	if len(data) > readSourceMax {
+		return fmt.Sprintf("error: file exceeds %d MB: %s", readSourceMax>>20, path)
 	}
 	lines := strings.Split(string(data), "\n")
 	if len(lines) > 0 && lines[len(lines)-1] == "" {

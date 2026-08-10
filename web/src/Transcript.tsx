@@ -9,7 +9,7 @@ type Props = {
   blocks: Block[];
   hasMore: boolean;
   loadingOlder: boolean;
-  onOpenFile: (path: string) => void;
+  onOpenFile: (path: string, ref: string) => void;
 };
 
 function compactPair(a: Block, b?: Block) {

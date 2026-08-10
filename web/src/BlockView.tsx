@@ -48,7 +48,7 @@ export function BlockView({
 }: {
   b: Block;
   compactAfter: boolean;
-  onOpenFile: (path: string) => void;
+  onOpenFile: (path: string, ref: string) => void;
 }) {
   const blockAttrs = {
     "data-block": "",
@@ -98,11 +98,11 @@ export function BlockView({
           <div className={s.toolLine}>
             <Icon size={14} strokeWidth={1.8} aria-hidden />
             <span>{b.name}</span>
-            {b.path ? (
+            {b.path && b.file ? (
               <button
                 type="button"
                 className={s.filePath}
-                onClick={() => onOpenFile(b.path!)}
+                onClick={() => onOpenFile(b.path!, b.file!)}
                 title={b.path}
               >
                 {b.desc}

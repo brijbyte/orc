@@ -277,7 +277,10 @@ func storePut(providerName string, section any) error {
 		return err
 	}
 	root[providerName] = sec
-	if err := os.MkdirAll(config.Home(), 0o755); err != nil {
+	if err := os.MkdirAll(config.Home(), 0o700); err != nil {
+		return err
+	}
+	if err := os.Chmod(config.Home(), 0o700); err != nil {
 		return err
 	}
 	out, _ := json.MarshalIndent(root, "", "  ")

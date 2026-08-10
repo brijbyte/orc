@@ -21,7 +21,10 @@ func LoadSettings() Settings {
 }
 
 func SaveSettings(s Settings) error {
-	if err := os.MkdirAll(Home(), 0o755); err != nil {
+	if err := os.MkdirAll(Home(), 0o700); err != nil {
+		return err
+	}
+	if err := os.Chmod(Home(), 0o700); err != nil {
 		return err
 	}
 	data, _ := json.MarshalIndent(s, "", "  ")

@@ -46,12 +46,15 @@ func now() string { return time.Now().UTC().Format("2006-01-02T15:04:05.000Z") }
 
 func New(cfg *config.Config) (*Session, error) {
 	dir := config.Path("sessions")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
 		return nil, err
 	}
 	s := &Session{Path: filepath.Join(dir,
 		fmt.Sprintf("%d-%.8s.jsonl", time.Now().Unix(), cfg.SessionID))}
-	f, err := os.Create(s.Path)
+	f, err := os.OpenFile(s.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +217,10 @@ func Resume(ref string, cfg *config.Config) (*Session, []json.RawMessage, error)
 		return nil, nil, fmt.Errorf("cannot read %s: %v", resolved, scanErr)
 	}
 
-	s.f, err = os.OpenFile(resolved, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err := os.Chmod(resolved, 0o600); err != nil {
+		return nil, nil, fmt.Errorf("cannot secure %s", resolved)
+	}
+	s.f, err = os.OpenFile(resolved, os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot open %s", resolved)
 	}

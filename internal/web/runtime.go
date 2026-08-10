@@ -30,7 +30,7 @@ type Runtime struct {
 // NewRuntime wires a session into a web IO and starts its driver loop.
 func NewRuntime(prov provider.Provider, cfg *config.Config, sess *session.Session,
 	resumed []json.RawMessage, replay bool) *Runtime {
-	w := NewIO()
+	w := NewIO(cfg)
 	cmds := commands.New(prov, cfg, w)
 	w.SetCommands(cmds)
 	ag := agent.New(cfg, prov, sess, resumed, w)

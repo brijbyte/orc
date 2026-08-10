@@ -23,6 +23,67 @@ const post = (url: string, body?: unknown) =>
     return r.status === 204 ? null : r.json();
   });
 
+export type EventStream = {
+  onmessage?: (message: { data: string }) => void;
+  onopen?: () => void;
+  close: () => void;
+};
+
+class AuthEventStream implements EventStream {
+  onmessage?: (message: { data: string }) => void;
+  onopen?: () => void;
+  private controller = new AbortController();
+
+  constructor(
+    private id: string,
+    private cursor: number,
+  ) {
+    queueMicrotask(() => void this.run());
+  }
+
+  close = () => this.controller.abort();
+
+  private async run() {
+    while (!this.controller.signal.aborted) {
+      try {
+        const response = await fetch(
+          `/api/sessions/${this.id}/events?after=${this.cursor}`,
+          { headers: auth, signal: this.controller.signal, cache: "no-store" },
+        );
+        if (!response.ok || !response.body) throw new Error(String(response.status));
+        this.onopen?.();
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let end = buffer.indexOf("\n\n");
+          while (end >= 0) {
+            const frame = buffer.slice(0, end);
+            buffer = buffer.slice(end + 2);
+            const data = frame
+              .split("\n")
+              .filter((line) => line.startsWith("data: "))
+              .map((line) => line.slice(6))
+              .join("\n");
+            if (data) {
+              const event = JSON.parse(data);
+              if (typeof event.id === "number") this.cursor = event.id;
+              this.onmessage?.({ data });
+            }
+            end = buffer.indexOf("\n\n");
+          }
+        }
+      } catch {
+        if (this.controller.signal.aborted) return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+}
+
 export const api = {
   sessions: () => get("/api/sessions"),
   create: (cwd?: string) => post("/api/sessions", cwd ? { cwd } : {}),
@@ -38,8 +99,14 @@ export const api = {
     get(`/api/sessions/${id}/history?before=${before}`),
   catchup: (id: string, after: number) =>
     get(`/api/sessions/${id}/catchup?after=${after}`),
-  file: (id: string, path: string) =>
-    get(`/api/sessions/${id}/file?path=${encodeURIComponent(path)}`),
+  file: (id: string, ref: string) =>
+    fetch(`/api/sessions/${id}/file`, {
+      headers: { ...auth, "X-Orc-File-Ref": ref },
+      cache: "no-store",
+    }).then((response) => {
+      if (!response.ok) throw new Error(String(response.status));
+      return response.json();
+    }),
   models: () => get("/api/models"),
   dirs: (path?: string) =>
     get(`/api/dirs${path ? `?path=${encodeURIComponent(path)}` : ""}`),
@@ -48,8 +115,7 @@ export const api = {
     post(`/api/sessions/${id}/input`, files?.length ? { text, files } : { text }),
   interrupt: (id: string) =>
     fetch(`/api/sessions/${id}/interrupt`, { method: "POST", headers: auth }),
-  events: (id: string, after: number) =>
-    new EventSource(`/api/sessions/${id}/events?token=${token}&after=${after}`),
+  events: (id: string, after: number) => new AuthEventStream(id, after),
 };
 
 // legacySession reads a session id from an old-style "#token/session" hash.

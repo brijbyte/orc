@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/brijbyte/orc/internal/config"
 )
@@ -75,8 +76,9 @@ func (p *Codex) Login(ctx context.Context, notify func(string)) error {
 		err  error
 	}
 	done := make(chan result, 1)
-	server := &http.Server{Handler: http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
+	server := &http.Server{
+		ReadHeaderTimeout: 10 * time.Second,
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !strings.HasPrefix(r.URL.Path, "/auth/callback") {
 				w.WriteHeader(http.StatusNotFound) // favicon and stray requests
 				return
@@ -97,7 +99,8 @@ func (p *Codex) Login(ctx context.Context, notify func(string)) error {
 			}
 			fmt.Fprint(w, successHTML)
 			done <- result{code: code}
-		})}
+		}),
+	}
 	go server.Serve(listener)
 	var res result
 	select {

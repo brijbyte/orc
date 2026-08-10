@@ -1,4 +1,4 @@
-import { api } from "./api";
+import { api, type EventStream } from "./api";
 import { apply } from "./events";
 import type { Block, Ev } from "./types";
 
@@ -18,7 +18,7 @@ type Entry = {
   state: SessionState;
   events: Ev[];
   before: number;
-  es?: EventSource;
+  es?: EventStream;
   subs: Set<() => void>;
   ready?: Promise<void>; // resolves once the seed from /state is applied
 };

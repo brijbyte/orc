@@ -246,8 +246,12 @@ func (t *TUI) loadHistory() {
 }
 
 func (t *TUI) saveHistory() {
-	f, err := os.Create(t.historyPath)
+	f, err := os.OpenFile(t.historyPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
+		return
+	}
+	if err := f.Chmod(0o600); err != nil {
+		f.Close()
 		return
 	}
 	defer f.Close()
