@@ -44,9 +44,11 @@ function Markdown({ text }: { text: string }) {
 export function BlockView({
   b,
   compactAfter,
+  onOpenFile,
 }: {
   b: Block;
   compactAfter: boolean;
+  onOpenFile: (path: string) => void;
 }) {
   const blockAttrs = {
     "data-block": "",
@@ -95,9 +97,19 @@ export function BlockView({
         <div className={s.tool} {...blockAttrs}>
           <div className={s.toolLine}>
             <Icon size={14} strokeWidth={1.8} aria-hidden />
-            <span>
-              {b.name} {b.desc}
-            </span>
+            <span>{b.name}</span>
+            {b.path ? (
+              <button
+                type="button"
+                className={s.filePath}
+                onClick={() => onOpenFile(b.path!)}
+                title={b.path}
+              >
+                {b.desc}
+              </button>
+            ) : (
+              <span>{b.desc}</span>
+            )}
           </div>
           {(b.preview || b.html) && (
             <Preview

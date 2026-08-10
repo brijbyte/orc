@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"net"
 	"net/http"
@@ -278,6 +279,17 @@ func (s *Server) handleHistory(rw http.ResponseWriter, r *http.Request, rt *Runt
 	writeJSON(rw, map[string]any{"events": events, "before": cursor, "has_more": more})
 }
 
+func (s *Server) handleCatchup(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
+	after, err := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
+	if err != nil || after < 0 {
+		http.Error(rw, "bad cursor", http.StatusBadRequest)
+		return
+	}
+	events, last := rt.IO.hub.after(after)
+	rw.Header().Set("Cache-Control", "no-store")
+	writeJSON(rw, map[string]any{"events": events, "last_id": last})
+}
+
 func (s *Server) handleEvents(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
 	fl, ok := rw.(http.Flusher)
 	if !ok {
@@ -358,6 +370,41 @@ func (s *Server) handleInput(rw http.ResponseWriter, r *http.Request, rt *Runtim
 func (s *Server) handleInterrupt(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
 	rt.IO.Interrupt()
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+const fileMax = 8 << 20
+
+// handleFile reads the current file from the session working directory.
+func (s *Server) handleFile(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(rw, "missing path", http.StatusBadRequest)
+		return
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(rt.Cfg.Cwd, path)
+	}
+	path = filepath.Clean(path)
+	f, err := os.Open(path)
+	if err != nil {
+		http.Error(rw, "cannot read file", http.StatusNotFound)
+		return
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, fileMax+1))
+	if err != nil {
+		http.Error(rw, "cannot read file", http.StatusInternalServerError)
+		return
+	}
+	if len(data) > fileMax {
+		http.Error(rw, "file is too large", http.StatusRequestEntityTooLarge)
+		return
+	}
+	content := string(data)
+	rw.Header().Set("Cache-Control", "no-store")
+	writeJSON(rw, map[string]any{
+		"path": path, "content": content, "html": ui.HighlightHTML(path, content),
+	})
 }
 
 // handleModels serves the provider's model list.
@@ -449,9 +496,11 @@ func (s *Server) mux() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{id}/pin", s.auth(s.handlePin))
 	mux.HandleFunc("GET /api/sessions/{id}/state", s.auth(s.withRuntime(s.handleState)))
 	mux.HandleFunc("GET /api/sessions/{id}/history", s.auth(s.withRuntime(s.handleHistory)))
+	mux.HandleFunc("GET /api/sessions/{id}/catchup", s.auth(s.withRuntime(s.handleCatchup)))
 	mux.HandleFunc("GET /api/sessions/{id}/events", s.auth(s.withRuntime(s.handleEvents)))
 	mux.HandleFunc("POST /api/sessions/{id}/input", s.auth(s.withRuntime(s.handleInput)))
 	mux.HandleFunc("POST /api/sessions/{id}/interrupt", s.auth(s.withRuntime(s.handleInterrupt)))
+	mux.HandleFunc("GET /api/sessions/{id}/file", s.auth(s.withRuntime(s.handleFile)))
 	mux.HandleFunc("GET /api/models", s.auth(s.handleModels))
 	mux.HandleFunc("GET /api/dirs", s.auth(s.handleDirs))
 	mux.HandleFunc("POST /api/dirs", s.auth(s.handleMkdir))

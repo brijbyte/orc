@@ -10,6 +10,7 @@ export type Block = { id: number } & (
       preview: string;
       html?: string[];
       copy?: string;
+      path?: string;
     }
 );
 

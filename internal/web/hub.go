@@ -65,6 +65,17 @@ func (h *hub) snapshot() (evs []Event, busy bool, status string) {
 	return append([]Event{}, h.events...), h.busy, h.status
 }
 
+// after returns a snapshot of all events newer than id.
+func (h *hub) after(id int64) (evs []Event, last int64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	last = int64(len(h.events))
+	if id < last {
+		evs = append(evs, h.events[id:]...)
+	}
+	return evs, last
+}
+
 // page returns complete display blocks before the given event ID. A zero
 // before value selects the newest page.
 func (h *hub) page(before int64, limit int) (evs []Event, cursor, last int64, more, busy bool, status string) {

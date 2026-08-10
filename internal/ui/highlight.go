@@ -82,10 +82,8 @@ func highlightTermLines(path, content string) []string {
 	return formatLines(tl, formatters.Get("terminal256"))
 }
 
-// hlLines lexes text into one HTML string per line; nil when the language
-// is unknown or the text is empty.
-func hlLines(path, text string) []string {
-	text = strings.TrimRight(text, "\n")
+// HighlightHTML lexes file content into one HTML string per source line.
+func HighlightHTML(path, text string) []string {
 	if text == "" {
 		return nil
 	}
@@ -94,6 +92,11 @@ func hlLines(path, text string) []string {
 		return nil
 	}
 	return formatLines(tl, hlHTML)
+}
+
+// hlLines highlights preview text without trailing blank lines.
+func hlLines(path, text string) []string {
+	return HighlightHTML(path, strings.TrimRight(text, "\n"))
 }
 
 // PreviewHTML pre-highlights a tool call's preview into per-line HTML, so

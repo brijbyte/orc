@@ -9,6 +9,7 @@ type Props = {
   blocks: Block[];
   hasMore: boolean;
   loadingOlder: boolean;
+  onOpenFile: (path: string) => void;
 };
 
 function compactPair(a: Block, b?: Block) {
@@ -20,7 +21,7 @@ function compactPair(a: Block, b?: Block) {
 
 // Transcript follows the bottom until the user scrolls up. Scroll state stays
 // in the store so a remounted session restores its position.
-export function Transcript({ sid, blocks, hasMore, loadingOlder }: Props) {
+export function Transcript({ sid, blocks, hasMore, loadingOlder, onOpenFile }: Props) {
   const main = useRef<HTMLElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -80,6 +81,7 @@ export function Transcript({ sid, blocks, hasMore, loadingOlder }: Props) {
           key={b.id}
           b={b}
           compactAfter={compactPair(b, blocks[i + 1])}
+          onOpenFile={onOpenFile}
         />
       ))}
       <div ref={bottom} />

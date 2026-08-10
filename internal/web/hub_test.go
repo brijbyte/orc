@@ -2,6 +2,18 @@ package web
 
 import "testing"
 
+func TestHubAfterReturnsMissedEvents(t *testing.T) {
+	h := newHub()
+	h.emit("user", nil)
+	h.emit("tool", nil)
+	h.emit("notice", nil)
+
+	events, last := h.after(1)
+	if last != 3 || len(events) != 2 || events[0].ID != 2 || events[1].ID != 3 {
+		t.Fatalf("after: last=%d events=%#v", last, events)
+	}
+}
+
 func TestHubPageKeepsBlockEventsTogether(t *testing.T) {
 	h := newHub()
 	h.emit("user", nil)

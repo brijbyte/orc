@@ -54,12 +54,33 @@ export function ensure(sid: string, onOpened?: () => void): Promise<void> {
   const e = entry(sid);
   if (e.ready) return e.ready;
   let lastID = 0;
-  const onEvent = (ev: Ev) => {
+  const pending = new Map<number, Ev>();
+  const commit = (ev: Ev) => {
     lastID = ev.id;
     e.events.push(ev);
     if (ev.type === "busy") set(e, { busy: ev.data.busy });
     else if (ev.type === "status") set(e, { status: ev.data.text });
     else set(e, { blocks: apply([...(e.state.blocks ?? [])], ev) });
+  };
+  const onEvent = (ev: Ev) => {
+    if (ev.id <= lastID) return;
+    pending.set(ev.id, ev);
+    for (let next = pending.get(lastID + 1); next; next = pending.get(lastID + 1)) {
+      pending.delete(next.id);
+      commit(next);
+    }
+  };
+  let catchingUp = false;
+  const catchUp = () => {
+    if (catchingUp) return;
+    catchingUp = true;
+    api
+      .catchup(sid, lastID)
+      .then((page) => (page.events ?? []).forEach(onEvent))
+      .catch(() => {})
+      .finally(() => {
+        catchingUp = false;
+      });
   };
   e.ready = api
     .open(sid)
@@ -83,6 +104,11 @@ export function ensure(sid: string, onOpened?: () => void): Promise<void> {
       });
       e.es = api.events(sid, lastID);
       e.es.onmessage = (m) => onEvent(JSON.parse(m.data));
+      let opened = false;
+      e.es.onopen = () => {
+        if (opened) catchUp();
+        opened = true;
+      };
     })
     .catch(() => set(e, { err: "cannot open this session" }));
   return e.ready;

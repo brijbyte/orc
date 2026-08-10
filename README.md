@@ -15,10 +15,16 @@ curl -fsSL --connect-timeout 5 https://github.com/brijbyte/orc/releases/latest/d
 
 or `brew install brijbyte/orc/orc`. Installs to `/usr/local/bin` when
 writable, else `~/.local/bin`; pin with `ORC_VERSION=…`, redirect with
-`ORC_INSTALL_DIR=…`. Use `curl … | ORC_SERVICE=1 sh` to install and start the
-user service at the same time (`ORC_SERVICE_ADDR` and `ORC_SERVICE_DOMAIN`
-configure it). Then sign in once with `orc --login` (browser OAuth; tokens
-live in orc's own config dir and refresh in place).
+`ORC_INSTALL_DIR=…`. Then sign in once with `orc --login` (browser OAuth;
+tokens live in orc's own config dir and refresh in place).
+
+To install and start the user service at the same time:
+
+```
+curl -fsSL --connect-timeout 5 https://github.com/brijbyte/orc/releases/latest/download/install.sh | ORC_SERVICE=1 sh
+```
+
+`ORC_SERVICE_ADDR` and `ORC_SERVICE_DOMAIN` configure the service.
 
 ## Use
 
@@ -28,6 +34,7 @@ orc -p "fix the test"      # one-shot, scriptable (exit 130 on Ctrl-C)
 orc --resume [id]          # continue the latest session, or by id prefix
 orc --list                 # this directory's sessions
 orc --serve[=host:port]    # web UI, default 127.0.0.1:7777
+orc service install        # run the web UI as a background service
 orc -m <model> -e high     # model / effort (env: ORC_MODEL, ORC_PROVIDER)
 ```
 
@@ -119,6 +126,7 @@ internal/provider      provider registry      internal/skills    skill discovery
 internal/provider/codex  Codex auth+SSE       internal/commands  slash + custom commands
 internal/ui            Bubble Tea TUI, previews, glamour markdown, plain pipe mode
 internal/web           --serve: session registry, SSE hub, auth, embedded frontend
+internal/service       launchd/systemd user service management
 web                    React 19 + Vite frontend (built into internal/web/dist)
 internal/config        paths, atomic writes   internal/instructions  system prompt
 ```

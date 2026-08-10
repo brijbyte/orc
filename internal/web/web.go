@@ -88,6 +88,10 @@ func (w *IO) ToolCall(name, argsJSON string) {
 		"desc":    desc,
 		"preview": full,
 	}
+	var args struct{ Path string }
+	if json.Unmarshal([]byte(argsJSON), &args) == nil && args.Path != "" {
+		data["path"] = args.Path
+	}
 	if hl := ui.PreviewHTML(name, argsJSON); hl != nil {
 		data["html"] = hl
 	}

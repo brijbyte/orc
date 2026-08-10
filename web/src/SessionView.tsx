@@ -14,6 +14,7 @@ import type { Model } from "./types";
 import { Transcript } from "./Transcript";
 import { InputBar } from "./InputBar";
 import { StatusBar } from "./StatusBar";
+import { FileDrawer } from "./FileDrawer";
 import s from "./SessionView.module.css";
 
 // SessionRoute adapts /s/:sid: the loader has already seeded the store,
@@ -31,6 +32,7 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
   const [complete, setComplete] = useState(false);
+  const [file, setFile] = useState<{ path: string; request: number } | null>(null);
   const dragDepth = useRef(0);
   const wasBusy = useRef(false);
 
@@ -93,6 +95,9 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
             blocks={blocks}
             hasMore={hasMore}
             loadingOlder={loadingOlder}
+            onOpenFile={(path) =>
+              setFile((current) => ({ path, request: (current?.request ?? 0) + 1 }))
+            }
           />
           <InputBar
             sid={sid}
@@ -105,6 +110,12 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
           <StatusBar sid={sid} status={status} models={models} />
         </>
       )}
+      <FileDrawer
+        sid={sid}
+        path={file?.path ?? ""}
+        request={file?.request ?? 0}
+        onClose={() => setFile(null)}
+      />
       <div className={s.dropzone} data-active={dragging || undefined} aria-hidden={!dragging}>
         📎 drop to attach
       </div>
