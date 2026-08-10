@@ -9,8 +9,8 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   placeholder page). Rebuild both after web changes.
 - Tests: `go test -mod=mod ./internal/ui/`. Lint: `go vet -mod=mod ./...`.
 - Smoke: `./bin/orc --auth`, `./bin/orc -p "say hi"`, `--resume`, `--list`,
-  `--serve=127.0.0.1:7799` (curl the printed `#token` against
-  `/api/sessions`).
+  `--serve=127.0.0.1:7799` (sign in with the printed web password, then curl
+  `/api/sessions` with the session cookie).
 - Legacy C implementation in `src/` (`make c`) pending removal; `vendor/`
   belongs to it, which is why Go commands need `-mod=mod`.
 - Zero-token UI check: hand-write a session file
@@ -57,8 +57,10 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   `agent.userMessage` turns attachments into `input_image` data-URL parts
   (images) or inlined `input_text` (text files), and `agent.Echo` is the one
   display form for a line + its 📎 names — pending echoes must match later
-  user echoes. Bearer-token auth on
-  every route; plain HTTP binds loopback only, `--domain` adds autocert TLS.
+  user echoes. Password login sets a signed HTTP-only session cookie; a bcrypt
+  hash and cookie key live in the `web` section of `<orc home>/auth.json` until
+  `orc password --rotate`; plain HTTP binds loopback only, `--domain` adds
+  autocert TLS.
   Frontend lives in `web/` (React 19 + Vite + react-router data router):
   the root layout route loads sessions+models (`rootLoader`; models are
   fetched once per page load, and a dead server is loader data so the 5s
@@ -66,9 +68,8 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   awaits `store.ensure` so the view mounts pre-seeded (no loading flash).
   Post-open sidebar refreshes coalesce through `revalidate.ts`
   (`revalidateSoon`, debounced router.revalidate). The server falls back to index.html for
-  unknown paths; the auth token stays in the `#token` fragment, which
-  never reaches the server — every navigation appends `tokenHash()`, and
-  legacy `#token/<session>` links migrate on load. `api`/`events`/`types` plus
+  unknown paths; browser authentication uses same-origin cookies.
+  `api`/`events`/`types` plus
   `store.ts` (per-open-tab SSE streams, block state, and scroll positions
   outside the render tree; App `ensure`s every open tab, `drop` on tab
   close), `Sidebar`
@@ -99,8 +100,9 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
 
 - Send `store:false` and the full history. Replay reasoning
   `encrypted_content` without changes.
-- orc's `auth.json` holds one section per provider (`{"codex": {...}}`); the
-  codex section keeps the Codex CLI token schema, but orc only reads its own
+- orc's `auth.json` holds provider sections plus web auth
+  (`{"codex": {...}, "web": {...}}`); the codex section keeps the Codex CLI
+  token schema, but orc only reads its own
   store — sign in with `orc --login`. Before token refresh, re-read the store;
   write rotated tokens atomically.
 - Add a `function_call_output` for every committed `function_call`, including

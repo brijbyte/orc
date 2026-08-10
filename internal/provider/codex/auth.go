@@ -54,8 +54,15 @@ func loadAuthFile() (*authFile, error) {
 		af.sec = parseObject(sec)
 	} else if _, wasFlat := root["tokens"]; wasFlat {
 		// migrate the flat pre-store layout written by early orc logins
-		af.sec = root
 		af.root = map[string]json.RawMessage{}
+		af.sec = map[string]json.RawMessage{}
+		for key, value := range root {
+			if key == "web" {
+				af.root[key] = value
+			} else {
+				af.sec[key] = value
+			}
+		}
 		af.write()
 	}
 	if af.sec == nil {

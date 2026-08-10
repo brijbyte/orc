@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/brijbyte/orc/internal/config"
 	orcservice "github.com/brijbyte/orc/internal/service"
 	"github.com/spf13/cobra"
 )
@@ -35,11 +36,24 @@ func newServiceCommand() *cobra.Command {
 
 func newServiceInstallCommand() *cobra.Command {
 	var addr, domain, cwd string
+	var port int
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Install and start the service for this user",
 		Args:  cobra.NoArgs,
-		RunE: func(*cobra.Command, []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			var err error
+			addr, err = resolveWebAddr(addr, port, cmd.Flags().Changed("port"))
+			if err != nil {
+				return err
+			}
+			password, created, err := config.EnsureWebAuth()
+			if err != nil {
+				return err
+			}
+			if created {
+				fmt.Println("web password: " + password)
+			}
 			bin, err := executablePath()
 			if err != nil {
 				return err
@@ -61,7 +75,8 @@ func newServiceInstallCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&addr, "serve", "127.0.0.1:7777", "web UI address")
+	cmd.Flags().StringVar(&addr, "serve", "127.0.0.1", "web UI address")
+	cmd.Flags().IntVar(&port, "port", 7777, "web UI port (env PORT; default 7777)")
 	cmd.Flags().StringVar(&domain, "domain", "", "public domain with TLS on port 443")
 	cmd.Flags().StringVar(&cwd, "cwd", ".", "default working directory")
 	return cmd

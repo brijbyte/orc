@@ -110,7 +110,10 @@ export function ensure(sid: string, onOpened?: () => void): Promise<void> {
         opened = true;
       };
     })
-    .catch(() => set(e, { err: "cannot open this session" }));
+    .catch(() => {
+      e.ready = undefined;
+      set(e, { err: "cannot open this session" });
+    });
   return e.ready;
 }
 

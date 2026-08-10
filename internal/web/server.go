@@ -2,12 +2,12 @@ package web
 
 import (
 	"context"
-	"crypto/rand"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/tls"
 	"embed"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,6 +36,11 @@ var distFS embed.FS
 
 var hlCSS = sync.OnceValue(ui.HighlightCSS)
 
+const (
+	authCookie = "orc_session"
+	authTTL    = 30 * 24 * time.Hour
+)
+
 const placeholder = `<!doctype html><meta charset="utf-8"><title>orc</title>
 <body style="font-family:monospace;background:#111;color:#ddd;padding:2em">
 🧌 orc: web UI not built — run <b>make web</b> and rebuild.</body>`
@@ -45,24 +50,28 @@ type Server struct {
 	Addr   string
 	Domain string // non-empty: TLS via Let's Encrypt on :443 (+ :80 challenge)
 
-	prov     provider.Provider
-	base     config.Config // template for new sessions (model/effort/cwd)
-	token    string
-	mu       sync.Mutex
-	openMu   sync.Mutex // serializes open: one runtime per session file
-	runtimes map[string]*Runtime
-	http     *http.Server
-	acmeHTTP *http.Server
+	prov            provider.Provider
+	base            config.Config // template for new sessions (model/effort/cwd)
+	initialPassword string
+	passwordCreated bool
+	mu              sync.Mutex
+	openMu          sync.Mutex // serializes open: one runtime per session file
+	runtimes        map[string]*Runtime
+	http            *http.Server
+	acmeHTTP        *http.Server
 }
 
-func NewServer(prov provider.Provider, base *config.Config, addr, domain string) *Server {
-	buf := make([]byte, 16)
-	rand.Read(buf)
+func NewServer(prov provider.Provider, base *config.Config, addr, domain string) (*Server, error) {
+	password, created, err := config.EnsureWebAuth()
+	if err != nil {
+		return nil, fmt.Errorf("web password: %w", err)
+	}
 	return &Server{
 		Addr: addr, Domain: domain, prov: prov, base: *base,
-		token:    hex.EncodeToString(buf),
-		runtimes: map[string]*Runtime{},
-	}
+		initialPassword: password,
+		passwordCreated: created,
+		runtimes:        map[string]*Runtime{},
+	}, nil
 }
 
 // Register adds an already-built runtime (the initial --serve session).
@@ -103,8 +112,8 @@ func (s *Server) runtime(id string) *Runtime {
 
 func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if subtle.ConstantTimeCompare([]byte(got), []byte(s.token)) != 1 {
+		cookie, err := r.Cookie(authCookie)
+		if err != nil || !validAuthCookie(cookie.Value) {
 			http.Error(rw, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -115,6 +124,66 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 		r.Body = http.MaxBytesReader(rw, r.Body, max)
 		next(rw, r)
 	}
+}
+
+func validAuthCookie(value string) bool {
+	parts := strings.Split(value, ".")
+	if len(parts) != 2 {
+		return false
+	}
+	expires, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || expires < time.Now().Unix() {
+		return false
+	}
+	key, err := config.WebSessionKey()
+	if err != nil {
+		return false
+	}
+	want := authSignature(key, parts[0])
+	return subtle.ConstantTimeCompare([]byte(parts[1]), []byte(want)) == 1
+}
+
+func authSignature(key, expires string) string {
+	mac := hmac.New(sha256.New, []byte(key))
+	mac.Write([]byte("orc-session:" + expires))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+func (s *Server) handleLogin(rw http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(rw, r.Body, 4096)
+	var body struct {
+		Password string `json:"password"`
+	}
+	if json.NewDecoder(r.Body).Decode(&body) != nil {
+		http.Error(rw, "bad request", http.StatusBadRequest)
+		return
+	}
+	valid, err := config.VerifyWebPassword(body.Password)
+	if err != nil || !valid {
+		http.Error(rw, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	key, err := config.WebSessionKey()
+	if err != nil {
+		http.Error(rw, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	expires := time.Now().Add(authTTL)
+	expiresText := strconv.FormatInt(expires.Unix(), 10)
+	http.SetCookie(rw, &http.Cookie{
+		Name: authCookie, Value: expiresText + "." + authSignature(key, expiresText),
+		Path: "/", Expires: expires, MaxAge: int(authTTL.Seconds()), HttpOnly: true,
+		Secure: s.Domain != "" || r.TLS != nil, SameSite: http.SameSiteStrictMode,
+	})
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleLogout(rw http.ResponseWriter, r *http.Request) {
+	http.SetCookie(rw, &http.Cookie{
+		Name: authCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true,
+		Secure: s.Domain != "" || r.TLS != nil, SameSite: http.SameSiteStrictMode,
+	})
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 func writeJSON(rw http.ResponseWriter, v any) {
@@ -337,11 +406,24 @@ func (s *Server) handleEvents(rw http.ResponseWriter, r *http.Request, rt *Runti
 	rw.Header().Set("Cache-Control", "no-store")
 	fl.Flush()
 
-	// Wake the cond wait when the client goes away.
-	ctx := r.Context()
+	// Wake the cond wait when the client leaves or its login expires.
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	cookie, _ := r.Cookie(authCookie)
 	go func() {
-		<-ctx.Done()
-		rt.IO.hub.cond.Broadcast()
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				rt.IO.hub.cond.Broadcast()
+				return
+			case <-ticker.C:
+				if !validAuthCookie(cookie.Value) {
+					cancel()
+				}
+			}
+		}
 	}()
 	for ctx.Err() == nil {
 		evs, done := rt.IO.hub.waitAfter(after)
@@ -545,6 +627,8 @@ func (s *Server) secure(next http.Handler) http.Handler {
 
 func (s *Server) mux() *http.ServeMux {
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/login", s.handleLogin)
+	mux.HandleFunc("POST /api/logout", s.auth(s.handleLogout))
 	mux.HandleFunc("GET /api/sessions", s.auth(s.handleSessions))
 	mux.HandleFunc("POST /api/sessions", s.auth(s.handleNew))
 	mux.HandleFunc("POST /api/sessions/{id}/open", s.auth(s.handleOpen))
@@ -579,7 +663,7 @@ func (s *Server) httpServer() *http.Server {
 	}
 }
 
-// Start begins serving and returns the URL to open (with the token).
+// Start begins serving and returns the URL to open.
 // notify receives progress lines; the server runs until Shutdown.
 func (s *Server) Start(notify func(string)) (string, error) {
 	if s.Domain != "" {
@@ -598,7 +682,10 @@ func (s *Server) Start(notify func(string)) (string, error) {
 	}
 	s.http = s.httpServer()
 	go s.http.Serve(ln)
-	return fmt.Sprintf("http://%s/#%s", ln.Addr(), s.token), nil
+	if s.passwordCreated {
+		notify("🔑 web password: " + s.initialPassword)
+	}
+	return fmt.Sprintf("http://%s/", ln.Addr()), nil
 }
 
 func (s *Server) startTLS(notify func(string)) (string, error) {
@@ -630,7 +717,10 @@ func (s *Server) startTLS(notify func(string)) (string, error) {
 		s.Domain, config.Path("autocert")))
 	s.http = s.httpServer()
 	go s.http.Serve(ln)
-	return fmt.Sprintf("https://%s/#%s", s.Domain, s.token), nil
+	if s.passwordCreated {
+		notify("🔑 web password: " + s.initialPassword)
+	}
+	return fmt.Sprintf("https://%s/", s.Domain), nil
 }
 
 // Shutdown closes every runtime, then the HTTP server.

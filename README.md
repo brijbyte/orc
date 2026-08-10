@@ -33,7 +33,7 @@ orc                        # interactive REPL
 orc -p "fix the test"      # one-shot, scriptable (exit 130 on Ctrl-C)
 orc --resume [id]          # continue the latest session, or by id prefix
 orc --list                 # this directory's sessions
-orc --serve[=host:port]    # web UI, default 127.0.0.1:7777
+orc --serve [--port 7799]  # web UI, default 127.0.0.1:7777; env PORT
 orc service install        # run the web UI as a background service
 orc -m <model> -e high     # model / effort (env: ORC_MODEL, ORC_PROVIDER)
 ```
@@ -63,7 +63,7 @@ conversation the model sees.
 
 ## Web UI
 
-`orc --serve` runs headless and prints a tokenized URL for the browser UI:
+`orc --serve` runs headless and prints a URL for the browser UI:
 streamed markdown, tool previews, an interactive status bar (model/effort
 selects, light/dark/system theme), queueing and interrupt. Drop files onto
 the transcript to attach them to the next message — images go to the model
@@ -73,11 +73,16 @@ first, then the rest grouped by directory — with resume on click, parallel
 live sessions, and "new session" with a server-side directory picker (each
 session's tools run in its own directory). Session files are the same JSONL,
 so `orc --resume` reopens any of them in the terminal.
+On the first web start, orc creates a password and shows it once. Only its
+bcrypt hash is stored in `<orc home>/auth.json`. Use `orc password --rotate` to
+replace a lost password and sign out existing browser sessions. The browser
+exchanges the password for a secure, HTTP-only session cookie.
+
 For a public machine, `--serve --domain orc.example.com` serves HTTPS on :443
 via Let's Encrypt (needs ports 80/443 and DNS pointing at the host); plain
-HTTP never binds beyond loopback, and every request needs the URL token.
-Do not publish the loopback HTTP endpoint through a plain-HTTP proxy. The URL
-token grants access to an agent that can run commands with the orc user's
+HTTP never binds beyond loopback, and every API request needs the session
+cookie. Do not publish the loopback HTTP endpoint through a plain-HTTP proxy.
+Web access grants control of an agent that can run commands with the orc user's
 permissions, so public access must use TLS and a dedicated, restricted VM user.
 
 Run the web UI as a per-user background service with launchd on macOS or
@@ -85,10 +90,10 @@ systemd on Linux:
 
 ```
 orc service install                         # install, start, and start at login
-orc service status                          # show status, tokenized URL, and log
+orc service status                          # show status, URL, and log
 orc service stop | start | restart
 orc service uninstall
-orc service install --cwd ~/src --serve 127.0.0.1:7799
+orc service install --cwd ~/src --port 7799
 ```
 
 The service keeps running after the terminal closes. On Linux, enable user

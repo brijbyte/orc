@@ -13,17 +13,19 @@ import {
   useRevalidator,
 } from "react-router";
 import { AlertDialog } from "@base-ui/react/alert-dialog";
-import { api, legacySession, tokenHash } from "./api";
+import { api, APIError } from "./api";
 import { revalidateSoon } from "./revalidate";
 import * as store from "./store";
 import type { Model, SessionRow } from "./types";
 import { Sidebar } from "./Sidebar";
 import { DirPicker } from "./DirPicker";
 import { TipBtn } from "./ui";
+import { Login } from "./Login";
 import s from "./App.module.css";
 import d from "./dialog.module.css";
 
 export type RootData = {
+  authenticated: boolean;
   dead: boolean;
   rows: SessionRow[];
   cwd: string;
@@ -40,19 +42,29 @@ const loadModels = () =>
   }));
 
 // rootLoader fetches the session list and models before the shell renders.
-// A dead server is data, not an error, so the poll can keep retrying.
+// A dead server is data, so the poll can keep retrying.
 export async function rootLoader(): Promise<RootData> {
-  const [s, m] = await Promise.all([
-    api.sessions().catch(() => null),
-    loadModels(),
-  ]);
-  return {
-    dead: !s,
-    rows: s?.sessions ?? [],
-    cwd: s?.cwd ?? "",
-    home: s?.home ?? "",
-    models: m.models ?? [],
-  };
+  try {
+    const s = await api.sessions();
+    const m = await loadModels();
+    return {
+      authenticated: true,
+      dead: false,
+      rows: s.sessions ?? [],
+      cwd: s.cwd ?? "",
+      home: s.home ?? "",
+      models: m.models ?? [],
+    };
+  } catch (error) {
+    return {
+      authenticated: !(error instanceof APIError && error.status === 401),
+      dead: !(error instanceof APIError && error.status === 401),
+      rows: [],
+      cwd: "",
+      home: "",
+      models: [],
+    };
+  }
 }
 
 // Open tabs survive a reload in this browser tab.
@@ -92,7 +104,8 @@ function activityFavicons(): Promise<string[]> {
 // App is the layout route: sidebar plus the routed session (Outlet). The
 // active session is /s/:sid; every open tab streams via the store.
 export default function App() {
-  const { dead, rows, cwd: serverCwd, home, models } = useLoaderData<RootData>();
+  const { authenticated, dead, rows, cwd: serverCwd, home, models } =
+    useLoaderData<RootData>();
   const { sid = "" } = useParams();
   const navigate = useNavigate();
   const { revalidate } = useRevalidator();
@@ -116,18 +129,10 @@ export default function App() {
     useCallback(() => open.some((id) => store.snapshot(id).busy), [open]),
   );
 
-  // navigations keep the #token fragment
   const go = useCallback(
-    (path: string, replace = false) =>
-      navigate(path + tokenHash(), { replace }),
+    (path: string, replace = false) => navigate(path, { replace }),
     [navigate],
   );
-
-  // migrate legacy "#token/session" links onto the /s/:sid route
-  useEffect(() => {
-    const legacy = legacySession();
-    if (legacy) go(`/s/${legacy}`, true);
-  }, [go]);
 
   // keep the sidebar fresh
   useEffect(() => {
@@ -199,8 +204,8 @@ export default function App() {
 
   // every open tab streams, mounted or not; the view only subscribes
   useEffect(() => {
-    for (const s of open) store.ensure(s, revalidateSoon);
-  }, [open]);
+    if (authenticated) for (const s of open) store.ensure(s, revalidateSoon);
+  }, [authenticated, open]);
 
   const closeTab = (row: SessionRow) => {
     store.drop(row.id);
@@ -238,12 +243,10 @@ export default function App() {
       .catch(() => {});
   };
 
+  if (!authenticated) return <Login onLogin={revalidate} />;
+
   if (dead)
-    return (
-      <div className={s.dead}>
-        🧌 cannot reach orc — is it still running? (check the URL token)
-      </div>
-    );
+    return <div className={s.dead}>🧌 cannot reach orc — is it still running?</div>;
 
   return (
     <div className={s.shell}>

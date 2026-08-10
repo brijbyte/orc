@@ -30,6 +30,7 @@ type options struct {
 	prompt      string
 	resumeRef   string
 	serveAddr   string
+	port        int
 	domain      string
 	serviceFile string
 	doResume    bool
@@ -58,6 +59,15 @@ func main() {
 				}
 				opts.resumeRef = args[0]
 			}
+			if opts.serveAddr != "" {
+				addr, err := resolveWebAddr(opts.serveAddr, opts.port, cmd.Flags().Changed("port"))
+				if err != nil {
+					return err
+				}
+				opts.serveAddr = addr
+			} else if cmd.Flags().Changed("port") {
+				return fmt.Errorf("--port requires --serve")
+			}
 			os.Exit(run(&opts, model, effort, providerName,
 				cmd.Flags().Changed("effort")))
 			return nil
@@ -71,7 +81,8 @@ func main() {
 	f.StringVar(&opts.resumeRef, "resume", "", "resume most recent (or given) session")
 	f.Lookup("resume").NoOptDefVal = "most-recent"
 	f.StringVar(&opts.serveAddr, "serve", "", "serve the session over HTTP (web UI) instead of the TUI")
-	f.Lookup("serve").NoOptDefVal = "127.0.0.1:7777"
+	f.Lookup("serve").NoOptDefVal = "127.0.0.1"
+	f.IntVar(&opts.port, "port", 7777, "with --serve: HTTP port (env PORT; default 7777)")
 	f.StringVar(&opts.domain, "domain", "", "with --serve: public domain, TLS via Let's Encrypt on :443")
 	f.StringVar(&opts.serviceFile, "service-file", "", "write the service URL to this file")
 	_ = f.MarkHidden("service-file")
@@ -80,6 +91,7 @@ func main() {
 	f.BoolVar(&opts.doAuth, "auth", false, "show provider auth status")
 	root.CompletionOptions.DisableDefaultCmd = true
 	root.SetVersionTemplate("orc {{.Version}}\n")
+	root.AddCommand(newPasswordCommand())
 	root.AddCommand(newServiceCommand())
 
 	if err := root.Execute(); err != nil {
@@ -287,7 +299,11 @@ func runPipe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 // first runtime; browsers list, open, and start sessions over the API.
 func runServe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 	resumed []json.RawMessage, opts *options) int {
-	srv := web.NewServer(prov, cfg, opts.serveAddr, opts.domain)
+	srv, err := web.NewServer(prov, cfg, opts.serveAddr, opts.domain)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
+		return 1
+	}
 	srv.Register(web.NewRuntime(prov, cfg, sess, resumed, opts.doResume))
 
 	url, err := srv.Start(func(s string) { fmt.Println(s) })

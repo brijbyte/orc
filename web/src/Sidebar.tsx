@@ -1,7 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { Link } from "react-router";
 import { Pin, Trash2, X } from "lucide-react";
-import { tokenHash } from "./api";
 import * as store from "./store";
 import type { SessionRow } from "./types";
 import { TipBtn } from "./ui";
@@ -61,7 +60,7 @@ function Row({
     <div className={s.row + (active ? " " + s.active : "")}>
       <Link
         className={s.open}
-        to={`/s/${sid}` + tokenHash()}
+        to={`/s/${sid}`}
         title={`${row.id.slice(0, 8)} · started ${row.when}`}
         onClick={onOpen}
       >

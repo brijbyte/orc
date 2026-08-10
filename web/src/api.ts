@@ -1,27 +1,27 @@
 export type AttachedFile = { name: string; type: string; data: string };
 
-// The hash carries only the auth token ("#<token>"), so it never reaches
-// the server; the active session lives in the path (/s/:sid). Legacy
-// "#<token>/<session>" links still parse — App migrates them.
-const token = window.location.hash.slice(1).split("/")[0];
+export class APIError extends Error {
+  constructor(readonly status: number) {
+    super(String(status));
+  }
+}
 
-const auth = { Authorization: `Bearer ${token}` };
+const check = (response: Response) => {
+  if (!response.ok) throw new APIError(response.status);
+  return response;
+};
 
 const get = (url: string) =>
-  fetch(url, { headers: auth }).then((r) => {
-    if (!r.ok) throw new Error(String(r.status));
-    return r.json();
-  });
+  fetch(url).then(check).then((response) => response.json());
 
 const post = (url: string, body?: unknown) =>
   fetch(url, {
     method: "POST",
-    headers: auth,
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
-  }).then((r) => {
-    if (!r.ok) throw new Error(String(r.status));
-    return r.status === 204 ? null : r.json();
-  });
+  })
+    .then(check)
+    .then((response) => (response.status === 204 ? null : response.json()));
 
 export type EventStream = {
   onmessage?: (message: { data: string }) => void;
@@ -29,7 +29,7 @@ export type EventStream = {
   close: () => void;
 };
 
-class AuthEventStream implements EventStream {
+class SessionEventStream implements EventStream {
   onmessage?: (message: { data: string }) => void;
   onopen?: () => void;
   private controller = new AbortController();
@@ -48,9 +48,9 @@ class AuthEventStream implements EventStream {
       try {
         const response = await fetch(
           `/api/sessions/${this.id}/events?after=${this.cursor}`,
-          { headers: auth, signal: this.controller.signal, cache: "no-store" },
+          { signal: this.controller.signal, cache: "no-store" },
         );
-        if (!response.ok || !response.body) throw new Error(String(response.status));
+        if (!response.ok || !response.body) throw new APIError(response.status);
         this.onopen?.();
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -85,13 +85,14 @@ class AuthEventStream implements EventStream {
 }
 
 export const api = {
+  login: (password: string) => post("/api/login", { password }),
+  logout: () => post("/api/logout"),
   sessions: () => get("/api/sessions"),
   create: (cwd?: string) => post("/api/sessions", cwd ? { cwd } : {}),
   open: (id: string) => post(`/api/sessions/${id}/open`),
-  stop: (id: string) =>
-    fetch(`/api/sessions/${id}`, { method: "DELETE", headers: auth }),
+  stop: (id: string) => fetch(`/api/sessions/${id}`, { method: "DELETE" }),
   remove: (id: string) =>
-    fetch(`/api/sessions/${id}?purge=1`, { method: "DELETE", headers: auth }),
+    fetch(`/api/sessions/${id}?purge=1`, { method: "DELETE" }),
   pin: (id: string, pinned: boolean) =>
     post(`/api/sessions/${id}/pin`, { pinned }),
   state: (id: string) => get(`/api/sessions/${id}/state`),
@@ -101,12 +102,9 @@ export const api = {
     get(`/api/sessions/${id}/catchup?after=${after}`),
   file: (id: string, ref: string) =>
     fetch(`/api/sessions/${id}/file`, {
-      headers: { ...auth, "X-Orc-File-Ref": ref },
+      headers: { "X-Orc-File-Ref": ref },
       cache: "no-store",
-    }).then((response) => {
-      if (!response.ok) throw new Error(String(response.status));
-      return response.json();
-    }),
+    }).then(check).then((response) => response.json()),
   models: () => get("/api/models"),
   dirs: (path?: string) =>
     get(`/api/dirs${path ? `?path=${encodeURIComponent(path)}` : ""}`),
@@ -114,16 +112,6 @@ export const api = {
   send: (id: string, text: string, files?: AttachedFile[]) =>
     post(`/api/sessions/${id}/input`, files?.length ? { text, files } : { text }),
   interrupt: (id: string) =>
-    fetch(`/api/sessions/${id}/interrupt`, { method: "POST", headers: auth }),
-  events: (id: string, after: number) => new AuthEventStream(id, after),
+    fetch(`/api/sessions/${id}/interrupt`, { method: "POST" }),
+  events: (id: string, after: number) => new SessionEventStream(id, after),
 };
-
-// legacySession reads a session id from an old-style "#token/session" hash.
-export function legacySession(): string {
-  return window.location.hash.slice(1).split("/")[1] ?? "";
-}
-
-// tokenHash is the fragment every in-app navigation must carry along.
-export function tokenHash(): string {
-  return token ? "#" + token : "";
-}

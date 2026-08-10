@@ -75,21 +75,57 @@ func TestHandleFileRejectsForgedPath(t *testing.T) {
 	}
 }
 
-func TestAuthRejectsTokenInURL(t *testing.T) {
-	s := &Server{token: "secret"}
+func TestLoginSetsAuthCookie(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	password, _, err := config.EnsureWebAuth()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{}
+	login := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(`{"password":"`+password+`"}`))
+	loginRW := httptest.NewRecorder()
+	s.handleLogin(loginRW, login)
+	cookies := loginRW.Result().Cookies()
+	if loginRW.Code != http.StatusNoContent || len(cookies) != 1 || !cookies[0].HttpOnly {
+		t.Fatalf("login: status=%d cookies=%#v", loginRW.Code, cookies)
+	}
+
 	next := s.auth(func(rw http.ResponseWriter, r *http.Request) { rw.WriteHeader(http.StatusNoContent) })
-	req := httptest.NewRequest(http.MethodGet, "/?token=secret", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(cookies[0])
 	rw := httptest.NewRecorder()
 	next(rw, req)
-	if rw.Code != http.StatusUnauthorized {
-		t.Fatalf("query token status = %d", rw.Code)
+	if rw.Code != http.StatusNoContent {
+		t.Fatalf("cookie status = %d", rw.Code)
 	}
-	req = httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("Authorization", "Bearer secret")
+	if _, err := config.RotateWebPassword(); err != nil {
+		t.Fatal(err)
+	}
 	rw = httptest.NewRecorder()
 	next(rw, req)
-	if rw.Code != http.StatusNoContent {
-		t.Fatalf("header token status = %d", rw.Code)
+	if rw.Code != http.StatusUnauthorized {
+		t.Fatalf("rotated cookie status = %d", rw.Code)
+	}
+}
+
+func TestAuthRejectsPasswordOutsideCookie(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	password, _, err := config.EnsureWebAuth()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{}
+	next := s.auth(func(rw http.ResponseWriter, r *http.Request) { rw.WriteHeader(http.StatusNoContent) })
+	for _, req := range []*http.Request{
+		httptest.NewRequest(http.MethodGet, "/?password="+password, nil),
+		httptest.NewRequest(http.MethodGet, "/", nil),
+	} {
+		req.Header.Set("Authorization", "Bearer "+password)
+		rw := httptest.NewRecorder()
+		next(rw, req)
+		if rw.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d", rw.Code)
+		}
 	}
 }
 
