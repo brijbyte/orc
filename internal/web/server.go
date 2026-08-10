@@ -745,6 +745,8 @@ func (s *Server) router() http.Handler {
 			api.Get("/sessions/{id}/git/status", s.withRuntime(s.handleGitStatus))
 			api.Get("/sessions/{id}/git/compare", s.withRuntime(s.handleGitCompare))
 			api.Get("/sessions/{id}/git/diff", s.withRuntime(s.handleGitDiff))
+			api.Post("/sessions/{id}/git/stage", s.withRuntime(s.handleGitMutation(true)))
+			api.Post("/sessions/{id}/git/unstage", s.withRuntime(s.handleGitMutation(false)))
 			api.Get("/models", s.handleModels)
 			api.Get("/dirs", s.handleDirs)
 			api.Post("/dirs", s.handleMkdir)

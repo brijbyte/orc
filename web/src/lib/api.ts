@@ -117,11 +117,16 @@ export const api = {
   gitStatus: (id: string) => get(`/api/sessions/${id}/git/status`),
   gitCompare: (id: string, base: string) =>
     get(`/api/sessions/${id}/git/compare?base=${encodeURIComponent(base)}`),
-  gitDiff: (id: string, path: string, base = "") => {
+  gitDiff: (id: string, path: string, base = "", mode = "worktree") => {
     const query = new URLSearchParams({ path });
     if (base) query.set("base", base);
+    else query.set("mode", mode);
     return get(`/api/sessions/${id}/git/diff?${query}`);
   },
+  gitStage: (id: string, paths: string[], hunks?: number[], hash?: string) =>
+    post(`/api/sessions/${id}/git/stage`, { paths, hunks, hash }),
+  gitUnstage: (id: string, paths: string[], hunks?: number[], hash?: string) =>
+    post(`/api/sessions/${id}/git/unstage`, { paths, hunks, hash }),
   models: () => get("/api/models"),
   dirs: (path?: string) =>
     get(`/api/dirs${path ? `?path=${encodeURIComponent(path)}` : ""}`),

@@ -1,7 +1,10 @@
 package web
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -81,13 +84,110 @@ func TestGitDiffIncludesTrackedAndUntrackedFiles(t *testing.T) {
 		{"tracked file.txt", "+two"},
 		{"new.txt", "+new"},
 	} {
-		patch, root, err := gitDiff(context.Background(), rt, "", test.path)
+		patch, root, err := gitDiff(context.Background(), rt, "", "worktree", test.path)
 		if err != nil {
 			t.Fatalf("diff %s: %v", test.path, err)
 		}
 		if filepath.Base(root) != filepath.Base(dir) || !strings.Contains(string(patch), test.want) {
 			t.Fatalf("diff %s root=%q:\n%s", test.path, root, patch)
 		}
+	}
+}
+
+func TestGitStageAndUnstageFiles(t *testing.T) {
+	rt, dir := testRepo(t)
+	if err := os.WriteFile(filepath.Join(dir, "tracked file.txt"), []byte("two\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "new.txt"), []byte("new\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	status, err := gitMutate(context.Background(), rt, gitMutationRequest{
+		Paths: []string{"tracked file.txt", "new.txt"},
+	}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, change := range status.Changes {
+		if change.Index == "." || change.Index == "?" {
+			t.Fatalf("change was not staged: %#v", change)
+		}
+	}
+	status, err = gitMutate(context.Background(), rt, gitMutationRequest{
+		Paths: []string{"tracked file.txt", "new.txt"},
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]gitChange{}
+	for _, change := range status.Changes {
+		got[change.Path] = change
+	}
+	if got["tracked file.txt"].Index != "." || got["new.txt"].Index != "?" {
+		t.Fatalf("changes were not unstaged: %#v", got)
+	}
+	if len(status.Activity) != 2 || status.Activity[0].Action != "unstage" {
+		t.Fatalf("activity = %#v", status.Activity)
+	}
+}
+
+func TestGitStageAndUnstageHunks(t *testing.T) {
+	rt, dir := testRepo(t)
+	lines := make([]string, 24)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("line %02d", i+1)
+	}
+	path := filepath.Join(dir, "hunks.txt")
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	testGit(t, dir, "add", "hunks.txt")
+	testGit(t, dir, "commit", "-m", "add hunks")
+	lines[1] = "first change"
+	lines[21] = "second change"
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	patch, _, err := gitDiff(context.Background(), rt, "", "worktree", "hunks.txt")
+	if err != nil || bytes.Count(patch, []byte("\n@@ ")) != 2 {
+		t.Fatalf("worktree patch err=%v:\n%s", err, patch)
+	}
+	status, err := gitMutate(context.Background(), rt, gitMutationRequest{
+		Paths: []string{"hunks.txt"}, Hunks: []int{0}, Hash: diffHash(patch),
+	}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(status.Changes) != 1 || status.Changes[0].Index != "M" || status.Changes[0].Worktree != "M" {
+		t.Fatalf("partly staged status = %#v", status.Changes)
+	}
+	staged, _, err := gitDiff(context.Background(), rt, "", "staged", "hunks.txt")
+	if err != nil || !strings.Contains(string(staged), "first change") || strings.Contains(string(staged), "second change") {
+		t.Fatalf("staged patch err=%v:\n%s", err, staged)
+	}
+	_, err = gitMutate(context.Background(), rt, gitMutationRequest{
+		Paths: []string{"hunks.txt"}, Hunks: []int{0}, Hash: diffHash(staged),
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staged, _, err = gitDiff(context.Background(), rt, "", "staged", "hunks.txt")
+	if err != nil || len(staged) != 0 {
+		t.Fatalf("staged patch after unstage err=%v:\n%s", err, staged)
+	}
+}
+
+func TestGitHunkRejectsStaleDiff(t *testing.T) {
+	rt, dir := testRepo(t)
+	path := filepath.Join(dir, "tracked file.txt")
+	if err := os.WriteFile(path, []byte("two\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := gitMutate(context.Background(), rt, gitMutationRequest{
+		Paths: []string{"tracked file.txt"}, Hunks: []int{0}, Hash: "stale",
+	}, true)
+	if !errors.Is(err, errGitStale) {
+		t.Fatalf("error = %v", err)
 	}
 }
 
@@ -106,7 +206,7 @@ func TestGitBranchCompare(t *testing.T) {
 	if len(compare.Changes) != 1 || compare.Changes[0].Path != "feature.go" || compare.Changes[0].Status != "Added" {
 		t.Fatalf("compare = %#v", compare)
 	}
-	patch, _, err := gitDiff(context.Background(), rt, "refs/heads/main", "feature.go")
+	patch, _, err := gitDiff(context.Background(), rt, "refs/heads/main", "", "feature.go")
 	if err != nil || !strings.Contains(string(patch), "+package feature") {
 		t.Fatalf("patch err=%v:\n%s", err, patch)
 	}

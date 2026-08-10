@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/brijbyte/orc/internal/agent"
 	"github.com/brijbyte/orc/internal/commands"
@@ -25,6 +26,10 @@ type Runtime struct {
 	Cmds *commands.Commands
 
 	done chan struct{}
+
+	gitMu         sync.Mutex
+	gitActivityMu sync.Mutex
+	gitActivity   []gitActivity
 }
 
 // NewRuntime wires a session into a web IO and starts its driver loop.

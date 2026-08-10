@@ -50,6 +50,13 @@ export type GitChange = {
   file?: string;
 };
 
+export type GitActivity = {
+  at: string;
+  action: "stage" | "unstage";
+  paths: string[];
+  hunks?: number;
+};
+
 export type GitStatus = {
   repo: boolean;
   root?: string;
@@ -61,6 +68,7 @@ export type GitStatus = {
   clean: boolean;
   changes: GitChange[];
   branches: GitBranch[];
+  activity: GitActivity[];
 };
 
 export type GitCompare = { base: string; changes: GitChange[] };
@@ -70,6 +78,7 @@ export type GitDiff = {
   patch: string;
   html?: string[];
   size: number;
+  hash: string;
 };
 
 export type SessionRow = {

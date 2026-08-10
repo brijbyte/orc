@@ -3,6 +3,9 @@ package web
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +25,7 @@ const gitOutputMax = 8 << 20
 var (
 	errNotRepo   = errors.New("not a git repository")
 	errGitOutput = errors.New("git output is too large")
+	errGitStale  = errors.New("Git diff changed; refresh and try again")
 )
 
 type gitBranch struct {
@@ -40,17 +44,31 @@ type gitChange struct {
 	File     string `json:"file,omitempty"`
 }
 
+type gitActivity struct {
+	At     string   `json:"at"`
+	Action string   `json:"action"`
+	Paths  []string `json:"paths"`
+	Hunks  int      `json:"hunks,omitempty"`
+}
+
 type gitStatus struct {
-	Repo     bool        `json:"repo"`
-	Root     string      `json:"root,omitempty"`
-	Branch   string      `json:"branch,omitempty"`
-	Detached bool        `json:"detached,omitempty"`
-	Upstream string      `json:"upstream,omitempty"`
-	Ahead    int         `json:"ahead"`
-	Behind   int         `json:"behind"`
-	Clean    bool        `json:"clean"`
-	Changes  []gitChange `json:"changes"`
-	Branches []gitBranch `json:"branches"`
+	Repo     bool          `json:"repo"`
+	Root     string        `json:"root,omitempty"`
+	Branch   string        `json:"branch,omitempty"`
+	Detached bool          `json:"detached,omitempty"`
+	Upstream string        `json:"upstream,omitempty"`
+	Ahead    int           `json:"ahead"`
+	Behind   int           `json:"behind"`
+	Clean    bool          `json:"clean"`
+	Changes  []gitChange   `json:"changes"`
+	Branches []gitBranch   `json:"branches"`
+	Activity []gitActivity `json:"activity"`
+}
+
+type gitMutationRequest struct {
+	Paths []string `json:"paths"`
+	Hunks []int    `json:"hunks,omitempty"`
+	Hash  string   `json:"hash,omitempty"`
 }
 
 type gitCompare struct {
@@ -59,11 +77,16 @@ type gitCompare struct {
 }
 
 func runGit(ctx context.Context, cwd string, args ...string) ([]byte, error) {
+	return runGitInput(ctx, cwd, nil, args...)
+}
+
+func runGitInput(ctx context.Context, cwd string, input []byte, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	base := []string{"-C", cwd, "--no-pager", "-c", "color.ui=false", "-c", "core.quotepath=false"}
 	cmd := exec.CommandContext(ctx, "git", append(base, args...)...)
 	cmd.Env = append(os.Environ(), "LC_ALL=C", "GIT_OPTIONAL_LOCKS=0")
+	cmd.Stdin = bytes.NewReader(input)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	stdout, err := cmd.StdoutPipe()
@@ -102,6 +125,25 @@ func gitRoot(ctx context.Context, cwd string) (string, error) {
 	return filepath.Clean(strings.TrimSpace(string(out))), nil
 }
 
+func (rt *Runtime) recordGitActivity(action string, paths []string, hunks int) {
+	rt.gitActivityMu.Lock()
+	defer rt.gitActivityMu.Unlock()
+	entry := gitActivity{
+		At: time.Now().UTC().Format(time.RFC3339), Action: action,
+		Paths: append([]string(nil), paths...), Hunks: hunks,
+	}
+	rt.gitActivity = append([]gitActivity{entry}, rt.gitActivity...)
+	if len(rt.gitActivity) > 50 {
+		rt.gitActivity = rt.gitActivity[:50]
+	}
+}
+
+func (rt *Runtime) gitActivities() []gitActivity {
+	rt.gitActivityMu.Lock()
+	defer rt.gitActivityMu.Unlock()
+	return append([]gitActivity(nil), rt.gitActivity...)
+}
+
 func loadGitStatus(ctx context.Context, rt *Runtime) (gitStatus, error) {
 	root, err := gitRoot(ctx, rt.Cfg.Cwd)
 	if err != nil {
@@ -111,7 +153,10 @@ func loadGitStatus(ctx context.Context, rt *Runtime) (gitStatus, error) {
 	if err != nil {
 		return gitStatus{}, err
 	}
-	status := gitStatus{Repo: true, Root: root, Changes: []gitChange{}, Branches: []gitBranch{}}
+	status := gitStatus{
+		Repo: true, Root: root, Changes: []gitChange{}, Branches: []gitBranch{},
+		Activity: rt.gitActivities(),
+	}
 	parseGitStatus(raw, &status)
 	branches, err := loadGitBranches(ctx, root, status.Branch)
 	if err != nil {
@@ -324,7 +369,7 @@ func parseNameStatus(raw []byte) []gitChange {
 	return changes
 }
 
-func gitDiff(ctx context.Context, rt *Runtime, base, path string) ([]byte, string, error) {
+func gitDiff(ctx context.Context, rt *Runtime, base, mode, path string) ([]byte, string, error) {
 	status, err := loadGitStatus(ctx, rt)
 	if err != nil {
 		return nil, "", err
@@ -341,10 +386,17 @@ func gitDiff(ctx context.Context, rt *Runtime, base, path string) ([]byte, strin
 			return nil, "", errors.New("unknown branch")
 		}
 		args = append(args, base+"...HEAD")
-	} else if _, err := runGit(ctx, status.Root, "rev-parse", "--verify", "HEAD"); err == nil {
-		args = append(args, "HEAD")
 	} else {
-		args = append(args, "--cached")
+		switch mode {
+		case "", "worktree":
+		case "staged":
+			args = append(args, "--cached")
+			if _, err := runGit(ctx, status.Root, "rev-parse", "--verify", "HEAD"); err == nil {
+				args = append(args, "HEAD")
+			}
+		default:
+			return nil, "", errors.New("unknown diff mode")
+		}
 	}
 	args = append(args, "--")
 	if path != "" {
@@ -354,7 +406,14 @@ func gitDiff(ctx context.Context, rt *Runtime, base, path string) ([]byte, strin
 	if err != nil {
 		return nil, "", err
 	}
-	if base == "" && path != "" && len(out) == 0 {
+	untracked := false
+	for _, change := range status.Changes {
+		if change.Path == path && change.Index == "?" {
+			untracked = true
+			break
+		}
+	}
+	if base == "" && mode != "staged" && untracked && len(out) == 0 {
 		full, _ := repoPath(status.Root, path)
 		if info, statErr := os.Stat(full); statErr == nil && info.Mode().IsRegular() {
 			out, err = runGit(ctx, status.Root, "diff", "--no-index", "--src-prefix=a/", "--dst-prefix=b/", "--", "/dev/null", path)
@@ -367,12 +426,153 @@ func gitDiff(ctx context.Context, rt *Runtime, base, path string) ([]byte, strin
 	return out, status.Root, nil
 }
 
+func mutationPaths(status gitStatus, requested []string, stage bool) ([]string, []string, error) {
+	if len(requested) == 0 || len(requested) > 256 {
+		return nil, nil, errors.New("select one or more files")
+	}
+	changes := make(map[string]gitChange, len(status.Changes))
+	for _, change := range status.Changes {
+		changes[change.Path] = change
+	}
+	seen := map[string]bool{}
+	paths := make([]string, 0, len(requested)*2)
+	selected := make([]string, 0, len(requested))
+	for _, path := range requested {
+		change, ok := changes[path]
+		if !ok {
+			return nil, nil, fmt.Errorf("%s is not changed", path)
+		}
+		action := "unstage"
+		eligible := change.Index != "." && change.Index != "?"
+		if stage {
+			action = "stage"
+			eligible = change.Worktree != "." || change.Index == "?"
+		}
+		if !eligible {
+			return nil, nil, fmt.Errorf("%s has no changes to %s", path, action)
+		}
+		for _, candidate := range []string{change.Path, change.OldPath} {
+			if candidate == "" || seen[candidate] {
+				continue
+			}
+			if _, ok := repoPath(status.Root, candidate); !ok {
+				return nil, nil, errors.New("bad path")
+			}
+			seen[candidate] = true
+			paths = append(paths, candidate)
+		}
+		selected = append(selected, path)
+	}
+	return paths, selected, nil
+}
+
+func diffHash(patch []byte) string {
+	sum := sha256.Sum256(patch)
+	return hex.EncodeToString(sum[:])
+}
+
+func selectDiffHunks(patch []byte, selected []int) ([]byte, error) {
+	lines := bytes.SplitAfter(patch, []byte{'\n'})
+	starts := []int{}
+	for i, line := range lines {
+		if bytes.HasPrefix(line, []byte("@@ ")) {
+			starts = append(starts, i)
+		}
+	}
+	if len(starts) == 0 || len(selected) == 0 || len(selected) > len(starts) {
+		return nil, errors.New("select one or more diff hunks")
+	}
+	wanted := make(map[int]bool, len(selected))
+	for _, hunk := range selected {
+		if hunk < 0 || hunk >= len(starts) || wanted[hunk] {
+			return nil, errors.New("bad diff hunk")
+		}
+		wanted[hunk] = true
+	}
+	var out bytes.Buffer
+	for _, line := range lines[:starts[0]] {
+		out.Write(line)
+	}
+	for hunk, start := range starts {
+		if !wanted[hunk] {
+			continue
+		}
+		end := len(lines)
+		if hunk+1 < len(starts) {
+			end = starts[hunk+1]
+		}
+		for _, line := range lines[start:end] {
+			out.Write(line)
+		}
+	}
+	return out.Bytes(), nil
+}
+
+func gitMutate(ctx context.Context, rt *Runtime, request gitMutationRequest, stage bool) (gitStatus, error) {
+	status, err := loadGitStatus(ctx, rt)
+	if err != nil {
+		return gitStatus{}, err
+	}
+	paths, selected, err := mutationPaths(status, request.Paths, stage)
+	if err != nil {
+		return gitStatus{}, err
+	}
+	if len(request.Hunks) > 0 {
+		if len(selected) != 1 || request.Hash == "" {
+			return gitStatus{}, errors.New("hunks require one file and a diff hash")
+		}
+		mode := "staged"
+		if stage {
+			mode = "worktree"
+		}
+		patch, _, err := gitDiff(ctx, rt, "", mode, selected[0])
+		if err != nil {
+			return gitStatus{}, err
+		}
+		if diffHash(patch) != request.Hash {
+			return gitStatus{}, errGitStale
+		}
+		patch, err = selectDiffHunks(patch, request.Hunks)
+		if err != nil {
+			return gitStatus{}, err
+		}
+		args := []string{"apply", "--cached", "--whitespace=nowarn"}
+		if !stage {
+			args = append(args, "--reverse")
+		}
+		if _, err := runGitInput(ctx, status.Root, patch, append(args, "--check")...); err != nil {
+			return gitStatus{}, err
+		}
+		if _, err := runGitInput(ctx, status.Root, patch, args...); err != nil {
+			return gitStatus{}, err
+		}
+	} else if stage {
+		if _, err := runGit(ctx, status.Root, append([]string{"add", "-A", "--"}, paths...)...); err != nil {
+			return gitStatus{}, err
+		}
+	} else if _, err := runGit(ctx, status.Root, "rev-parse", "--verify", "HEAD"); err == nil {
+		if _, err := runGit(ctx, status.Root, append([]string{"reset", "-q", "HEAD", "--"}, paths...)...); err != nil {
+			return gitStatus{}, err
+		}
+	} else if _, err := runGit(ctx, status.Root, append([]string{"rm", "--cached", "-q", "--ignore-unmatch", "--"}, paths...)...); err != nil {
+		return gitStatus{}, err
+	}
+	action := "unstage"
+	if stage {
+		action = "stage"
+	}
+	rt.recordGitActivity(action, selected, len(request.Hunks))
+	return loadGitStatus(ctx, rt)
+}
+
 func gitHTTPError(rw http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, errNotRepo):
 		http.Error(rw, err.Error(), http.StatusNotFound)
 	case errors.Is(err, errGitOutput):
 		http.Error(rw, err.Error(), http.StatusRequestEntityTooLarge)
+	case errors.Is(err, errGitStale):
+		http.Error(rw, err.Error(), http.StatusConflict)
 	default:
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 	}
@@ -381,7 +581,9 @@ func gitHTTPError(rw http.ResponseWriter, err error) {
 func (s *Server) handleGitStatus(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
 	status, err := loadGitStatus(r.Context(), rt)
 	if errors.Is(err, errNotRepo) {
-		writeJSON(rw, gitStatus{Repo: false, Changes: []gitChange{}, Branches: []gitBranch{}})
+		writeJSON(rw, gitStatus{
+			Repo: false, Changes: []gitChange{}, Branches: []gitBranch{}, Activity: []gitActivity{},
+		})
 		return
 	}
 	if err != nil {
@@ -401,7 +603,10 @@ func (s *Server) handleGitCompare(rw http.ResponseWriter, r *http.Request, rt *R
 }
 
 func (s *Server) handleGitDiff(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
-	patch, root, err := gitDiff(r.Context(), rt, r.URL.Query().Get("base"), r.URL.Query().Get("path"))
+	patch, root, err := gitDiff(
+		r.Context(), rt, r.URL.Query().Get("base"), r.URL.Query().Get("mode"),
+		r.URL.Query().Get("path"),
+	)
 	if err != nil {
 		gitHTTPError(rw, err)
 		return
@@ -409,5 +614,24 @@ func (s *Server) handleGitDiff(rw http.ResponseWriter, r *http.Request, rt *Runt
 	writeJSON(rw, map[string]any{
 		"path": r.URL.Query().Get("path"), "root": root, "patch": string(patch),
 		"html": ui.HighlightHTML("changes.diff", string(patch)), "size": len(patch),
+		"hash": diffHash(patch),
 	})
+}
+
+func (s *Server) handleGitMutation(stage bool) func(http.ResponseWriter, *http.Request, *Runtime) {
+	return func(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
+		var request gitMutationRequest
+		if json.NewDecoder(r.Body).Decode(&request) != nil {
+			http.Error(rw, "bad input", http.StatusBadRequest)
+			return
+		}
+		rt.gitMu.Lock()
+		defer rt.gitMu.Unlock()
+		status, err := gitMutate(r.Context(), rt, request, stage)
+		if err != nil {
+			gitHTTPError(rw, err)
+			return
+		}
+		writeJSON(rw, status)
+	}
 }
