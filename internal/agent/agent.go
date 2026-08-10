@@ -186,8 +186,9 @@ const compactPrompt = "Summarize this conversation so a fresh instance can " +
 	"made, current state (including uncommitted changes), and immediate next " +
 	"steps. Be terse: plain bullets, under 400 words. Name file paths so the " +
 	"next instance can read them, but do not quote file contents, code, " +
-	"diffs, or command output — everything on disk is re-readable. No " +
-	"headings, no code blocks. Output only the summary."
+	"diffs, or command output — everything on disk is re-readable. Do not " +
+	"restate your instructions or AGENTS.md content; the next instance gets " +
+	"them again. No headings, no code blocks. Output only the summary."
 
 // compactRatio of the model's context window triggers auto-compaction.
 const compactRatio = 0.8
