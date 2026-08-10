@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { api } from "./api";
-import { setThemePref, themePref, type ThemePref } from "./theme";
-import type { Model } from "./types";
-import { Sel } from "./ui";
+import { api } from "../lib/api";
+import { setThemePref, themePref, type ThemePref } from "../lib/theme";
+import type { Model } from "../lib/types";
+import { Select } from "../ui/Select";
 import s from "./StatusBar.module.css";
 
 // StatusBar renders "model · effort · rest…" with model and effort as
@@ -30,13 +30,13 @@ export function StatusBar({
       <div>
         {status && (
           <span className={s.stat}>
-            <Sel
+            <Select
               value={model}
               options={modelOpts}
               onChange={(v) => api.send(sid, "/model " + v)}
             />
             {" · "}
-            <Sel
+            <Select
               value={effort}
               options={["low", "medium", "high"].map((value) => ({ value }))}
               onChange={(v) => api.send(sid, "/effort " + v)}
@@ -44,7 +44,7 @@ export function StatusBar({
             {rest.length > 0 && " · " + rest.join(" · ")}
           </span>
         )}
-        <Sel
+        <Select
           className={s.themeSel}
           value={theme}
           options={["system", "light", "dark"].map((value) => ({ value }))}

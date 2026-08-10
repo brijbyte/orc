@@ -3,8 +3,9 @@ import { Dialog } from "@base-ui/react/dialog";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { X } from "lucide-react";
-import { api } from "./api";
-import d from "./dialog.module.css";
+import { api } from "../lib/api";
+import { Button } from "../ui/Button";
+import d from "../ui/dialog.module.css";
 import s from "./FileDrawer.module.css";
 
 type FileData = { path: string; content: string; html?: string[] };
@@ -62,10 +63,7 @@ export function FileDrawer({
   const markdown = /\.md$/i.test(data?.path ?? path);
   const preview = markdown && view === "preview";
   return (
-    <Dialog.Root
-      open={!!path}
-      onOpenChange={(open) => !open && onClose()}
-    >
+    <Dialog.Root open={!!path} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Backdrop className={d.overlay} />
         <Dialog.Popup className={s.drawer} initialFocus={close}>
@@ -76,8 +74,8 @@ export function FileDrawer({
             {markdown && (
               <div className={s.tabs} role="tablist" aria-label="file view">
                 {(["code", "preview"] as View[]).map((tab) => (
-                  <button
-                    type="button"
+                  <Button
+                    small
                     role="tab"
                     aria-selected={view === tab}
                     className={s.tab}
@@ -86,11 +84,15 @@ export function FileDrawer({
                     key={tab}
                   >
                     {tab === "code" ? "Code" : "Preview"}
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
-            <Dialog.Close ref={close} className={s.close} aria-label="close file">
+            <Dialog.Close
+              ref={close}
+              render={<Button icon className={s.close} />}
+              aria-label="close file"
+            >
               <X size={17} strokeWidth={1.8} aria-hidden />
             </Dialog.Close>
           </header>
@@ -98,11 +100,16 @@ export function FileDrawer({
             {!data && !err && <div className={s.message}>loading…</div>}
             {err && <div className={`${s.message} ${s.error}`}>{err}</div>}
             {data && preview && !data.content && (
-              <div className={s.message} role="tabpanel">(empty file)</div>
+              <div className={s.message} role="tabpanel">
+                (empty file)
+              </div>
             )}
             {data && preview && data.content && (
               <article className={s.markdown} role="tabpanel">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={mdComponents}
+                >
                   {data.content}
                 </ReactMarkdown>
               </article>

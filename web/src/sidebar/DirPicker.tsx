@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
-import { api } from "./api";
+import { api } from "../lib/api";
+import { Button } from "../ui/Button";
 import s from "./DirPicker.module.css";
-import d from "./dialog.module.css";
+import d from "../ui/dialog.module.css";
 
 // DirPicker browses server directories for a new session's cwd.
 export function DirPicker({
@@ -73,7 +74,10 @@ export function DirPicker({
     >
       <Dialog.Portal>
         <Dialog.Backdrop className={d.overlay} />
-        <Dialog.Popup className={`${d.popup} ${s.popup}`} initialFocus={pathRef}>
+        <Dialog.Popup
+          className={`${d.popup} ${s.popup}`}
+          initialFocus={pathRef}
+        >
           <Dialog.Title className={d.head}>start a session in…</Dialog.Title>
           <form
             className={s.path}
@@ -92,25 +96,25 @@ export function DirPicker({
           {err && <div className={s.err}>{err}</div>}
           <div className={s.list}>
             {parent && (
-              <button className={s.dir} onClick={() => browse(parent)}>
+              <Button className={s.dir} onClick={() => browse(parent)}>
                 ..
-              </button>
+              </Button>
             )}
             {dirs.map((d) => (
-              <button
+              <Button
                 key={d}
                 className={s.dir}
                 onClick={() => browse(path.replace(/\/$/, "") + "/" + d)}
               >
                 {d}/
-              </button>
+              </Button>
             ))}
           </div>
           <div className={d.foot}>
             {newName === null ? (
-              <button onClick={() => setNewName("")}>
+              <Button outline onClick={() => setNewName("")}>
                 + new folder
-              </button>
+              </Button>
             ) : (
               <form
                 className={s.mkform}
@@ -135,16 +139,17 @@ export function DirPicker({
                 />
               </form>
             )}
-            <Dialog.Close>cancel</Dialog.Close>
-            <button
-              className={d.go}
+            <Dialog.Close render={<Button outline />}>cancel</Dialog.Close>
+            <Button
+              outline
+              tone="success"
               onClick={() => {
                 picked.current = path;
                 onCancel();
               }}
             >
               start here
-            </button>
+            </Button>
           </div>
         </Dialog.Popup>
       </Dialog.Portal>

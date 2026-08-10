@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
-import * as store from "./store";
-import type { Block } from "./types";
+import * as store from "../lib/store";
+import type { Block } from "../lib/types";
 import { BlockView } from "./BlockView";
 import s from "./Transcript.module.css";
 
@@ -10,6 +10,7 @@ type Props = {
   hasMore: boolean;
   loadingOlder: boolean;
   onOpenFile: (path: string, ref: string) => void;
+  onRetry?: () => void; // offered on the last block only
 };
 
 function compactPair(a: Block, b?: Block) {
@@ -21,7 +22,14 @@ function compactPair(a: Block, b?: Block) {
 
 // Transcript follows the bottom until the user scrolls up. Scroll state stays
 // in the store so a remounted session restores its position.
-export function Transcript({ sid, blocks, hasMore, loadingOlder, onOpenFile }: Props) {
+export function Transcript({
+  sid,
+  blocks,
+  hasMore,
+  loadingOlder,
+  onOpenFile,
+  onRetry,
+}: Props) {
   const main = useRef<HTMLElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -82,6 +90,7 @@ export function Transcript({ sid, blocks, hasMore, loadingOlder, onOpenFile }: P
           b={b}
           compactAfter={compactPair(b, blocks[i + 1])}
           onOpenFile={onOpenFile}
+          onRetry={i === blocks.length - 1 ? onRetry : undefined}
         />
       ))}
       <div ref={bottom} />

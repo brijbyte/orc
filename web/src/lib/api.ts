@@ -12,12 +12,15 @@ const check = (response: Response) => {
 };
 
 const get = (url: string) =>
-  fetch(url).then(check).then((response) => response.json());
+  fetch(url)
+    .then(check)
+    .then((response) => response.json());
 
 const post = (url: string, body?: unknown) =>
   fetch(url, {
     method: "POST",
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    headers:
+      body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
     .then(check)
@@ -104,13 +107,19 @@ export const api = {
     fetch(`/api/sessions/${id}/file`, {
       headers: { "X-Orc-File-Ref": ref },
       cache: "no-store",
-    }).then(check).then((response) => response.json()),
+    })
+      .then(check)
+      .then((response) => response.json()),
   models: () => get("/api/models"),
   dirs: (path?: string) =>
     get(`/api/dirs${path ? `?path=${encodeURIComponent(path)}` : ""}`),
   mkdir: (path: string) => post("/api/dirs", { path }),
   send: (id: string, text: string, files?: AttachedFile[]) =>
-    post(`/api/sessions/${id}/input`, files?.length ? { text, files } : { text }),
+    post(
+      `/api/sessions/${id}/input`,
+      files?.length ? { text, files } : { text },
+    ),
+  retry: (id: string) => post(`/api/sessions/${id}/retry`),
   interrupt: (id: string) =>
     fetch(`/api/sessions/${id}/interrupt`, { method: "POST" }),
   events: (id: string, after: number) => new SessionEventStream(id, after),

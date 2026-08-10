@@ -14,18 +14,7 @@
 }
 .new {
   width: 100%;
-  min-height: var(--hit);
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: 0.4rem;
-  color: var(--green);
-  font: inherit;
-  padding: 0.25em 0.6em;
-  cursor: pointer;
   margin-bottom: 0.6rem;
-}
-.new:hover {
-  border-color: var(--dim);
 }
 .group {
   margin-bottom: 0.6rem;
@@ -118,30 +107,14 @@
   display: flex;
   gap: 0.1rem;
 }
+/* row actions stay hidden until the row is hovered; a pin that is already on
+   stays visible, since it reports state */
 .act {
-  display: grid;
-  place-items: center;
-  width: var(--hit);
-  height: var(--hit);
-  background: none;
-  border: none;
-  color: var(--dim);
-  cursor: pointer;
-  padding: 0;
   opacity: 0;
 }
 .act:focus-visible,
 .act.on {
   opacity: 1;
-}
-.act.on {
-  color: var(--cyan);
-}
-.act:hover {
-  color: var(--fg);
-}
-.act.del:hover {
-  color: var(--red);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -238,6 +211,10 @@
 }
 
 @keyframes pulse {
-  from { opacity: 0.35; }
-  to { opacity: 1; }
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
 }

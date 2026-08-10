@@ -20,8 +20,7 @@
 .form label {
   color: var(--dim);
 }
-.form input,
-.form button {
+.form input {
   box-sizing: border-box;
   width: 100%;
   min-height: 2.5rem;
@@ -36,13 +35,13 @@
   border-color: var(--cyan);
   outline: none;
 }
-.form button {
+/* the one filled button in the app: the form's primary action */
+.submit {
+  --btn-color: var(--fg);
+  width: 100%;
+  min-height: 2.5rem;
   margin-top: 0.25rem;
-  cursor: pointer;
-}
-.form button:disabled {
-  cursor: default;
-  opacity: 0.55;
+  background: var(--panel);
 }
 .error {
   color: var(--red);

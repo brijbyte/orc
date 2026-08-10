@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
-import { api } from "./api";
+import { api } from "../lib/api";
+import { Button } from "../ui/Button";
 import s from "./Login.module.css";
 
 export function Login({ onLogin }: { onLogin: () => void }) {
@@ -33,7 +34,14 @@ export function Login({ onLogin }: { onLogin: () => void }) {
           onChange={(event) => setPassword(event.target.value)}
         />
         {error && <div className={s.error}>incorrect password</div>}
-        <button disabled={busy || !password}>{busy ? "signing in…" : "sign in"}</button>
+        <Button
+          outline
+          type="submit"
+          className={s.submit}
+          disabled={busy || !password}
+        >
+          {busy ? "signing in…" : "sign in"}
+        </Button>
       </form>
     </main>
   );

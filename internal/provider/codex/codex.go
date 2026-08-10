@@ -77,6 +77,7 @@ type streamState struct {
 	cb      *provider.Callbacks
 	items   []json.RawMessage
 	failed  string
+	retry   bool // the failure was server-side, so another attempt can help
 	thought bool // a reasoning summary part already streamed
 }
 
@@ -111,7 +112,10 @@ func (st *streamState) onEvent(data []byte) {
 			st.cb.OnUsage(ev.Response.Usage.TotalTokens)
 		}
 	case "response.failed", "response.incomplete":
+		// A 200 stream can still end in failure (overload, internal error).
+		// "incomplete" is a limit the same request would hit again.
 		st.failed = ev.Type
+		st.retry = ev.Type == "response.failed"
 		if ev.Response != nil && ev.Response.Error != nil && ev.Response.Error.Message != "" {
 			st.failed = ev.Response.Error.Message
 		}
@@ -177,6 +181,7 @@ func (p *Codex) Turn(ctx context.Context, history []json.RawMessage,
 		return err
 	}
 
+	const attempts = 4
 	for attempt := 0; ; attempt++ {
 		st := &streamState{cb: cb}
 		status, err := p.once(ctx, body, accessToken, accountID, cfg, st)
@@ -184,35 +189,36 @@ func (p *Codex) Turn(ctx context.Context, history []json.RawMessage,
 		if ctx.Err() != nil {
 			return provider.ErrInterrupted
 		}
+		var last error
 		switch {
-		case err == nil && status >= 200 && status < 300:
-			if st.failed != "" {
-				return fmt.Errorf("model error: %s", st.failed)
-			}
+		case err != nil:
+			last = fmt.Errorf("connection dropped: %w", err)
+		case status < 200 || status >= 300:
+			last = fmt.Errorf("HTTP %d: %.500s", status, st.failed)
+		case st.failed != "":
+			last = fmt.Errorf("model error: %.500s", st.failed)
+		default:
 			for _, item := range st.items {
 				if cb.OnItemDone != nil {
 					cb.OnItemDone(item)
 				}
 			}
 			return nil
-		case (err != nil || status == 429 || status >= 500) && attempt < 2:
-			// Transport died or retryable status. The response regenerates
-			// from scratch; buffered items are dropped.
-			wait := 2 << attempt
-			if err != nil {
-				notify(fmt.Sprintf("🔄 orc: connection dropped, retrying in %ds...", wait))
-			} else {
-				notify(fmt.Sprintf("🔄 orc: HTTP %d, retrying in %ds...", status, wait))
-			}
-			select {
-			case <-time.After(time.Duration(wait) * time.Second):
-			case <-ctx.Done():
-				return provider.ErrInterrupted
-			}
-		case err != nil || status == 429 || status >= 500:
-			return fmt.Errorf("giving up after %d attempts", attempt+1)
-		default:
-			return fmt.Errorf("HTTP %d: %.500s", status, st.failed)
+		}
+
+		if !(err != nil || status == 429 || status >= 500 || st.retry) {
+			return last
+		}
+		if attempt == attempts-1 {
+			return fmt.Errorf("%w (%d attempts)", last, attempts)
+		}
+		// The response regenerates from scratch; buffered items are dropped.
+		wait := 2 << attempt
+		notify(fmt.Sprintf("🔄 orc: %v — retrying in %ds...", last, wait))
+		select {
+		case <-time.After(time.Duration(wait) * time.Second):
+		case <-ctx.Done():
+			return provider.ErrInterrupted
 		}
 	}
 }

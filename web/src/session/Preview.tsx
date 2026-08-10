@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "../ui/Button";
 import s from "./Preview.module.css";
 
 // lineClass reads the ± marker after the line-number gutter; numbered
@@ -47,13 +48,14 @@ export function Preview({
         ),
       )}
       {lines.length > max && (
-        <button
-          type="button"
+        <Button
+          outline
+          small
           className={s.expander}
           onClick={() => setOpen(!open)}
         >
           {open ? "collapse" : `show ${lines.length - max} more lines`}
-        </button>
+        </Button>
       )}
     </pre>
   );

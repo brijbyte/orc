@@ -2,26 +2,6 @@
   z-index: 20;
   font-family: var(--font-ui);
 }
-.tip {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 0.35rem;
-  color: var(--fg);
-  font: 0.6875rem/1.5 var(--font-ui);
-  padding: 0.15em 0.45em;
-  transform-origin: var(--transform-origin);
-  transition:
-    opacity 100ms var(--ease-out),
-    transform 100ms var(--ease-out);
-}
-.tip[data-starting-style],
-.tip[data-ending-style] {
-  opacity: 0;
-  transform: scale(0.98);
-}
-.tip[data-instant] {
-  transition: none;
-}
 .trigger {
   appearance: none;
   min-height: 1.75em;
@@ -79,12 +59,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tip,
   .selPop {
     transition-property: opacity;
   }
-  .tip[data-starting-style],
-  .tip[data-ending-style],
   .selPop[data-starting-style],
   .selPop[data-ending-style] {
     transform: none;

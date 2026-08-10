@@ -13,7 +13,8 @@
   --code-fg: #d8dae2;
   --panel: #191b24;
   --material: color-mix(in srgb, var(--bg) 88%, transparent);
-  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  --font-ui:
+    system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --hit: 2rem;

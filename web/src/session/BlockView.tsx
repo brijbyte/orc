@@ -6,13 +6,15 @@ import {
   Cog,
   FilePen,
   Pencil,
+  RotateCw,
   Sparkles,
   SquareTerminal,
   Wrench,
 } from "lucide-react";
-import type { Block } from "./types";
+import type { Block } from "../lib/types";
 import { Preview } from "./Preview";
-import { CopyBtn } from "./CopyBtn";
+import { CopyButton } from "./CopyButton";
+import { Button } from "../ui/Button";
 import s from "./BlockView.module.css";
 
 const toolIcons: Record<string, typeof Wrench> = {
@@ -45,10 +47,12 @@ export function BlockView({
   b,
   compactAfter,
   onOpenFile,
+  onRetry,
 }: {
   b: Block;
   compactAfter: boolean;
   onOpenFile: (path: string, ref: string) => void;
+  onRetry?: () => void;
 }) {
   const blockAttrs = {
     "data-block": "",
@@ -63,13 +67,15 @@ export function BlockView({
           <div className={s.md}>
             <Markdown text={b.text} />
           </div>
-          <CopyBtn text={b.text} />
+          <CopyButton text={b.text} />
         </div>
       );
     case "pending":
-      return <div className={s.pending} {...blockAttrs}>
+      return (
+        <div className={s.pending} {...blockAttrs}>
           &gt; {b.text} ⏳
-        </div>;
+        </div>
+      );
     case "think":
       return (
         <div className={s.think} {...blockAttrs}>
@@ -80,14 +86,26 @@ export function BlockView({
           <div className={s.md}>
             <Markdown text={b.text} />
           </div>
-          <CopyBtn text={b.text} />
+          <CopyButton text={b.text} />
         </div>
       );
     case "notice":
       return (
         <div className={s.notice} {...blockAttrs}>
           {b.text}
-          <CopyBtn text={b.text} />
+          {onRetry && (
+            <Button
+              outline
+              small
+              tone="accent"
+              className={s.retry}
+              onClick={onRetry}
+            >
+              <RotateCw size={12} strokeWidth={1.8} aria-hidden />
+              try again
+            </Button>
+          )}
+          <CopyButton text={b.text} />
         </div>
       );
     case "tool": {
@@ -99,14 +117,15 @@ export function BlockView({
             <Icon size={14} strokeWidth={1.8} aria-hidden />
             <span>{b.name}</span>
             {b.path && b.file ? (
-              <button
-                type="button"
+              <Button
+                link
+                tone="accent"
                 className={s.filePath}
                 onClick={() => onOpenFile(b.path!, b.file!)}
                 title={b.path}
               >
                 {b.desc}
-              </button>
+              </Button>
             ) : (
               <span>{b.desc}</span>
             )}
@@ -119,7 +138,7 @@ export function BlockView({
               max={bash ? 5 : 20}
             />
           )}
-          <CopyBtn text={b.copy ?? b.desc} />
+          <CopyButton text={b.copy ?? b.desc} />
         </div>
       );
     }
@@ -127,7 +146,7 @@ export function BlockView({
       return (
         <div className={`${s.assistant} ${s.md}`} {...blockAttrs}>
           <Markdown text={b.text} />
-          <CopyBtn text={b.text} />
+          <CopyButton text={b.text} />
         </div>
       );
   }

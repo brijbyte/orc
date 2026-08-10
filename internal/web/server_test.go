@@ -44,6 +44,28 @@ func TestHandleCatchupReturnsEventsAfterCursor(t *testing.T) {
 	}
 }
 
+func TestHandleRetryQueuesControlLineWhenIdle(t *testing.T) {
+	rt := &Runtime{IO: NewIO(nil)}
+	rw := httptest.NewRecorder()
+	new(Server).handleRetry(rw, httptest.NewRequest(http.MethodPost, "/", nil), rt)
+	if rw.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", rw.Code)
+	}
+	if line, ok := rt.IO.q.peek(); !ok || line != "/retry" {
+		t.Fatalf("queued %q (%v), want /retry", line, ok)
+	}
+	if len(rt.IO.hub.events) != 0 {
+		t.Fatalf("retry emitted %d events, want none", len(rt.IO.hub.events))
+	}
+
+	rt.IO.SetBusy(true)
+	rw = httptest.NewRecorder()
+	new(Server).handleRetry(rw, httptest.NewRequest(http.MethodPost, "/", nil), rt)
+	if rw.Code != http.StatusConflict {
+		t.Fatalf("busy status = %d, want 409", rw.Code)
+	}
+}
+
 func TestToolCallCreatesFileReference(t *testing.T) {
 	cfg := &config.Config{Cwd: t.TempDir()}
 	w := NewIO(cfg)

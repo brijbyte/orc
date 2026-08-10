@@ -245,12 +245,31 @@ func (ag *Agent) maybeCompact(ctx context.Context) {
 
 // Turn runs one user turn to completion (including tool rounds).
 func (ag *Agent) Turn(ctx context.Context, userText string, atts []Attachment) error {
+	ag.begin(ctx)
+	ag.commit(userMessage(userText, atts))
+	return ag.run(ctx)
+}
+
+// Retry re-runs the committed history after a failed turn. A failure commits
+// nothing, so the same request goes out again with no new user message.
+func (ag *Agent) Retry(ctx context.Context) error {
+	if len(ag.History) == 0 {
+		ag.IO.Notice("📭 nothing to retry")
+		return nil
+	}
+	ag.begin(ctx)
+	return ag.run(ctx)
+}
+
+func (ag *Agent) begin(ctx context.Context) {
 	if ag.Cfg.Instructions == "" {
 		ag.Cfg.Instructions = instructions.Build(ag.Cfg.Cwd)
 	}
 	ag.maybeCompact(ctx)
-	ag.commit(userMessage(userText, atts))
+}
 
+// run drives the provider/tool rounds until the model stops calling tools.
+func (ag *Agent) run(ctx context.Context) error {
 	for {
 		var pending []json.RawMessage
 		if err := ag.IO.TurnBegin(); err != nil {

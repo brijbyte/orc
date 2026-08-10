@@ -21,21 +21,17 @@
   border: 1px solid var(--line);
   border-radius: 0.4rem;
 }
+/* directory rows fill the list and highlight as a whole */
 .dir {
+  --btn-color: var(--fg);
+  --btn-hover: var(--cyan);
   display: block;
   width: 100%;
-  min-height: var(--hit);
   text-align: left;
-  background: none;
-  border: none;
-  color: inherit;
-  font: inherit;
-  padding: 0.15em 0.6em;
-  cursor: pointer;
+  border-radius: 0;
 }
 .dir:hover {
   background: var(--panel);
-  color: var(--cyan);
 }
 .mkform input {
   min-height: var(--hit);

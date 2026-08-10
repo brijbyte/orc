@@ -1,9 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { PanelLeft } from "lucide-react";
 import {
   Outlet,
@@ -13,16 +8,16 @@ import {
   useRevalidator,
 } from "react-router";
 import { AlertDialog } from "@base-ui/react/alert-dialog";
-import { api, APIError } from "./api";
-import { revalidateSoon } from "./revalidate";
-import * as store from "./store";
-import type { Model, SessionRow } from "./types";
-import { Sidebar } from "./Sidebar";
-import { DirPicker } from "./DirPicker";
-import { TipBtn } from "./ui";
-import { Login } from "./Login";
+import { api, APIError } from "./lib/api";
+import { revalidateSoon } from "./lib/revalidate";
+import * as store from "./lib/store";
+import type { Model, SessionRow } from "./lib/types";
+import { Sidebar } from "./sidebar/Sidebar";
+import { DirPicker } from "./sidebar/DirPicker";
+import { Button } from "./ui/Button";
+import { Login } from "./auth/Login";
 import s from "./App.module.css";
-import d from "./dialog.module.css";
+import d from "./ui/dialog.module.css";
 
 export type RootData = {
   authenticated: boolean;
@@ -104,8 +99,14 @@ function activityFavicons(): Promise<string[]> {
 // App is the layout route: sidebar plus the routed session (Outlet). The
 // active session is /s/:sid; every open tab streams via the store.
 export default function App() {
-  const { authenticated, dead, rows, cwd: serverCwd, home, models } =
-    useLoaderData<RootData>();
+  const {
+    authenticated,
+    dead,
+    rows,
+    cwd: serverCwd,
+    home,
+    models,
+  } = useLoaderData<RootData>();
   const { sid = "" } = useParams();
   const navigate = useNavigate();
   const { revalidate } = useRevalidator();
@@ -113,19 +114,22 @@ export default function App() {
   const [picking, setPicking] = useState(false);
   const [doomed, setDoomed] = useState<SessionRow | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [narrow, setNarrow] = useState(() =>
-    matchMedia("(max-width: 48rem)").matches,
+  const [narrow, setNarrow] = useState(
+    () => matchMedia("(max-width: 48rem)").matches,
   );
-  const [sideOpen, setSideOpen] = useState(() =>
-    !matchMedia("(max-width: 48rem)").matches,
+  const [sideOpen, setSideOpen] = useState(
+    () => !matchMedia("(max-width: 48rem)").matches,
   );
   const selected = rows.find((r) => sid === r.id || sid === r.rid) ?? null;
   const pageTitle = selected ? sessionTitle(selected) : "orc";
   const anyBusy = useSyncExternalStore(
-    useCallback((notify) => {
-      const stops = open.map((id) => store.subscribe(id, notify));
-      return () => stops.forEach((stop) => stop());
-    }, [open]),
+    useCallback(
+      (notify) => {
+        const stops = open.map((id) => store.subscribe(id, notify));
+        return () => stops.forEach((stop) => stop());
+      },
+      [open],
+    ),
     useCallback(() => open.some((id) => store.snapshot(id).busy), [open]),
   );
 
@@ -246,11 +250,15 @@ export default function App() {
   if (!authenticated) return <Login onLogin={revalidate} />;
 
   if (dead)
-    return <div className={s.dead}>🧌 cannot reach orc — is it still running?</div>;
+    return (
+      <div className={s.dead}>🧌 cannot reach orc — is it still running?</div>
+    );
 
   return (
     <div className={s.shell}>
-      <TipBtn
+      <Button
+        icon
+        outline
         tip={sideOpen ? "hide sessions" : "show sessions"}
         className={s.menu}
         aria-controls="session-sidebar"
@@ -258,7 +266,7 @@ export default function App() {
         onClick={() => setSideOpen((open) => !open)}
       >
         <PanelLeft size={16} strokeWidth={1.8} aria-hidden />
-      </TipBtn>
+      </Button>
       <Sidebar
         rows={rows}
         serverCwd={serverCwd}
@@ -298,14 +306,17 @@ export default function App() {
               “{sessionTitle(doomed)}” and its file will be removed.
             </AlertDialog.Description>
             <div className={d.foot}>
-              <AlertDialog.Close>cancel</AlertDialog.Close>
-              <button
-                className={d.danger}
+              <AlertDialog.Close render={<Button outline />}>
+                cancel
+              </AlertDialog.Close>
+              <Button
+                outline
+                tone="danger"
                 disabled={!doomed}
                 onClick={() => doomed && doDelete(doomed)}
               >
                 delete
-              </button>
+              </Button>
             </div>
           </AlertDialog.Popup>
         </AlertDialog.Portal>

@@ -1,0 +1,109 @@
+/* Tones move the two color stops, so every variant picks its palette from
+   the same two custom properties. */
+.btn {
+  --btn-color: var(--dim);
+  --btn-hover: var(--fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: var(--hit);
+  padding: 0.15em 0.6em;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 0.4rem;
+  color: var(--btn-color);
+  font: inherit;
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) {
+  color: var(--btn-hover);
+}
+.btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.btn svg {
+  display: block;
+  flex-shrink: 0;
+}
+/* outline: a committed, labelled action carries its frame at rest */
+.outline {
+  border-color: var(--line);
+}
+.outline:hover:not(:disabled) {
+  border-color: var(--dim);
+}
+/* icon: a square tap target with a glyph and no label */
+.icon {
+  width: var(--hit);
+  height: var(--hit);
+  padding: 0;
+}
+/* link: an inline text affordance with no chrome of its own */
+.link {
+  min-height: 0;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  text-underline-offset: 0.18em;
+}
+.link:hover:not(:disabled) {
+  text-decoration-color: currentColor;
+}
+/* small: inline with running text, so it drops the tap-target height */
+.small {
+  min-height: 0;
+  padding: 0.15rem 0.6rem;
+  font: 0.75rem/1.5 var(--font-ui);
+}
+.accent {
+  --btn-color: var(--cyan);
+}
+.success {
+  --btn-color: var(--green);
+}
+.danger {
+  --btn-color: var(--red);
+  --btn-hover: var(--red);
+}
+/* a row of red glyphs reads as an error, so icons stay quiet until hovered */
+.icon.danger {
+  --btn-color: var(--dim);
+}
+
+.pop {
+  z-index: 20;
+  font-family: var(--font-ui);
+}
+.tip {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  color: var(--fg);
+  font: 0.6875rem/1.5 var(--font-ui);
+  padding: 0.15em 0.45em;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity 100ms var(--ease-out),
+    transform 100ms var(--ease-out);
+}
+.tip[data-starting-style],
+.tip[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.98);
+}
+.tip[data-instant] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tip {
+    transition-property: opacity;
+  }
+  .tip[data-starting-style],
+  .tip[data-ending-style] {
+    transform: none;
+  }
+}

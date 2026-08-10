@@ -1,9 +1,9 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { Link } from "react-router";
 import { Pin, Trash2, X } from "lucide-react";
-import * as store from "./store";
-import type { SessionRow } from "./types";
-import { TipBtn } from "./ui";
+import * as store from "../lib/store";
+import type { SessionRow } from "../lib/types";
+import { Button } from "../ui/Button";
 import s from "./Sidebar.module.css";
 
 // prettyDir abbreviates a home-prefixed path and keeps it short from the left.
@@ -75,21 +75,34 @@ function Row({
           {showDir ? ` · ${tailDir(row.cwd)}` : ""}
         </span>
         <span className={s.acts}>
-          <TipBtn
+          <Button
+            icon
+            tone={row.pinned ? "accent" : undefined}
             tip={row.pinned ? "unpin" : "pin to the top"}
             className={s.act + (row.pinned ? " " + s.on : "")}
             onClick={onPin}
           >
             <Pin size={12} />
-          </TipBtn>
+          </Button>
           {open && row.live && (
-            <TipBtn tip="close (stop) this session" className={s.act} onClick={onStop}>
+            <Button
+              icon
+              tip="close (stop) this session"
+              className={s.act}
+              onClick={onStop}
+            >
               <X size={12} />
-            </TipBtn>
+            </Button>
           )}
-          <TipBtn tip="delete this session" className={`${s.act} ${s.del}`} onClick={onDelete}>
+          <Button
+            icon
+            tone="danger"
+            tip="delete this session"
+            className={s.act}
+            onClick={onDelete}
+          >
             <Trash2 size={12} />
-          </TipBtn>
+          </Button>
         </span>
       </div>
     </div>
@@ -176,12 +189,17 @@ export function Sidebar({
         data-open={!sheet || open || undefined}
         inert={sheet && !open}
       >
-        <TipBtn tip="close sidebar" className={s.dismiss} onClick={onDismiss}>
+        <Button
+          icon
+          tip="close sidebar"
+          className={s.dismiss}
+          onClick={onDismiss}
+        >
           <X size={16} strokeWidth={1.8} aria-hidden />
-        </TipBtn>
-        <button className={s.new} onClick={onNew}>
+        </Button>
+        <Button outline tone="success" className={s.new} onClick={onNew}>
           + new session
-        </button>
+        </Button>
         {!!pinned.length && group("📌 pinned", pinned, true)}
         {[...groups.entries()].map(([cwd, list]) => group(cwd, list))}
       </nav>

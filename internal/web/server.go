@@ -483,6 +483,17 @@ func (s *Server) handleInput(rw http.ResponseWriter, r *http.Request, rt *Runtim
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// handleRetry re-runs the last request. It queues a control line instead of
+// input so the transcript gets no extra user echo.
+func (s *Server) handleRetry(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
+	if rt.IO.Busy() {
+		http.Error(rw, "busy", http.StatusConflict)
+		return
+	}
+	rt.IO.q.push("/retry", nil, false)
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) handleInterrupt(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
 	rt.IO.Interrupt()
 	rw.WriteHeader(http.StatusNoContent)
@@ -643,6 +654,7 @@ func (s *Server) router() http.Handler {
 			api.Get("/sessions/{id}/catchup", s.withRuntime(s.handleCatchup))
 			api.Get("/sessions/{id}/events", s.withRuntime(s.handleEvents))
 			api.Post("/sessions/{id}/input", s.withRuntime(s.handleInput))
+			api.Post("/sessions/{id}/retry", s.withRuntime(s.handleRetry))
 			api.Post("/sessions/{id}/interrupt", s.withRuntime(s.handleInterrupt))
 			api.Get("/sessions/{id}/file", s.withRuntime(s.handleFile))
 			api.Get("/models", s.handleModels)

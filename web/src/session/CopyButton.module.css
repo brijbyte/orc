@@ -1,28 +1,17 @@
+/* floats over the block's top-right corner, so it paints its own ground and
+   reveals its frame on hover */
 .copy {
   position: absolute;
   top: -0.35rem;
   right: -0.25rem;
-  display: grid;
-  place-items: center;
-  width: var(--hit);
-  height: var(--hit);
   background: var(--bg);
-  border: 1px solid transparent;
-  border-radius: 0.35rem;
-  padding: 0;
-  color: var(--dim);
-  cursor: pointer;
   opacity: 0;
 }
 .copy:focus-visible {
   opacity: 1;
 }
 .copy:hover {
-  color: var(--fg);
   border-color: var(--line);
-}
-.copy svg {
-  display: block;
 }
 
 @media (hover: hover) and (pointer: fine) {

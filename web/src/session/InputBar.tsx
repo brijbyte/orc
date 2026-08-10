@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, LoaderCircle, Paperclip } from "lucide-react";
-import { api, type AttachedFile } from "./api";
-import { TipBtn } from "./ui";
+import { api, type AttachedFile } from "../lib/api";
+import { Button } from "../ui/Button";
 import s from "./InputBar.module.css";
 
 const readB64 = (f: File) =>
@@ -28,7 +28,9 @@ function isEditable(t: EventTarget | null): boolean {
   if (!el) return false;
   const tag = el.tagName;
   return (
-    tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" ||
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
     el.isContentEditable ||
     !!el.closest?.('[role="dialog"],[role="alertdialog"],[role="listbox"]')
   );
@@ -109,12 +111,14 @@ export function InputBar({
           {files.map((f, i) => (
             <span key={i} className={s.chip}>
               📎 {f.name} <em>{sizeLabel(f.size)}</em>
-              <TipBtn
+              <Button
+                icon
+                tone="danger"
                 tip="remove attachment"
                 onClick={() => setFiles(files.filter((_, j) => j !== i))}
               >
                 ✕
-              </TipBtn>
+              </Button>
             </span>
           ))}
         </div>
@@ -166,13 +170,14 @@ export function InputBar({
             autoFocus
           />
           {busy && (
-            <button
-              type="button"
+            <Button
+              outline
+              tone="danger"
               className={s.stop}
               onClick={() => api.interrupt(sid)}
             >
               stop
-            </button>
+            </Button>
           )}
         </div>
         <input
@@ -185,13 +190,14 @@ export function InputBar({
             e.target.value = "";
           }}
         />
-        <TipBtn
+        <Button
+          icon
           tip="attach files"
           className={s.attach}
           onClick={() => pickRef.current?.click()}
         >
           <Paperclip size={14} strokeWidth={1.8} aria-hidden />
-        </TipBtn>
+        </Button>
       </div>
     </form>
   );

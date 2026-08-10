@@ -8,6 +8,7 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   `internal/web/dist`, embedded via go:embed; without it the server shows a
   placeholder page). Rebuild both after web changes.
 - Tests: `go test -mod=mod ./internal/ui/`. Lint: `go vet -mod=mod ./...`.
+  Format: `make fmt` (gofmt + prettier over `web/`); `make fmt-check` in CI.
 - Smoke: `./bin/orc --auth`, `./bin/orc -p "say hi"`, `--resume`, `--list`,
   `--serve=127.0.0.1:7799` (sign in with the printed web password, then curl
   `/api/sessions` with the session cookie).
@@ -49,8 +50,12 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   session file when it closes with zero items). `IO` mirrors `agent.IO` onto
   an append-only SSE event log (hub) and a TUI-style input queue. Routes are
   session-scoped: `/api/sessions` (list all + create),
-  `/api/sessions/{id}/open|state|events|input|interrupt|pin`, `DELETE` to
-  stop, plus `/api/models` and `/api/dirs` (directory picker, POST creates).
+  `/api/sessions/{id}/open|state|events|input|interrupt|retry|pin`, `DELETE`
+  to stop, plus `/api/models` and `/api/dirs` (directory picker, POST creates).
+  `retry` queues the `/retry` control line (no user echo) so the driver calls
+  `agent.Retry`: a failed turn commits nothing, so the same request goes out
+  again. The frontend shows it as a "try again" button on the last block when
+  that block is an error notice and the session is idle.
   Lists come back pinned first, then by session-file mtime (last turn);
   pins live in `<orc home>/config.json`.
   `input` accepts `{text, files:[{name,type,data(base64)}]}` (24MB cap);
@@ -61,31 +66,44 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   hash and cookie key live in the `web` section of `<orc home>/auth.json` until
   `orc password --rotate`; plain HTTP binds loopback only, `--domain` adds
   autocert TLS.
-  Frontend lives in `web/` (React 19 + Vite + react-router data router):
-  the root layout route loads sessions+models (`rootLoader`; models are
+  Frontend lives in `web/` (React 19 + Vite + react-router data router).
+  `src/` groups by area: the shell (`main.tsx`, `App.tsx`, `app.css`,
+  `preflight.css`) at the root, then `lib/` (`api`, `events`, `types`,
+  `store`, `revalidate`, `theme` — no JSX), `ui/` (shared primitives),
+  `session/` (one session's view), `sidebar/` (session list + `DirPicker`),
+  and `auth/` (`Login`).
+  The root layout route loads sessions+models (`rootLoader`; models are
   fetched once per page load, and a dead server is loader data so the 5s
   `useRevalidator` poll can recover), and the `/s/:sid` route's loader
   awaits `store.ensure` so the view mounts pre-seeded (no loading flash).
-  Post-open sidebar refreshes coalesce through `revalidate.ts`
+  Post-open sidebar refreshes coalesce through `lib/revalidate.ts`
   (`revalidateSoon`, debounced router.revalidate). The server falls back to index.html for
   unknown paths; browser authentication uses same-origin cookies.
-  `api`/`events`/`types` plus
-  `store.ts` (per-open-tab SSE streams, block state, and scroll positions
-  outside the render tree; App `ensure`s every open tab, `drop` on tab
-  close), `Sidebar`
-  (session list grouped by cwd), `SessionView` (only the active session
-  mounts; it subscribes to the store via useSyncExternalStore), `DirPicker`,
-  `Transcript`/`BlockView`/`Preview`/`InputBar`/`StatusBar`; `theme.ts`
+  `lib/store.ts` holds per-open-tab SSE streams, block state, and scroll
+  positions outside the render tree (App `ensure`s every open tab, `drop` on
+  tab close); `Sidebar` lists sessions grouped by cwd; `SessionView` mounts
+  only for the active session and subscribes to the store via
+  useSyncExternalStore, over
+  `Transcript`/`BlockView`/`Preview`/`InputBar`/`StatusBar`; `lib/theme.ts`
   resolves light/dark/system onto `<html data-theme>`. Overlays and
-  popups use Base UI (`@base-ui/react`): `ui.tsx` wraps Tooltip (`TipBtn`)
-  and Select (`Sel`); `DirPicker` is a Dialog, session delete an
+  popups use Base UI (`@base-ui/react`): `ui/Select.tsx` wraps its Select,
+  `ui/Button.tsx` its Tooltip; `DirPicker` is a Dialog, session delete an
   AlertDialog. Base UI popups stay mounted when closed — drive tests by
-  visibility, not detachment. Styling: `app.css` is global only (theme
+  visibility, not detachment.
+  `ui/Button.tsx` is the app's only button — every clickable control routes
+  through it. Its props are the whole vocabulary: `outline` (a committed,
+  labelled action), `icon` (square `--hit` tap target), `link` (underlined
+  inline affordance), `small` (inline size), `tone`
+  (accent/success/danger, which move the `--btn-color`/`--btn-hover` pair),
+  and `tip` (tooltip + aria-label). A caller's `className` may set placement
+  only — position, margin, reveal-on-hover — never the button's own look, so
+  a new look means a new variant here, not local CSS.
+  Styling: `app.css` is global only (theme
   tokens, `body`, scrollbars, the shared `button` press); every component
-  imports its own `*.module.css`, with `dialog.module.css` shared by the two
-  dialogs. Module keyframes are scoped, so a module declares the ones it
+  imports its own `*.module.css`, with `ui/dialog.module.css` shared by the
+  two dialogs. Module keyframes are scoped, so a module declares the ones it
   uses. Cross-component hooks are data attributes, not shared classes
-  (`data-block` on a transcript block reveals its `CopyBtn`), and `chroma`
+  (`data-block` on a transcript block reveals its `CopyButton`), and `chroma`
   stays a literal class because `/hl.css` targets it.
 - `cmd/orc` is the Cobra CLI and the four drivers (TUI, pipe, one-shot,
   serve). `/model` and `/effort` persist defaults to `<orc home>/config.json`;

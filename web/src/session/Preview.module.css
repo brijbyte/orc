@@ -28,20 +28,8 @@
   color: var(--code-fg); /* unstyled tokens; chroma classes carry the rest */
 }
 .expander {
-  display: block;
   margin: 0.35rem 0 0.1rem 5ch; /* align with the code past the gutter */
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 0.15rem 0.6rem;
-  font: 0.75rem/1.5 var(--font-ui);
-  color: var(--dim);
-  cursor: pointer;
   user-select: none;
-}
-.expander:hover {
-  color: var(--fg);
-  border-color: var(--dim);
 }
 .nogut .expander {
   margin-left: 0;

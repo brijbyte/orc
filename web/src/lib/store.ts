@@ -65,7 +65,11 @@ export function ensure(sid: string, onOpened?: () => void): Promise<void> {
   const onEvent = (ev: Ev) => {
     if (ev.id <= lastID) return;
     pending.set(ev.id, ev);
-    for (let next = pending.get(lastID + 1); next; next = pending.get(lastID + 1)) {
+    for (
+      let next = pending.get(lastID + 1);
+      next;
+      next = pending.get(lastID + 1)
+    ) {
       pending.delete(next.id);
       commit(next);
     }
@@ -119,13 +123,15 @@ export function ensure(sid: string, onOpened?: () => void): Promise<void> {
 
 export function loadOlder(sid: string): Promise<void> {
   const e = entry(sid);
-  if (!e.state.hasMore || e.state.loadingOlder || !e.before) return Promise.resolve();
+  if (!e.state.hasMore || e.state.loadingOlder || !e.before)
+    return Promise.resolve();
   set(e, { loadingOlder: true });
   return api
     .history(sid, e.before)
     .then((page) => {
       const byID = new Map<number, Ev>();
-      for (const ev of [...(page.events ?? []), ...e.events]) byID.set(ev.id, ev);
+      for (const ev of [...(page.events ?? []), ...e.events])
+        byID.set(ev.id, ev);
       e.events = [...byID.values()].sort((a, b) => a.id - b.id);
       e.before = page.before ?? e.before;
       const blocks: Block[] = [];

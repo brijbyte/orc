@@ -4,10 +4,10 @@ import "./app.css";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import App, { rootLoader } from "./App";
-import { revalidateSoon, setRevalidator } from "./revalidate";
-import { SessionRoute } from "./SessionView";
-import * as store from "./store";
-import "./theme";
+import { revalidateSoon, setRevalidator } from "./lib/revalidate";
+import { SessionRoute } from "./session/SessionView";
+import * as store from "./lib/store";
+import "./lib/theme";
 import s from "./App.module.css";
 
 const router = createBrowserRouter([

@@ -9,6 +9,7 @@
 .user .md {
   flex: 1;
   min-width: 0;
+  white-space: pre-wrap;
 }
 .pending {
   color: var(--dim);
@@ -47,6 +48,10 @@
   color: var(--dim);
   white-space: pre-wrap;
 }
+.retry {
+  margin-left: 0.6rem;
+  vertical-align: baseline;
+}
 .tool {
   color: var(--dim);
 }
@@ -58,21 +63,13 @@
 .toolLine svg {
   flex-shrink: 0;
 }
+/* block display keeps the ellipsis working on the overflowing path */
 .filePath {
+  display: block;
   min-width: 0;
   overflow: hidden;
-  color: var(--cyan);
-  font: inherit;
-  text-align: left;
-  text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--cyan) 45%, transparent);
-  text-underline-offset: 0.18em;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.filePath:hover {
-  color: var(--fg);
-  text-decoration-color: var(--fg);
 }
 .assistant {
   border-left: 2px solid var(--line);

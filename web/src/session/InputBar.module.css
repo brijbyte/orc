@@ -28,31 +28,12 @@
   font-style: normal;
   color: var(--dim);
 }
-.composer .chip button {
-  display: grid;
-  place-items: center;
-  width: var(--hit);
-  height: var(--hit);
-  background: none;
-  border: none;
-  color: var(--dim);
-  font: inherit;
-  cursor: pointer;
-  padding: 0;
-}
-.composer .chip button:hover {
-  color: var(--red);
-}
 .bar {
   display: flex;
   gap: 0.5rem;
   align-items: flex-start;
   max-width: 60rem;
   margin: 0 auto;
-}
-.bar .prompt,
-.bar button {
-  line-height: 1.5;
 }
 .prompt {
   color: var(--cyan);
@@ -104,37 +85,13 @@
   max-height: 12rem;
   overflow-y: auto;
 }
-.composer button {
-  min-height: var(--hit);
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: 0.4rem;
-  color: var(--red);
-  font: 0.8125rem/1.5 var(--font-ui);
-  padding: 0.1em 0.6em;
-  cursor: pointer;
-}
-.composer button.attach {
-  display: grid;
-  place-items: center;
-  width: var(--hit);
-  height: var(--hit);
-  min-height: 0;
-  color: var(--dim);
-  border: none;
-  padding: 0;
-}
-.composer button.attach:hover {
-  color: var(--fg);
-}
-.composer button.attach svg {
-  display: block;
-}
-.composer button.stop {
+/* the stop button floats over the textarea, so it paints its own ground */
+.stop {
   position: absolute;
   right: 0;
   bottom: 0;
   background: var(--material);
+  font: 0.8125rem/1.5 var(--font-ui);
 }
 .live {
   position: absolute;
@@ -149,7 +106,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(1turn); }
+  to {
+    transform: rotate(1turn);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -161,7 +120,7 @@
 
 @media (prefers-reduced-transparency: reduce) {
   .composer,
-  .composer button.stop {
+  .stop {
     background: var(--bg);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;

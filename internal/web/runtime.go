@@ -83,6 +83,9 @@ func (rt *Runtime) loop() {
 		case "/compact":
 			run(ag.Compact)
 			continue
+		case "/retry":
+			run(ag.Retry)
+			continue
 		}
 		if strings.HasPrefix(line, "/") {
 			handled, quit, prompt := cmds.Dispatch(ag, line)

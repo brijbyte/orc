@@ -6,11 +6,16 @@ import {
   useSyncExternalStore,
 } from "react";
 import { useOutletContext, useParams } from "react-router";
-import * as store from "./store";
+import * as store from "../lib/store";
+import { api } from "../lib/api";
+import type { Block } from "../lib/types";
 
 const fileMax = 16 << 20; // per-file cap, matches the server's request cap
 const hasFiles = (dt: DataTransfer) => dt.types.includes("Files");
-import type { Model } from "./types";
+
+// a failed turn commits nothing, so its error notice can be retried as-is
+const failed = (b?: Block) => b?.kind === "notice" && b.text.startsWith("❌");
+import type { Model } from "../lib/types";
 import { Transcript } from "./Transcript";
 import { InputBar } from "./InputBar";
 import { StatusBar } from "./StatusBar";
@@ -32,14 +37,19 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
   const [complete, setComplete] = useState(false);
-  const [file, setFile] = useState<{ path: string; ref: string; request: number } | null>(null);
+  const [file, setFile] = useState<{
+    path: string;
+    ref: string;
+    request: number;
+  } | null>(null);
   const dragDepth = useRef(0);
   const wasBusy = useRef(false);
 
-  const { blocks, busy, status, err, hasMore, loadingOlder } = useSyncExternalStore(
-    useCallback((fn: () => void) => store.subscribe(sid, fn), [sid]),
-    useCallback(() => store.snapshot(sid), [sid]),
-  );
+  const { blocks, busy, status, err, hasMore, loadingOlder } =
+    useSyncExternalStore(
+      useCallback((fn: () => void) => store.subscribe(sid, fn), [sid]),
+      useCallback(() => store.snapshot(sid), [sid]),
+    );
 
   useEffect(() => {
     const didComplete = !busy && wasBusy.current;
@@ -96,7 +106,16 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
             hasMore={hasMore}
             loadingOlder={loadingOlder}
             onOpenFile={(path, ref) =>
-              setFile((current) => ({ path, ref, request: (current?.request ?? 0) + 1 }))
+              setFile((current) => ({
+                path,
+                ref,
+                request: (current?.request ?? 0) + 1,
+              }))
+            }
+            onRetry={
+              !busy && failed(blocks[blocks.length - 1])
+                ? () => void api.retry(sid).catch(() => {})
+                : undefined
             }
           />
           <InputBar
@@ -117,7 +136,11 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
         request={file?.request ?? 0}
         onClose={() => setFile(null)}
       />
-      <div className={s.dropzone} data-active={dragging || undefined} aria-hidden={!dragging}>
+      <div
+        className={s.dropzone}
+        data-active={dragging || undefined}
+        aria-hidden={!dragging}
+      >
         📎 drop to attach
       </div>
     </div>

@@ -49,15 +49,10 @@
   border: 1px solid var(--line);
   border-radius: 0.45rem;
 }
+/* segmented tabs sit inside a framed group, so they never draw their own */
 .tab {
-  min-height: 1.6rem;
   padding: 0.05rem 0.55rem;
   border-radius: 0.3rem;
-  color: var(--dim);
-  font: 0.75rem/1.4 var(--font-ui);
-}
-.tab:hover {
-  color: var(--fg);
 }
 .tab[data-active] {
   background: var(--bg);
@@ -65,18 +60,10 @@
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
 }
 .close {
-  display: grid;
-  width: var(--hit);
-  height: var(--hit);
   flex: none;
-  place-items: center;
-  border: 1px solid transparent;
-  border-radius: 0.4rem;
-  color: var(--dim);
 }
 .close:hover {
   border-color: var(--line);
-  color: var(--fg);
 }
 .body {
   min-height: 0;

@@ -68,7 +68,7 @@ RELEASE_BIN = bin/orc
 
 # Primary build: the Go implementation. The C targets below are legacy.
 GO_LDFLAGS = -X github.com/brijbyte/orc/internal/config.Version=$(VERSION)
-.PHONY: go release dist web
+.PHONY: go release dist web fmt fmt-check
 go:
 	go build -mod=mod -ldflags '$(GO_LDFLAGS)' -o bin/orc ./cmd/orc
 
@@ -77,6 +77,15 @@ go:
 web:
 	cd web && npm install --no-fund --no-audit && npm run build
 	@touch internal/web/dist/.gitkeep  # vite empties the dir; embed needs it
+
+# gofmt for Go, prettier for the frontend.
+fmt:
+	go fmt ./...
+	cd web && npm run format
+
+fmt-check:
+	@test -z "$$(gofmt -l cmd internal)" || { gofmt -l cmd internal; exit 1; }
+	cd web && npm run format:check
 
 release:
 	go build -mod=mod -trimpath -ldflags '-s -w $(GO_LDFLAGS)' -o bin/orc ./cmd/orc

@@ -61,26 +61,6 @@
 .foot > :first-child {
   margin-right: auto;
 }
-.foot button {
-  min-height: var(--hit);
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: 0.4rem;
-  color: var(--dim);
-  font: inherit;
-  padding: 0.2em 0.7em;
-  cursor: pointer;
-}
-.foot button:hover {
-  border-color: var(--dim);
-  color: var(--fg);
-}
-.foot .go {
-  color: var(--green);
-}
-.foot .danger {
-  color: var(--red);
-}
 
 @media (prefers-reduced-motion: reduce) {
   .popup {
