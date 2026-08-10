@@ -6,7 +6,7 @@
   inset: 0 0 0 auto;
   z-index: 13;
   display: flex;
-  width: min(52rem, 92vw);
+  width: min(64rem, 94vw);
   height: 100dvh;
   flex-direction: column;
   overflow: hidden;
@@ -62,6 +62,20 @@
   color: var(--fg);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
 }
+.state {
+  flex: none;
+  color: var(--dim);
+  font: 0.75rem/1.4 var(--font-ui);
+}
+.state[data-error] {
+  color: var(--red);
+}
+.state[data-saved] {
+  color: var(--green);
+}
+.head [data-saving] svg {
+  animation: spin 750ms linear infinite;
+}
 .close {
   flex: none;
 }
@@ -94,6 +108,12 @@
 }
 .error {
   color: var(--red);
+}
+.confirmOverlay {
+  z-index: 14;
+}
+.confirm {
+  z-index: 15;
 }
 .markdown {
   width: min(100%, 48rem);

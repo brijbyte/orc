@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -9,6 +10,7 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -21,6 +23,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/brijbyte/orc/internal/agent"
 	"github.com/brijbyte/orc/internal/config"
@@ -116,8 +119,11 @@ func (s *Server) auth(next http.Handler) http.Handler {
 			return
 		}
 		max := int64(1 << 20)
-		if strings.HasSuffix(r.URL.Path, "/input") {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/input"):
 			max = inputMax
+		case strings.HasSuffix(r.URL.Path, "/file"):
+			max = fileMax
 		}
 		r.Body = http.MaxBytesReader(rw, r.Body, max)
 		next.ServeHTTP(rw, r)
@@ -539,6 +545,76 @@ func (s *Server) handleInterrupt(rw http.ResponseWriter, r *http.Request, rt *Ru
 
 const fileMax = 8 << 20
 
+var (
+	errFileTooLarge   = errors.New("file is too large")
+	errNotRegularFile = errors.New("not a regular file")
+)
+
+func readEditorFile(path string) ([]byte, fs.FileMode, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, 0, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, 0, errNotRegularFile
+	}
+	if info.Size() > fileMax {
+		return nil, 0, errFileTooLarge
+	}
+	data, err := io.ReadAll(io.LimitReader(f, fileMax+1))
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(data) > fileMax {
+		return nil, 0, errFileTooLarge
+	}
+	return data, info.Mode().Perm(), nil
+}
+
+func editorFileError(rw http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, errFileTooLarge):
+		http.Error(rw, err.Error(), http.StatusRequestEntityTooLarge)
+	case errors.Is(err, errNotRegularFile):
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, os.ErrNotExist), errors.Is(err, os.ErrPermission):
+		http.Error(rw, "cannot read file", http.StatusNotFound)
+	default:
+		http.Error(rw, "cannot read file", http.StatusInternalServerError)
+	}
+}
+
+func fileRevision(data []byte) string {
+	sum := sha256.Sum256(data)
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+func writeEditorFile(path string, data []byte, mode fs.FileMode) error {
+	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	defer os.Remove(tmp)
+	if err := f.Chmod(mode); err != nil {
+		f.Close()
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
 // handleFile reads the current file from the session working directory.
 func (s *Server) handleFile(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
 	path, ok := rt.IO.filePath(r.Header.Get("X-Orc-File-Ref"))
@@ -546,33 +622,74 @@ func (s *Server) handleFile(rw http.ResponseWriter, r *http.Request, rt *Runtime
 		http.Error(rw, "unknown file reference", http.StatusNotFound)
 		return
 	}
-	f, err := os.Open(path)
+	data, _, err := readEditorFile(path)
 	if err != nil {
-		http.Error(rw, "cannot read file", http.StatusNotFound)
+		editorFileError(rw, err)
 		return
 	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil || !info.Mode().IsRegular() {
-		http.Error(rw, "not a regular file", http.StatusBadRequest)
+	rw.Header().Set("Cache-Control", "no-store")
+	displayPath := path
+	if rt.Cfg != nil && rt.Cfg.Cwd != "" {
+		if rel, err := filepath.Rel(rt.Cfg.Cwd, path); err == nil {
+			displayPath = rel
+		}
+	}
+	response := map[string]any{
+		"path": displayPath, "content": string(data), "revision": fileRevision(data),
+		"editable": utf8.Valid(data),
+	}
+	if original, ok := gitOriginal(r.Context(), rt, path); ok && utf8.Valid(original) {
+		response["original"] = string(original)
+	}
+	writeJSON(rw, response)
+}
+
+// handleSaveFile writes a text file when its loaded revision is current.
+func (s *Server) handleSaveFile(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
+	path, ok := rt.IO.filePath(r.Header.Get("X-Orc-File-Ref"))
+	if !ok {
+		http.Error(rw, "unknown file reference", http.StatusNotFound)
 		return
 	}
-	if info.Size() > fileMax {
-		http.Error(rw, "file is too large", http.StatusRequestEntityTooLarge)
+	revision := r.Header.Get("X-Orc-File-Revision")
+	if revision == "" {
+		http.Error(rw, "missing file revision", http.StatusBadRequest)
 		return
 	}
-	data, err := io.ReadAll(io.LimitReader(f, fileMax+1))
+	current, mode, err := readEditorFile(path)
 	if err != nil {
-		http.Error(rw, "cannot read file", http.StatusInternalServerError)
+		editorFileError(rw, err)
+		return
+	}
+	if !utf8.Valid(current) {
+		http.Error(rw, "file is not text", http.StatusUnsupportedMediaType)
+		return
+	}
+	if fileRevision(current) != revision {
+		http.Error(rw, "file changed", http.StatusConflict)
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(r.Body, fileMax+1))
+	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			http.Error(rw, "file is too large", http.StatusRequestEntityTooLarge)
+		} else {
+			http.Error(rw, "cannot read content", http.StatusBadRequest)
+		}
 		return
 	}
 	if len(data) > fileMax {
 		http.Error(rw, "file is too large", http.StatusRequestEntityTooLarge)
 		return
 	}
-	content := string(data)
-	rw.Header().Set("Cache-Control", "no-store")
-	writeJSON(rw, map[string]any{"path": path, "content": content})
+	if !bytes.Equal(current, data) {
+		if err := writeEditorFile(path, data, mode); err != nil {
+			http.Error(rw, "cannot save file", http.StatusInternalServerError)
+			return
+		}
+	}
+	writeJSON(rw, map[string]string{"revision": fileRevision(data)})
 }
 
 // handleBrowse lists files and directories for server-side attachments.
@@ -737,6 +854,7 @@ func (s *Server) router() http.Handler {
 			api.Post("/sessions/{id}/interrupt", s.withRuntime(s.handleInterrupt))
 			api.Get("/sessions/{id}/browse", s.withRuntime(s.handleBrowse))
 			api.Get("/sessions/{id}/file", s.withRuntime(s.handleFile))
+			api.Put("/sessions/{id}/file", s.withRuntime(s.handleSaveFile))
 			api.Get("/sessions/{id}/git/status", s.withRuntime(s.handleGitStatus))
 			api.Get("/sessions/{id}/git/compare", s.withRuntime(s.handleGitCompare))
 			api.Get("/sessions/{id}/git/diff", s.withRuntime(s.handleGitDiff))

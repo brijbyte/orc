@@ -273,17 +273,105 @@ func TestHandleFileReadsLatestContent(t *testing.T) {
 		t.Fatalf("status = %d: %s", rw.Code, rw.Body.String())
 	}
 	var got struct {
-		Path    string          `json:"path"`
-		Content string          `json:"content"`
-		HTML    json.RawMessage `json:"html"`
+		Path     string          `json:"path"`
+		Content  string          `json:"content"`
+		Revision string          `json:"revision"`
+		Editable bool            `json:"editable"`
+		HTML     json.RawMessage `json:"html"`
 	}
 	if err := json.NewDecoder(rw.Body).Decode(&got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Path != path || got.Content != content {
+	if got.Path != "latest.go" || got.Content != content || got.Revision == "" || !got.Editable {
 		t.Fatalf("file = %#v", got)
 	}
 	if got.HTML != nil {
 		t.Fatalf("file includes server-rendered HTML: %s", got.HTML)
+	}
+}
+
+func TestHandleFileIncludesGitOriginal(t *testing.T) {
+	rt, dir := testRepo(t)
+	files := map[string]string{
+		"tracked file.txt": "one\n",
+		"new.txt":          "",
+	}
+	for name := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("new\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, want := range files {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set("X-Orc-File-Ref", rt.IO.allowFile(filepath.Join(dir, name)))
+			rw := httptest.NewRecorder()
+			new(Server).handleFile(rw, req, rt)
+			if rw.Code != http.StatusOK {
+				t.Fatalf("status = %d: %s", rw.Code, rw.Body.String())
+			}
+			var got struct {
+				Original *string `json:"original"`
+			}
+			if err := json.NewDecoder(rw.Body).Decode(&got); err != nil {
+				t.Fatal(err)
+			}
+			if got.Original == nil || *got.Original != want {
+				t.Fatalf("original = %#v, want %q", got.Original, want)
+			}
+		})
+	}
+}
+
+func TestHandleSaveFilePreservesMode(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "script.sh")
+	if err := os.WriteFile(path, []byte("echo old\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{Cwd: dir}
+	io := NewIO(cfg)
+	rt := &Runtime{Cfg: cfg, IO: io}
+	req := httptest.NewRequest(http.MethodPut, "/", strings.NewReader("echo new\n"))
+	req.Header.Set("X-Orc-File-Ref", io.allowFile(path))
+	req.Header.Set("X-Orc-File-Revision", fileRevision([]byte("echo old\n")))
+	rw := httptest.NewRecorder()
+	new(Server).handleSaveFile(rw, req, rt)
+	if rw.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rw.Code, rw.Body.String())
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "echo new\n" || info.Mode().Perm() != 0o755 {
+		t.Fatalf("content=%q mode=%o", data, info.Mode().Perm())
+	}
+}
+
+func TestHandleSaveFileRejectsChangedFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "notes.txt")
+	if err := os.WriteFile(path, []byte("outside\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{Cwd: dir}
+	io := NewIO(cfg)
+	rt := &Runtime{Cfg: cfg, IO: io}
+	req := httptest.NewRequest(http.MethodPut, "/", strings.NewReader("editor\n"))
+	req.Header.Set("X-Orc-File-Ref", io.allowFile(path))
+	req.Header.Set("X-Orc-File-Revision", fileRevision([]byte("loaded\n")))
+	rw := httptest.NewRecorder()
+	new(Server).handleSaveFile(rw, req, rt)
+	if rw.Code != http.StatusConflict {
+		t.Fatalf("status = %d: %s", rw.Code, rw.Body.String())
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != "outside\n" {
+		t.Fatalf("content=%q err=%v", data, err)
 	}
 }

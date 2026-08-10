@@ -114,6 +114,18 @@ export const api = {
     })
       .then(check)
       .then((response) => response.json()),
+  saveFile: (id: string, ref: string, revision: string, content: string) =>
+    fetch(`/api/sessions/${id}/file`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Orc-File-Ref": ref,
+        "X-Orc-File-Revision": revision,
+      },
+      body: content,
+    })
+      .then(check)
+      .then((response) => response.json()),
   gitStatus: (id: string) => get(`/api/sessions/${id}/git/status`),
   gitCompare: (id: string, base: string) =>
     get(`/api/sessions/${id}/git/compare?base=${encodeURIComponent(base)}`),

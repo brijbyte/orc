@@ -43,6 +43,7 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
   const [complete, setComplete] = useState(false);
   const [compacting, setCompacting] = useState(false);
   const [gitOpen, setGitOpen] = useState(false);
+  const [gitRequest, setGitRequest] = useState(0);
   const [draft, setDraft] = useState<{ text: string; request: number }>();
   const [file, setFile] = useState<{
     path: string;
@@ -191,11 +192,12 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
         line={file?.line}
         request={file?.request ?? 0}
         onClose={() => setFile(null)}
+        onSaved={() => setGitRequest((value) => value + 1)}
       />
       <GitDrawer
         sid={sid}
         open={gitOpen}
-        request={blocks?.length ?? 0}
+        request={(blocks?.length ?? 0) + gitRequest}
         onClose={() => setGitOpen(false)}
         onOpenFile={openFile}
         onAddContext={(context, text) => {

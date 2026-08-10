@@ -88,8 +88,6 @@
   flex-shrink: 0;
 }
 .toolName {
-  font-size: 0.75rem;
-  color: var(--fg);
   font-family:
     system-ui,
     -apple-system,

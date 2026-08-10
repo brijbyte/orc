@@ -404,6 +404,56 @@ func repoPath(root, path string) (string, bool) {
 	return filepath.Join(root, path), true
 }
 
+func gitOriginal(ctx context.Context, rt *Runtime, path string) ([]byte, bool) {
+	root, err := gitRoot(ctx, rt.Cfg.Cwd)
+	if err != nil {
+		return nil, false
+	}
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return nil, false
+	}
+	path, err = filepath.EvalSymlinks(path)
+	if err != nil {
+		return nil, false
+	}
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return nil, false
+	}
+	rel = filepath.ToSlash(rel)
+	full, ok := repoPath(root, rel)
+	if !ok || filepath.Clean(full) != filepath.Clean(path) {
+		return nil, false
+	}
+	raw, err := runGit(ctx, root, "--literal-pathspecs", "status", "--porcelain=v2", "-z", "--untracked-files=all", "--", rel)
+	if err != nil || len(raw) == 0 {
+		return nil, false
+	}
+	status := gitStatus{}
+	parseGitStatus(raw, &status)
+	originalPath := rel
+	found := false
+	for _, change := range status.Changes {
+		if change.Path != rel {
+			continue
+		}
+		found = true
+		if change.OldPath != "" {
+			originalPath = change.OldPath
+		}
+		break
+	}
+	if !found {
+		return nil, false
+	}
+	original, err := runGit(ctx, root, "show", "HEAD:"+originalPath)
+	if err != nil {
+		return []byte{}, true
+	}
+	return original, true
+}
+
 func compareBase(branches []gitBranch, ref string) (string, bool) {
 	for _, branch := range branches {
 		if branch.Ref == ref {

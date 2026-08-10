@@ -14,6 +14,7 @@ import {
   GutterMarker,
   gutter,
   highlightSpecialChars,
+  keymap,
   lineNumbers,
 } from "@codemirror/view";
 import {
@@ -22,6 +23,13 @@ import {
   syntaxHighlighting,
 } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
+import { unifiedMergeView } from "@codemirror/merge";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentWithTab,
+} from "@codemirror/commands";
 import { tags } from "@lezer/highlight";
 
 export type EditorDiffLine = {
@@ -100,6 +108,17 @@ const editorTheme = EditorView.theme({
   ".cm-target-line": {
     backgroundColor: "color-mix(in srgb, var(--cyan) 12%, transparent)",
   },
+  "&.cm-merge-b .cm-changedLine, .cm-inlineChangedLine": {
+    backgroundColor: "var(--diff-add-bg)",
+  },
+  "&.cm-merge-b .cm-changedText": { background: "var(--diff-add-bg)" },
+  ".cm-deletedChunk": {
+    paddingLeft: "0.65rem",
+    backgroundColor: "var(--diff-del-bg)",
+  },
+  ".cm-deletedChunk .cm-deletedText, &.cm-merge-b .cm-deletedText": {
+    background: "var(--diff-del-bg)",
+  },
   ".cm-diff-add": { backgroundColor: "var(--diff-add-bg)" },
   ".cm-diff-del": { backgroundColor: "var(--diff-del-bg)" },
   ".cm-diff-hunk": {
@@ -123,8 +142,6 @@ const editorTheme = EditorView.theme({
 });
 
 const baseExtensions = (label: string) => [
-  EditorState.readOnly.of(true),
-  EditorView.editable.of(false),
   EditorView.contentAttributes.of({ "aria-label": label }),
   highlightSpecialChars(),
   drawSelection(),
@@ -138,8 +155,8 @@ const plainFile = (path: string, size: number) =>
     path,
   );
 
-async function languageFor(path: string, size: number) {
-  if (plainFile(path, size)) return [];
+async function languageFor(path: string, plain: boolean) {
+  if (plain) return [];
   try {
     return (
       (await LanguageDescription.matchFilename(languages, path)?.load()) ?? []
@@ -172,17 +189,32 @@ function setEditorTarget(view: EditorView, line?: number) {
 export function CodeEditor({
   path,
   content,
+  original,
   line,
+  editable = false,
+  onChange,
+  onSave,
   className,
 }: {
   path: string;
   content: string;
+  original?: string;
   line?: number;
+  editable?: boolean;
+  onChange?: (content: string) => void;
+  onSave?: () => void;
   className?: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(null);
   const language = useRef(new Compartment());
+  const editing = useRef(new Compartment());
+  const merge = useRef(new Compartment());
+  const changeRef = useRef(onChange);
+  const saveRef = useRef(onSave);
+  const plain = plainFile(path, content.length);
+  changeRef.current = onChange;
+  saveRef.current = onSave;
 
   useLayoutEffect(() => {
     if (!host.current) return;
@@ -195,6 +227,38 @@ export function CodeEditor({
           lineNumbers(),
           targetField,
           language.current.of([]),
+          merge.current.of(
+            original === undefined
+              ? []
+              : unifiedMergeView({
+                  original,
+                  gutter: false,
+                  mergeControls: false,
+                  allowInlineDiffs: true,
+                }),
+          ),
+          editing.current.of([
+            EditorState.readOnly.of(!editable),
+            EditorView.editable.of(editable),
+          ]),
+          history(),
+          keymap.of([
+            {
+              key: "Mod-s",
+              preventDefault: true,
+              run: () => {
+                saveRef.current?.();
+                return true;
+              },
+            },
+            ...defaultKeymap,
+            ...historyKeymap,
+            indentWithTab,
+          ]),
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged)
+              changeRef.current?.(update.state.doc.toString());
+          }),
         ],
       }),
     });
@@ -212,15 +276,41 @@ export function CodeEditor({
   }, [content, line]);
 
   useEffect(() => {
+    if (!view.current) return;
+    view.current.dispatch({
+      effects: merge.current.reconfigure(
+        original === undefined
+          ? []
+          : unifiedMergeView({
+              original,
+              gutter: false,
+              mergeControls: false,
+              allowInlineDiffs: true,
+            }),
+      ),
+    });
+  }, [original]);
+
+  useEffect(() => {
+    if (!view.current) return;
+    view.current.dispatch({
+      effects: editing.current.reconfigure([
+        EditorState.readOnly.of(!editable),
+        EditorView.editable.of(editable),
+      ]),
+    });
+  }, [editable]);
+
+  useEffect(() => {
     let current = true;
-    languageFor(path, content.length).then((support) => {
+    languageFor(path, plain).then((support) => {
       if (!current || !view.current) return;
       view.current.dispatch({ effects: language.current.reconfigure(support) });
     });
     return () => {
       current = false;
     };
-  }, [path, content.length]);
+  }, [path, plain]);
 
   return <div ref={host} className={className} role="tabpanel" />;
 }
@@ -306,6 +396,7 @@ export function DiffEditor({
   linesRef.current = lines;
   openLineRef.current = onOpenLine;
   const content = diffDocument(lines);
+  const plain = plainFile(path, content.length);
 
   useLayoutEffect(() => {
     if (!host.current) return;
@@ -344,6 +435,8 @@ export function DiffEditor({
       doc: content,
       extensions: [
         ...baseExtensions(`Diff for ${path}`),
+        EditorState.readOnly.of(true),
+        EditorView.editable.of(false),
         numberGutter,
         markerGutter,
         language.current.of([]),
@@ -379,14 +472,14 @@ export function DiffEditor({
 
   useEffect(() => {
     let current = true;
-    languageFor(path, content.length).then((support) => {
+    languageFor(path, plain).then((support) => {
       if (!current || !view.current) return;
       view.current.dispatch({ effects: language.current.reconfigure(support) });
     });
     return () => {
       current = false;
     };
-  }, [path, content.length]);
+  }, [path, plain]);
 
   useEffect(() => {
     if (!view.current || focusHunk === undefined) return;
