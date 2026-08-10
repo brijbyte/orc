@@ -41,11 +41,22 @@ function Markdown({ text }: { text: string }) {
   );
 }
 
-export function BlockView({ b }: { b: Block }) {
+export function BlockView({
+  b,
+  compactAfter,
+}: {
+  b: Block;
+  compactAfter: boolean;
+}) {
+  const blockAttrs = {
+    "data-block": "",
+    "data-compact-after": compactAfter ? "" : undefined,
+  };
+
   switch (b.kind) {
     case "user":
       return (
-        <div className={s.user} data-block>
+        <div className={s.user} {...blockAttrs}>
           <span>&gt;</span>
           <div className={s.md}>
             <Markdown text={b.text} />
@@ -54,12 +65,12 @@ export function BlockView({ b }: { b: Block }) {
         </div>
       );
     case "pending":
-      return <div className={s.pending} data-block>
+      return <div className={s.pending} {...blockAttrs}>
           &gt; {b.text} ⏳
         </div>;
     case "think":
       return (
-        <div className={s.think} data-block>
+        <div className={s.think} {...blockAttrs}>
           <div className={s.thinkHead}>
             <Sparkles size={12} strokeWidth={1.8} aria-hidden />
             <span>thinking</span>
@@ -72,7 +83,7 @@ export function BlockView({ b }: { b: Block }) {
       );
     case "notice":
       return (
-        <div className={s.notice} data-block>
+        <div className={s.notice} {...blockAttrs}>
           {b.text}
           <CopyBtn text={b.text} />
         </div>
@@ -81,7 +92,7 @@ export function BlockView({ b }: { b: Block }) {
       const Icon = toolIcons[b.name] ?? Wrench;
       const bash = b.name === "bash";
       return (
-        <div className={s.tool} data-block>
+        <div className={s.tool} {...blockAttrs}>
           <div className={s.toolLine}>
             <Icon size={14} strokeWidth={1.8} aria-hidden />
             <span>
@@ -102,7 +113,7 @@ export function BlockView({ b }: { b: Block }) {
     }
     case "assistant":
       return (
-        <div className={`${s.assistant} ${s.md}`} data-block>
+        <div className={`${s.assistant} ${s.md}`} {...blockAttrs}>
           <Markdown text={b.text} />
           <CopyBtn text={b.text} />
         </div>

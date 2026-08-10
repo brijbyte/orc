@@ -11,6 +11,13 @@ type Props = {
   loadingOlder: boolean;
 };
 
+function compactPair(a: Block, b?: Block) {
+  return (
+    (a.kind === "think" && b?.kind === "think") ||
+    (a.kind === "tool" && b?.kind === "tool" && a.name === b.name)
+  );
+}
+
 // Transcript follows the bottom until the user scrolls up. Scroll state stays
 // in the store so a remounted session restores its position.
 export function Transcript({ sid, blocks, hasMore, loadingOlder }: Props) {
@@ -68,8 +75,12 @@ export function Transcript({ sid, blocks, hasMore, loadingOlder }: Props) {
           loading...
         </div>
       )}
-      {blocks.map((b) => (
-        <BlockView key={b.id} b={b} />
+      {blocks.map((b, i) => (
+        <BlockView
+          key={b.id}
+          b={b}
+          compactAfter={compactPair(b, blocks[i + 1])}
+        />
       ))}
       <div ref={bottom} />
     </main>
