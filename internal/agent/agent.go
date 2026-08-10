@@ -216,12 +216,15 @@ func (ag *Agent) Compact(ctx context.Context) error {
 		return errors.New("compaction returned an empty summary")
 	}
 
-	ag.Sess.Close()
+	oldID := ag.Cfg.SessionID
+	root := ag.Sess.Root
 	ag.Cfg.SessionID = uuid.NewString()
-	next, err := session.New(ag.Cfg)
+	next, err := session.NewCompacted(ag.Cfg, oldID, root)
 	if err != nil {
+		ag.Cfg.SessionID = oldID
 		return errors.New("cannot create session file")
 	}
+	ag.Sess.Close()
 	*ag.Sess = *next
 	ag.History = nil
 	ag.commit(userMessage(

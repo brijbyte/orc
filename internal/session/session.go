@@ -21,11 +21,14 @@ type Session struct {
 	Ctx    int64
 	Model  string // from resumed _meta; empty otherwise
 	Effort string
+	Root   string // first session id in a compaction chain
 	f      *os.File
 }
 
 type Info struct {
 	ID     string
+	Root   string
+	Parent string
 	When   string // created
 	Used   string // last turn written
 	Title  string
@@ -35,6 +38,8 @@ type Info struct {
 
 type meta struct {
 	ID     string `json:"id,omitempty"`
+	Root   string `json:"root,omitempty"`
+	Parent string `json:"parent,omitempty"`
 	Model  string `json:"model,omitempty"`
 	Effort string `json:"effort,omitempty"`
 	Cwd    string `json:"cwd,omitempty"`
@@ -45,6 +50,18 @@ type meta struct {
 func now() string { return time.Now().UTC().Format("2006-01-02T15:04:05.000Z") }
 
 func New(cfg *config.Config) (*Session, error) {
+	return newSession(cfg, "", "")
+}
+
+// NewCompacted creates the next file in a logical conversation.
+func NewCompacted(cfg *config.Config, parent, root string) (*Session, error) {
+	if root == "" {
+		root = parent
+	}
+	return newSession(cfg, parent, root)
+}
+
+func newSession(cfg *config.Config, parent, root string) (*Session, error) {
 	dir := config.Path("sessions")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
@@ -53,7 +70,7 @@ func New(cfg *config.Config) (*Session, error) {
 		return nil, err
 	}
 	s := &Session{Path: filepath.Join(dir,
-		fmt.Sprintf("%d-%.8s.jsonl", time.Now().Unix(), cfg.SessionID))}
+		fmt.Sprintf("%d-%.8s.jsonl", time.Now().Unix(), cfg.SessionID)), Root: root}
 	f, err := os.OpenFile(s.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, err
@@ -63,8 +80,8 @@ func New(cfg *config.Config) (*Session, error) {
 	if cwd == "" {
 		cwd, _ = os.Getwd()
 	}
-	s.writeMeta(meta{ID: cfg.SessionID, Model: cfg.Model, Effort: cfg.Effort,
-		Cwd: cwd, T: now()})
+	s.writeMeta(meta{ID: cfg.SessionID, Root: root, Parent: parent, Model: cfg.Model,
+		Effort: cfg.Effort, Cwd: cwd, T: now()})
 	return s, nil
 }
 
@@ -139,14 +156,88 @@ func findSession(id string) string {
 	return filepath.Join(dir, best)
 }
 
-// Delete removes a session file by id prefix.
+func fileMeta(path string) (meta, bool) {
+	f, err := os.Open(path)
+	if err != nil {
+		return meta{}, false
+	}
+	defer f.Close()
+	var out meta
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		var probe struct {
+			Meta *meta `json:"_meta"`
+		}
+		if json.Unmarshal(sc.Bytes(), &probe) != nil || probe.Meta == nil {
+			continue
+		}
+		m := probe.Meta
+		if m.ID != "" {
+			out.ID = m.ID
+		}
+		if m.Root != "" {
+			out.Root = m.Root
+		}
+		if m.Parent != "" {
+			out.Parent = m.Parent
+		}
+		if m.Cwd != "" {
+			out.Cwd = m.Cwd
+		}
+		if m.T != "" {
+			out.T = m.T
+		}
+	}
+	return out, out.ID != ""
+}
+
+func chainFiles(id string) ([]string, []string) {
+	target := findSession(id)
+	m, ok := fileMeta(target)
+	if !ok {
+		return nil, nil
+	}
+	root := m.Root
+	if root == "" {
+		root = m.ID
+	}
+	entries, _ := os.ReadDir(config.Path("sessions"))
+	var paths, ids []string
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".jsonl") {
+			continue
+		}
+		path := filepath.Join(config.Path("sessions"), e.Name())
+		fm, ok := fileMeta(path)
+		if !ok {
+			continue
+		}
+		memberRoot := fm.Root
+		if memberRoot == "" {
+			memberRoot = fm.ID
+		}
+		if memberRoot == root {
+			paths, ids = append(paths, path), append(ids, fm.ID)
+		}
+	}
+	return paths, ids
+}
+
+// Delete removes all files in a logical conversation.
 func Delete(id string) error {
-	path := findSession(id)
-	if path == "" {
+	paths, ids := chainFiles(id)
+	if len(paths) == 0 {
 		return fmt.Errorf("no session matching %s", id)
 	}
-	Pin(id, false) // no stale ids in the pinned list
-	return os.Remove(path)
+	if err := pinIDs(ids, "", false); err != nil {
+		return err
+	}
+	for _, path := range paths {
+		if err := os.Remove(path); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Resume loads history from a session ref (empty = most recent, id prefix, or
@@ -203,6 +294,9 @@ func Resume(ref string, cfg *config.Config) (*Session, []json.RawMessage, error)
 			}
 			if m.Effort != "" {
 				s.Effort = m.Effort
+			}
+			if m.Root != "" {
+				s.Root = m.Root
 			}
 			continue
 		}
@@ -263,6 +357,12 @@ func listOne(path string) (Info, bool) {
 			if probe.Meta.ID != "" {
 				info.ID = probe.Meta.ID
 			}
+			if probe.Meta.Root != "" {
+				info.Root = probe.Meta.Root
+			}
+			if probe.Meta.Parent != "" {
+				info.Parent = probe.Meta.Parent
+			}
 			if probe.Meta.T != "" {
 				info.When = probe.Meta.T
 			}
@@ -287,8 +387,8 @@ func listOne(path string) (Info, bool) {
 	return info, info.ID != "" && hasItems
 }
 
-// ListAll returns every session, pinned first, then most recently used. The
-// file is appended on every turn, so its mtime is the last interaction.
+// ListAll returns one row per logical conversation, pinned first, then most
+// recently used. Compaction archives are grouped under their latest file.
 func ListAll() ([]Info, error) {
 	dir := config.Path("sessions")
 	entries, _ := os.ReadDir(dir)
@@ -300,7 +400,7 @@ func ListAll() ([]Info, error) {
 		Info
 		used time.Time
 	}
-	var rows []row
+	groups := map[string][]row{}
 	for _, e := range entries {
 		if !strings.HasSuffix(e.Name(), ".jsonl") {
 			continue
@@ -313,9 +413,34 @@ func ListAll() ([]Info, error) {
 		if !ok {
 			continue
 		}
+		root := info.Root
+		if root == "" {
+			root = info.ID
+		}
 		info.Used = st.ModTime().UTC().Format("2006-01-02 15:04:05.000Z")
 		info.Pinned = pinned[info.ID]
-		rows = append(rows, row{info, st.ModTime()})
+		groups[root] = append(groups[root], row{info, st.ModTime()})
+	}
+	rows := make([]row, 0, len(groups))
+	for root, chain := range groups {
+		parents := map[string]bool{}
+		for _, r := range chain {
+			parents[r.Parent] = true
+		}
+		latest, first := chain[0], chain[0]
+		pinned := false
+		for _, r := range chain {
+			if (!parents[r.ID] && parents[latest.ID]) ||
+				(parents[r.ID] == parents[latest.ID] && r.used.After(latest.used)) {
+				latest = r
+			}
+			if r.ID == root || (first.ID != root && r.When < first.When) {
+				first = r
+			}
+			pinned = pinned || r.Pinned
+		}
+		latest.Title, latest.When, latest.Pinned = first.Title, first.When, pinned
+		rows = append(rows, latest)
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
 		if rows[i].Pinned != rows[j].Pinned {
@@ -330,12 +455,15 @@ func ListAll() ([]Info, error) {
 	return out, nil
 }
 
-// Pin adds or removes a session id from the pinned list in settings.
-func Pin(id string, on bool) error {
+func pinIDs(ids []string, id string, on bool) error {
+	remove := map[string]bool{}
+	for _, id := range ids {
+		remove[id] = true
+	}
 	s := config.LoadSettings()
 	kept := s.Pinned[:0:0]
 	for _, p := range s.Pinned {
-		if p != id {
+		if !remove[p] {
 			kept = append(kept, p)
 		}
 	}
@@ -344,6 +472,15 @@ func Pin(id string, on bool) error {
 	}
 	s.Pinned = kept
 	return config.SaveSettings(s)
+}
+
+// Pin sets the pin state for a logical conversation.
+func Pin(id string, on bool) error {
+	_, ids := chainFiles(id)
+	if len(ids) == 0 {
+		ids = []string{id}
+	}
+	return pinIDs(ids, id, on)
 }
 
 // List returns sessions for one directory (empty = current), in ListAll order.
