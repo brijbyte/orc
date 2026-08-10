@@ -135,7 +135,7 @@ export function BlockView({
               text={b.preview}
               html={b.html}
               gutter={!bash}
-              max={bash ? 5 : 20}
+              max={bash ? 5 : b.name === "edit" ? 10 : 20}
             />
           )}
           <CopyButton text={b.copy ?? b.desc} />

@@ -47,6 +47,7 @@ export function InputBar({
   files,
   setFiles,
   addFiles,
+  draft,
 }: {
   sid: string;
   busy: boolean;
@@ -54,6 +55,7 @@ export function InputBar({
   files: File[];
   setFiles: (f: File[]) => void;
   addFiles: (f: FileList | null) => void;
+  draft?: { text: string; request: number };
 }) {
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -86,6 +88,17 @@ export function InputBar({
     el.style.height = "auto";
     el.style.height = el.scrollHeight + "px";
   };
+
+  useEffect(() => {
+    if (!draft?.text) return;
+    setInput((current) =>
+      [current.trim(), draft.text].filter(Boolean).join("\n"),
+    );
+    requestAnimationFrame(() => {
+      autosize();
+      inputRef.current?.focus();
+    });
+  }, [draft?.request]);
 
   const submit = (e?: React.FormEvent) => {
     e?.preventDefault();

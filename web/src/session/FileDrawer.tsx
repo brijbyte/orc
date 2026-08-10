@@ -30,12 +30,14 @@ export function FileDrawer({
   sid,
   path,
   fileRef,
+  line,
   request,
   onClose,
 }: {
   sid: string;
   path: string;
   fileRef: string;
+  line?: number;
   request: number;
   onClose: () => void;
 }) {
@@ -43,21 +45,37 @@ export function FileDrawer({
   const [err, setErr] = useState("");
   const [view, setView] = useState<View>("code");
   const close = useRef<HTMLButtonElement>(null);
+  const target = useRef<HTMLDivElement>(null);
+  const loaded = useRef("");
 
   useEffect(() => {
     if (!path) return;
     let current = true;
-    setData(null);
+    const key = `${sid}:${fileRef}`;
+    if (loaded.current !== key) {
+      setData(null);
+      setView("code");
+    }
     setErr("");
-    setView("code");
     api
       .file(sid, fileRef)
-      .then((file) => current && setData(file))
+      .then((file) => {
+        if (!current) return;
+        loaded.current = key;
+        setData(file);
+      })
       .catch(() => current && setErr(`cannot read ${path}`));
     return () => {
       current = false;
     };
   }, [sid, path, fileRef, request]);
+
+  useEffect(() => {
+    if (!data || !line) return;
+    requestAnimationFrame(() =>
+      target.current?.scrollIntoView({ block: "center" }),
+    );
+  }, [data, line]);
 
   const lines = data ? (data.html ?? plainLines(data.content)) : [];
   const markdown = /\.md$/i.test(data?.path ?? path);
@@ -65,7 +83,7 @@ export function FileDrawer({
   return (
     <Dialog.Root open={!!path} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
-        <Dialog.Backdrop className={d.overlay} />
+        <Dialog.Backdrop className={`${d.overlay} ${s.overlay}`} />
         <Dialog.Popup className={s.drawer} initialFocus={close}>
           <header className={s.head}>
             <Dialog.Title className={s.title} title={data?.path ?? path}>
@@ -119,13 +137,18 @@ export function FileDrawer({
             )}
             {data && !preview && lines.length > 0 && (
               <pre className={`${s.code} chroma`} role="tabpanel">
-                {lines.map((line, i) => (
-                  <div className={s.line} key={i}>
+                {lines.map((text, i) => (
+                  <div
+                    ref={i + 1 === line ? target : undefined}
+                    className={s.line}
+                    data-target={i + 1 === line || undefined}
+                    key={i}
+                  >
                     <span className={s.number}>{i + 1}</span>
                     {data.html ? (
-                      <span dangerouslySetInnerHTML={{ __html: line }} />
+                      <span dangerouslySetInnerHTML={{ __html: text }} />
                     ) : (
-                      <span>{line}</span>
+                      <span>{text}</span>
                     )}
                   </div>
                 ))}

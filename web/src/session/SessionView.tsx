@@ -20,6 +20,7 @@ import { Transcript } from "./Transcript";
 import { InputBar } from "./InputBar";
 import { StatusBar } from "./StatusBar";
 import { FileDrawer } from "./FileDrawer";
+import { GitDrawer } from "./GitDrawer";
 import s from "./SessionView.module.css";
 
 // SessionRoute adapts /s/:sid: the loader has already seeded the store,
@@ -37,9 +38,12 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
   const [complete, setComplete] = useState(false);
+  const [gitOpen, setGitOpen] = useState(false);
+  const [draft, setDraft] = useState<{ text: string; request: number }>();
   const [file, setFile] = useState<{
     path: string;
     ref: string;
+    line?: number;
     request: number;
   } | null>(null);
   const dragDepth = useRef(0);
@@ -66,6 +70,15 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
     const ok = [...list].filter((f) => f.size <= fileMax);
     if (ok.length < list.length) alert("files over 16 MB were skipped");
     if (ok.length) setFiles((prev) => [...prev, ...ok]);
+  };
+
+  const openFile = (path: string, ref: string, line?: number) => {
+    setFile((current) => ({
+      path,
+      ref,
+      line,
+      request: (current?.request ?? 0) + 1,
+    }));
   };
 
   return (
@@ -105,13 +118,7 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
             blocks={blocks}
             hasMore={hasMore}
             loadingOlder={loadingOlder}
-            onOpenFile={(path, ref) =>
-              setFile((current) => ({
-                path,
-                ref,
-                request: (current?.request ?? 0) + 1,
-              }))
-            }
+            onOpenFile={openFile}
             onRetry={
               !busy && failed(blocks[blocks.length - 1])
                 ? () => void api.retry(sid).catch(() => {})
@@ -125,16 +132,38 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
             files={files}
             setFiles={setFiles}
             addFiles={addFiles}
+            draft={draft}
           />
-          <StatusBar sid={sid} status={status} models={models} />
+          <StatusBar
+            sid={sid}
+            status={status}
+            models={models}
+            onOpenGit={() => setGitOpen(true)}
+          />
         </>
       )}
       <FileDrawer
         sid={sid}
         path={file?.path ?? ""}
         fileRef={file?.ref ?? ""}
+        line={file?.line}
         request={file?.request ?? 0}
         onClose={() => setFile(null)}
+      />
+      <GitDrawer
+        sid={sid}
+        open={gitOpen}
+        request={blocks?.length ?? 0}
+        onClose={() => setGitOpen(false)}
+        onOpenFile={openFile}
+        onAddContext={(context, text) => {
+          setFiles((current) => [...current, context]);
+          setDraft((current) => ({
+            text,
+            request: (current?.request ?? 0) + 1,
+          }));
+          setGitOpen(false);
+        }}
       />
       <div
         className={s.dropzone}

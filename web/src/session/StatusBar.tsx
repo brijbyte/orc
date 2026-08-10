@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { GitBranch } from "lucide-react";
 import { api } from "../lib/api";
 import { setThemePref, themePref, type ThemePref } from "../lib/theme";
 import type { Model } from "../lib/types";
+import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
 import s from "./StatusBar.module.css";
 
@@ -12,10 +14,12 @@ export function StatusBar({
   sid,
   status,
   models,
+  onOpenGit,
 }: {
   sid: string;
   status: string;
   models: Model[];
+  onOpenGit: () => void;
 }) {
   const [theme, setTheme] = useState<ThemePref>(themePref());
   const [model, effort, ...rest] = status.split(" · ");
@@ -44,8 +48,10 @@ export function StatusBar({
             {rest.length > 0 && " · " + rest.join(" · ")}
           </span>
         )}
+        <Button small className={s.git} onClick={onOpenGit}>
+          <GitBranch size={13} strokeWidth={1.8} aria-hidden /> Git
+        </Button>
         <Select
-          className={s.themeSel}
           value={theme}
           options={["system", "light", "dark"].map((value) => ({ value }))}
           onChange={(v) => {

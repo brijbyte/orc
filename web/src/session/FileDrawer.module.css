@@ -1,7 +1,10 @@
+.overlay {
+  z-index: 12;
+}
 .drawer {
   position: fixed;
   inset: 0 0 0 auto;
-  z-index: 11;
+  z-index: 13;
   display: flex;
   width: min(52rem, 92vw);
   height: 100dvh;
@@ -95,6 +98,9 @@
   grid-template-columns: 5ch auto;
   padding-right: 1rem;
   white-space: pre;
+}
+.line[data-target] {
+  background: color-mix(in srgb, var(--cyan) 12%, transparent);
 }
 .number {
   padding-right: 1.2ch;

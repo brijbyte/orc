@@ -17,6 +17,44 @@ export type Block = { id: number } & (
 
 export type Model = { slug: string; description: string };
 
+export type GitBranch = {
+  name: string;
+  ref: string;
+  remote: boolean;
+  current: boolean;
+};
+
+export type GitChange = {
+  path: string;
+  old_path?: string;
+  status: string;
+  index: string;
+  worktree: string;
+  file?: string;
+};
+
+export type GitStatus = {
+  repo: boolean;
+  root?: string;
+  branch?: string;
+  detached?: boolean;
+  upstream?: string;
+  ahead: number;
+  behind: number;
+  clean: boolean;
+  changes: GitChange[];
+  branches: GitBranch[];
+};
+
+export type GitCompare = { base: string; changes: GitChange[] };
+export type GitDiff = {
+  path: string;
+  root: string;
+  patch: string;
+  html?: string[];
+  size: number;
+};
+
 export type SessionRow = {
   id: string;
   rid?: string;

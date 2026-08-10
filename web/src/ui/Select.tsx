@@ -9,7 +9,7 @@ export function Select({
   className,
 }: {
   value: string;
-  options: { value: string; title?: string }[];
+  options: { value: string; label?: string; title?: string }[];
   onChange: (v: string) => void;
   className?: string;
 }) {
@@ -18,7 +18,7 @@ export function Select({
       <Base.Trigger
         className={className ? `${s.trigger} ${className}` : s.trigger}
       >
-        <Base.Value />
+        {options.find((option) => option.value === value)?.label ?? value}
       </Base.Trigger>
       <Base.Portal>
         <Base.Positioner className={s.pop} sideOffset={4}>
@@ -30,7 +30,7 @@ export function Select({
                 value={o.value}
                 title={o.title}
               >
-                <Base.ItemText>{o.value}</Base.ItemText>
+                <Base.ItemText>{o.label ?? o.value}</Base.ItemText>
               </Base.Item>
             ))}
           </Base.Popup>

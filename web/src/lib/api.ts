@@ -110,6 +110,14 @@ export const api = {
     })
       .then(check)
       .then((response) => response.json()),
+  gitStatus: (id: string) => get(`/api/sessions/${id}/git/status`),
+  gitCompare: (id: string, base: string) =>
+    get(`/api/sessions/${id}/git/compare?base=${encodeURIComponent(base)}`),
+  gitDiff: (id: string, path: string, base = "") => {
+    const query = new URLSearchParams({ path });
+    if (base) query.set("base", base);
+    return get(`/api/sessions/${id}/git/diff?${query}`);
+  },
   models: () => get("/api/models"),
   dirs: (path?: string) =>
     get(`/api/dirs${path ? `?path=${encodeURIComponent(path)}` : ""}`),

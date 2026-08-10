@@ -81,13 +81,22 @@ func (w *IO) allowFile(path string) string {
 	if err != nil {
 		return ""
 	}
+	path = filepath.Clean(path)
+	w.mu.Lock()
+	for ref, allowed := range w.files {
+		if allowed == path {
+			w.mu.Unlock()
+			return ref
+		}
+	}
+	w.mu.Unlock()
 	var key [16]byte
 	if _, err := rand.Read(key[:]); err != nil {
 		return ""
 	}
 	ref := hex.EncodeToString(key[:])
 	w.mu.Lock()
-	w.files[ref] = filepath.Clean(path)
+	w.files[ref] = path
 	w.mu.Unlock()
 	return ref
 }

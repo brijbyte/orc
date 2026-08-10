@@ -43,6 +43,7 @@
 /* link: an inline text affordance with no chrome of its own */
 .link {
   min-height: 0;
+  justify-content: flex-start;
   padding: 0;
   text-align: left;
   text-decoration: underline;
