@@ -575,9 +575,7 @@ func (s *Server) handleFile(rw http.ResponseWriter, r *http.Request, rt *Runtime
 	}
 	content := string(data)
 	rw.Header().Set("Cache-Control", "no-store")
-	writeJSON(rw, map[string]any{
-		"path": path, "content": content, "html": ui.HighlightHTML(path, content),
-	})
+	writeJSON(rw, map[string]any{"path": path, "content": content})
 }
 
 // handleBrowse lists files and directories for server-side attachments.

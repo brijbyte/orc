@@ -142,16 +142,17 @@
   color: var(--dim);
 }
 .diff {
+  display: flex;
   min-width: 0;
-  overflow: auto;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--code-bg);
 }
 .diffHead {
-  position: sticky;
-  z-index: 2;
-  top: 0;
   display: flex;
   min-height: 3rem;
+  flex: none;
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem 0.5rem 1rem;
@@ -167,43 +168,19 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.patch {
-  min-width: 100%;
-  width: max-content;
-  padding: 0.65rem 0;
-  color: var(--code-fg);
-  font: 0.75rem/1.55 var(--font-mono);
+.diffEditor {
+  min-height: 0;
+  flex: 1;
 }
-.diffLine {
-  display: grid;
-  min-height: 1.55em;
-  grid-template-columns: 5ch minmax(max-content, 1fr) auto;
-  padding-right: 1rem;
-  white-space: pre;
-}
-.diffLine[data-kind="add"] {
-  background: var(--diff-add-bg);
-  color: var(--code-fg);
-}
-.diffLine[data-kind="del"] {
-  background: var(--diff-del-bg);
-  color: var(--code-fg);
-}
-.diffLine[data-kind="hunk"] {
-  background: color-mix(in srgb, var(--cyan) 9%, transparent);
-}
-.diffLine[data-kind="hunk"][data-selected] {
-  background: color-mix(in srgb, var(--green) 14%, transparent);
-}
-.hunkButton {
-  align-self: center;
-  margin: 0.15rem 0 0.15rem 1rem;
-}
-.lineNumber {
-  padding-right: 1.2ch;
-  color: var(--dim);
-  text-align: right;
-  user-select: none;
+.hunkBar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.35rem;
+  overflow-x: auto;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--code-bg);
 }
 .message,
 .empty {

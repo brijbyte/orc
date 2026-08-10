@@ -6,9 +6,10 @@ import { Code2, Eye, LoaderCircle, X } from "lucide-react";
 import { api } from "../lib/api";
 import { Button } from "../ui/Button";
 import d from "../ui/dialog.module.css";
+import { CodeEditor } from "./CodeEditor";
 import s from "./FileDrawer.module.css";
 
-type FileData = { path: string; content: string; html?: string[] };
+type FileData = { path: string; content: string };
 type View = "code" | "preview";
 
 const mdComponents: Components = {
@@ -18,13 +19,6 @@ const mdComponents: Components = {
     </div>
   ),
 };
-
-function plainLines(content: string): string[] {
-  if (!content) return [];
-  const lines = content.split("\n");
-  if (lines.at(-1) === "") lines.pop();
-  return lines;
-}
 
 export function FileDrawer({
   sid,
@@ -45,7 +39,6 @@ export function FileDrawer({
   const [err, setErr] = useState("");
   const [view, setView] = useState<View>("code");
   const close = useRef<HTMLButtonElement>(null);
-  const target = useRef<HTMLDivElement>(null);
   const loaded = useRef("");
 
   useEffect(() => {
@@ -70,14 +63,6 @@ export function FileDrawer({
     };
   }, [sid, path, fileRef, request]);
 
-  useEffect(() => {
-    if (!data || !line) return;
-    requestAnimationFrame(() =>
-      target.current?.scrollIntoView({ block: "center" }),
-    );
-  }, [data, line]);
-
-  const lines = data ? (data.html ?? plainLines(data.content)) : [];
   const markdown = /\.md$/i.test(data?.path ?? path);
   const preview = markdown && view === "preview";
   return (
@@ -142,27 +127,13 @@ export function FileDrawer({
                 </ReactMarkdown>
               </article>
             )}
-            {data && !preview && lines.length === 0 && (
-              <div className={s.message}>(empty file)</div>
-            )}
-            {data && !preview && lines.length > 0 && (
-              <pre className={`${s.code} chroma`} role="tabpanel">
-                {lines.map((text, i) => (
-                  <div
-                    ref={i + 1 === line ? target : undefined}
-                    className={s.line}
-                    data-target={i + 1 === line || undefined}
-                    key={i}
-                  >
-                    <span className={s.number}>{i + 1}</span>
-                    {data.html ? (
-                      <span dangerouslySetInnerHTML={{ __html: text }} />
-                    ) : (
-                      <span>{text}</span>
-                    )}
-                  </div>
-                ))}
-              </pre>
+            {data && !preview && (
+              <CodeEditor
+                path={data.path}
+                content={data.content}
+                line={line}
+                className={s.editor}
+              />
             )}
           </div>
         </Dialog.Popup>

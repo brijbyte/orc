@@ -243,7 +243,7 @@ func TestSecurityHeaders(t *testing.T) {
 	}
 }
 
-func TestHandleFileReadsAndHighlightsLatestContent(t *testing.T) {
+func TestHandleFileReadsLatestContent(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "latest.go")
 	content := "package latest\n\nconst Value = 2\n"
@@ -269,9 +269,9 @@ func TestHandleFileReadsAndHighlightsLatestContent(t *testing.T) {
 		t.Fatalf("status = %d: %s", rw.Code, rw.Body.String())
 	}
 	var got struct {
-		Path    string   `json:"path"`
-		Content string   `json:"content"`
-		HTML    []string `json:"html"`
+		Path    string          `json:"path"`
+		Content string          `json:"content"`
+		HTML    json.RawMessage `json:"html"`
 	}
 	if err := json.NewDecoder(rw.Body).Decode(&got); err != nil {
 		t.Fatal(err)
@@ -279,7 +279,7 @@ func TestHandleFileReadsAndHighlightsLatestContent(t *testing.T) {
 	if got.Path != path || got.Content != content {
 		t.Fatalf("file = %#v", got)
 	}
-	if len(got.HTML) != 3 || !strings.Contains(got.HTML[0], `<span class="`) {
-		t.Fatalf("file not highlighted by line: %#v", got.HTML)
+	if got.HTML != nil {
+		t.Fatalf("file includes server-rendered HTML: %s", got.HTML)
 	}
 }

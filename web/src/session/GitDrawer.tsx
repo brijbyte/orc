@@ -31,6 +31,7 @@ import type {
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
 import d from "../ui/dialog.module.css";
+import { DiffEditor, type EditorDiffLine } from "./CodeEditor";
 import s from "./GitDrawer.module.css";
 
 const WORKTREE = "@worktree";
@@ -42,13 +43,7 @@ type TreeChange = {
   change: GitChange;
 };
 
-type DiffLine = {
-  text: string;
-  html?: string;
-  kind: "add" | "del" | "hunk" | "meta" | "plain";
-  line?: number;
-  hunk?: number;
-};
+type DiffLine = EditorDiffLine;
 
 type RecoveryRequest = {
   kind: "discard" | "remove";
@@ -61,21 +56,18 @@ function parseDiff(diff: GitDiff): DiffLine[] {
   if (raw.at(-1) === "") raw.pop();
   let next = 0;
   let hunk = -1;
-  return raw.map((text, i) => {
+  return raw.map((text) => {
     if (text.startsWith("@@")) {
       const match = text.match(/\+(\d+)/);
       if (match) next = Number(match[1]);
-      return { text, html: diff.html?.[i], kind: "hunk", hunk: ++hunk };
+      return { text, kind: "hunk", hunk: ++hunk };
     }
     if (text.startsWith("+++ ") || text.startsWith("--- "))
-      return { text, html: diff.html?.[i], kind: "meta" };
-    if (text.startsWith("+"))
-      return { text, html: diff.html?.[i], kind: "add", line: next++ };
-    if (text.startsWith("-"))
-      return { text, html: diff.html?.[i], kind: "del" };
-    if (text.startsWith(" "))
-      return { text, html: diff.html?.[i], kind: "plain", line: next++ };
-    return { text, html: diff.html?.[i], kind: "meta" };
+      return { text, kind: "meta" };
+    if (text.startsWith("+")) return { text, kind: "add", line: next++ };
+    if (text.startsWith("-")) return { text, kind: "del" };
+    if (text.startsWith(" ")) return { text, kind: "plain", line: next++ };
+    return { text, kind: "meta" };
   });
 }
 
@@ -826,72 +818,58 @@ export function GitDrawer({
                   {diff && !diff.patch && (
                     <div className={s.message}>No text diff.</div>
                   )}
-                  {diff && diff.patch && (
-                    <pre className={`${s.patch} chroma`}>
-                      {lines.map((line, i) => (
-                        <div
-                          className={s.diffLine}
-                          data-kind={line.kind}
-                          data-selected={
-                            line.hunk !== undefined &&
-                            selectedHunks.includes(line.hunk)
-                              ? true
-                              : undefined
-                          }
-                          key={i}
-                        >
-                          <span className={s.lineNumber}>
-                            {line.line && selected?.change.file ? (
+                  {diff && diff.patch && selected && (
+                    <>
+                      {canMutate && hunkCount > 0 && (
+                        <div className={s.hunkBar} aria-label="diff hunks">
+                          {lines
+                            .filter(
+                              (line): line is DiffLine & { hunk: number } =>
+                                line.kind === "hunk" && line.hunk !== undefined,
+                            )
+                            .map((line) => (
                               <Button
-                                link
-                                tip={`open line ${line.line}`}
+                                outline
+                                small
+                                tone={
+                                  selectedHunks.includes(line.hunk)
+                                    ? "success"
+                                    : undefined
+                                }
                                 onClick={() =>
-                                  onOpenFile(
-                                    selected.change.path,
-                                    selected.change.file!,
-                                    line.line,
+                                  setSelectedHunks((old) =>
+                                    old.includes(line.hunk)
+                                      ? old.filter((hunk) => hunk !== line.hunk)
+                                      : [...old, line.hunk].sort(
+                                          (a, b) => a - b,
+                                        ),
                                   )
                                 }
+                                key={line.hunk}
                               >
-                                {line.line}
+                                hunk {line.hunk + 1}
                               </Button>
-                            ) : null}
-                          </span>
-                          {line.html ? (
-                            <span
-                              dangerouslySetInnerHTML={{ __html: line.html }}
-                            />
-                          ) : (
-                            <span>{line.text}</span>
-                          )}
-                          {canMutate && line.hunk !== undefined && (
-                            <Button
-                              outline
-                              small
-                              className={s.hunkButton}
-                              tone={
-                                selectedHunks.includes(line.hunk)
-                                  ? "success"
-                                  : undefined
-                              }
-                              onClick={() =>
-                                setSelectedHunks((old) =>
-                                  old.includes(line.hunk!)
-                                    ? old.filter((hunk) => hunk !== line.hunk)
-                                    : [...old, line.hunk!].sort(
-                                        (a, b) => a - b,
-                                      ),
-                                )
-                              }
-                            >
-                              {selectedHunks.includes(line.hunk)
-                                ? "selected"
-                                : "select hunk"}
-                            </Button>
-                          )}
+                            ))}
                         </div>
-                      ))}
-                    </pre>
+                      )}
+                      <DiffEditor
+                        path={selected.change.path}
+                        lines={lines}
+                        selectedHunks={selectedHunks}
+                        focusHunk={selectedHunks.at(-1)}
+                        onOpenLine={
+                          selected.change.file
+                            ? (line) =>
+                                onOpenFile(
+                                  selected.change.path,
+                                  selected.change.file!,
+                                  line,
+                                )
+                            : undefined
+                        }
+                        className={s.diffEditor}
+                      />
+                    </>
                   )}
                   {canMutate && diff?.patch && hunkCount === 0 && (
                     <div className={s.message}>

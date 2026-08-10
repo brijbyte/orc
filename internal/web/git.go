@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/brijbyte/orc/internal/config"
-	"github.com/brijbyte/orc/internal/ui"
 	"github.com/google/uuid"
 )
 
@@ -888,8 +887,7 @@ func (s *Server) handleGitDiff(rw http.ResponseWriter, r *http.Request, rt *Runt
 	}
 	writeJSON(rw, map[string]any{
 		"path": r.URL.Query().Get("path"), "root": root, "patch": string(patch),
-		"html": ui.DiffHTML(r.URL.Query().Get("path"), string(patch)), "size": len(patch),
-		"hash": diffHash(patch),
+		"size": len(patch), "hash": diffHash(patch),
 	})
 }
 

@@ -71,11 +71,15 @@
 .body {
   min-height: 0;
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
   background: var(--code-bg);
 }
 .body[data-preview] {
+  overflow: auto;
   background: var(--bg);
+}
+.editor {
+  height: 100%;
 }
 .message {
   display: flex;
@@ -90,29 +94,6 @@
 }
 .error {
   color: var(--red);
-}
-.code {
-  min-width: 100%;
-  width: max-content;
-  padding: 0.75rem 0;
-  color: var(--code-fg);
-  font: 0.8125rem/1.55 var(--font-mono);
-}
-.line {
-  display: grid;
-  min-height: 1.55em;
-  grid-template-columns: 5ch auto;
-  padding-right: 1rem;
-  white-space: pre;
-}
-.line[data-target] {
-  background: color-mix(in srgb, var(--cyan) 12%, transparent);
-}
-.number {
-  padding-right: 1.2ch;
-  color: var(--dim);
-  text-align: right;
-  user-select: none;
 }
 .markdown {
   width: min(100%, 48rem);

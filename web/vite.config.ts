@@ -34,8 +34,9 @@ export default defineConfig({
               priority: 2,
             },
             {
+              // Keep CodeMirror language parsers in lazy chunks.
               name: "all-libs",
-              test: /node_modules/,
+              test: /node_modules[\\/](?!@codemirror[\\/]|@lezer[\\/])/,
               priority: 1,
             },
           ],

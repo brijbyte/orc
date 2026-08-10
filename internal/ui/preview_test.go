@@ -45,27 +45,6 @@ func TestEditPreviewHighlightsPython(t *testing.T) {
 	}
 }
 
-// The browser preview of an edit is a ± diff too: gutter, marker, and
-// chroma token spans on every line.
-func TestDiffHTMLHighlightsSourceWithoutDiffPaint(t *testing.T) {
-	patch := "diff --git a/app.ts b/app.ts\n--- a/app.ts\n+++ b/app.ts\n@@ -1 +1 @@\n-const oldValue = 1;\n+const newValue = 2;\n"
-	lines := DiffHTML("app.ts", patch)
-	if len(lines) != 6 {
-		t.Fatalf("want 6 lines, got %d: %q", len(lines), lines)
-	}
-	for _, i := range []int{4, 5} {
-		if !strings.Contains(lines[i], `<span class="`) {
-			t.Errorf("line %d not syntax highlighted: %q", i, lines[i])
-		}
-		if strings.Contains(lines[i], `class="gd"`) || strings.Contains(lines[i], `class="gi"`) {
-			t.Errorf("line %d has diff token paint: %q", i, lines[i])
-		}
-	}
-	if !strings.HasPrefix(lines[4], "-") || !strings.HasPrefix(lines[5], "+") {
-		t.Fatalf("missing diff markers: %q", lines[4:])
-	}
-}
-
 func TestEditPreviewHTML(t *testing.T) {
 	args := editArgs(t, "script.py",
 		"def greet(name):\n    return \"hi\"",

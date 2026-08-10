@@ -84,7 +84,6 @@ export type GitDiff = {
   path: string;
   root: string;
   patch: string;
-  html?: string[];
   size: number;
   hash: string;
 };
