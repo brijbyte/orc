@@ -14,11 +14,15 @@ export function StatusBar({
   sid,
   status,
   models,
+  compactDisabled,
+  onCompact,
   onOpenGit,
 }: {
   sid: string;
   status: string;
   models: Model[];
+  compactDisabled: boolean;
+  onCompact: () => void;
   onOpenGit: () => void;
 }) {
   const [theme, setTheme] = useState<ThemePref>(themePref());
@@ -48,7 +52,16 @@ export function StatusBar({
             {rest.length > 0 && " · " + rest.join(" · ")}
           </span>
         )}
-        <Button small className={s.git} onClick={onOpenGit}>
+        <Button
+          small
+          outline
+          className={s.compact}
+          disabled={compactDisabled}
+          onClick={onCompact}
+        >
+          compact
+        </Button>
+        <Button small onClick={onOpenGit}>
           <GitBranch size={13} strokeWidth={1.8} aria-hidden /> Git
         </Button>
         <Select

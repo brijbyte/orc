@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, LoaderCircle, Paperclip } from "lucide-react";
+import { Check, LoaderCircle, Paperclip, Send, Square } from "lucide-react";
 import { api, type AttachedFile } from "../lib/api";
 import { Button } from "../ui/Button";
 import s from "./InputBar.module.css";
@@ -37,7 +37,7 @@ function isEditable(t: EventTarget | null): boolean {
 }
 
 // InputBar owns the textarea (Enter sends, Shift+Enter breaks the line,
-// Esc interrupts), attachments, the busy spinner, and the stop button.
+// Esc interrupts), attachments, status, and the send/stop action.
 // While mounted it grabs focus Slack-style: stray
 // printable keystrokes land in the textarea.
 export function InputBar({
@@ -158,9 +158,7 @@ export function InputBar({
         <span className={s.live} role="status" aria-live="polite" aria-atomic>
           {busy ? "Turn in progress" : complete ? "Turn complete" : ""}
         </span>
-        {/* the stop button floats over this box, so the textarea keeps the
-            full width whether a turn runs or not */}
-        <div className={busy ? `${s.field} ${s.busy}` : s.field}>
+        <div className={s.field}>
           <textarea
             ref={inputRef}
             rows={1}
@@ -182,16 +180,19 @@ export function InputBar({
             }
             autoFocus
           />
-          {busy && (
-            <Button
-              outline
-              tone="danger"
-              className={s.stop}
-              onClick={() => api.interrupt(sid)}
-            >
-              stop
-            </Button>
-          )}
+          <Button
+            outline
+            tone={busy ? "danger" : "accent"}
+            disabled={!busy && !input.trim() && files.length === 0}
+            onClick={() => (busy ? api.interrupt(sid) : submit())}
+          >
+            {busy ? (
+              <Square size={11} fill="currentColor" aria-hidden />
+            ) : (
+              <Send size={13} strokeWidth={1.8} aria-hidden />
+            )}
+            {busy ? "stop" : "send"}
+          </Button>
         </div>
         <input
           ref={pickRef}

@@ -127,6 +127,7 @@ export const api = {
       `/api/sessions/${id}/input`,
       files?.length ? { text, files } : { text },
     ),
+  compact: (id: string) => post(`/api/sessions/${id}/compact`),
   retry: (id: string) => post(`/api/sessions/${id}/retry`),
   interrupt: (id: string) =>
     fetch(`/api/sessions/${id}/interrupt`, { method: "POST" }),

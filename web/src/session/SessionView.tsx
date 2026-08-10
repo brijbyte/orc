@@ -8,6 +8,7 @@ import {
 import { useOutletContext, useParams } from "react-router";
 import * as store from "../lib/store";
 import { api } from "../lib/api";
+import { revalidateSoon } from "../lib/revalidate";
 import type { Block } from "../lib/types";
 
 const fileMax = 16 << 20; // per-file cap, matches the server's request cap
@@ -38,6 +39,7 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
   const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
   const [complete, setComplete] = useState(false);
+  const [compacting, setCompacting] = useState(false);
   const [gitOpen, setGitOpen] = useState(false);
   const [draft, setDraft] = useState<{ text: string; request: number }>();
   const [file, setFile] = useState<{
@@ -61,9 +63,13 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
     else if (didComplete) setComplete(true);
     wasBusy.current = busy;
     if (!didComplete) return;
+    if (compacting) {
+      setCompacting(false);
+      revalidateSoon();
+    }
     const timer = window.setTimeout(() => setComplete(false), 1400);
     return () => clearTimeout(timer);
-  }, [busy]);
+  }, [busy, compacting]);
 
   const addFiles = (list: FileList | null) => {
     if (!list) return;
@@ -138,6 +144,11 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
             sid={sid}
             status={status}
             models={models}
+            compactDisabled={busy || compacting || blocks.length === 0}
+            onCompact={() => {
+              setCompacting(true);
+              void api.compact(sid).catch(() => setCompacting(false));
+            }}
             onOpenGit={() => setGitOpen(true)}
           />
         </>

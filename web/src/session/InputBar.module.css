@@ -63,18 +63,17 @@
   will-change: transform;
 }
 .field {
-  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
   flex: 1;
   min-width: 0;
-}
-.field.busy {
   min-height: var(--hit);
-}
-.field.busy textarea {
-  padding-right: 4rem;
 }
 .composer textarea {
   display: block;
+  flex: 1;
+  min-width: 0;
   width: 100%;
   background: none;
   border: none;
@@ -84,14 +83,6 @@
   resize: none;
   max-height: 12rem;
   overflow-y: auto;
-}
-/* the stop button floats over the textarea, so it paints its own ground */
-.stop {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  background: var(--material);
-  font: 0.8125rem/1.5 var(--font-ui);
 }
 .live {
   position: absolute;
@@ -119,8 +110,7 @@
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .composer,
-  .stop {
+  .composer {
     background: var(--bg);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
