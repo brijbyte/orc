@@ -182,9 +182,12 @@ func (ag *Agent) steer() {
 func (ag *Agent) Replay() { ag.IO.Replay(ag.History) }
 
 const compactPrompt = "Summarize this conversation so a fresh instance can " +
-	"continue the work. Include the user's goals and constraints, what was " +
-	"done, key file paths and code details, the current state, and next " +
-	"steps. Do not restate your instructions. Output only the summary."
+	"continue the work. Cover: the user's goals and constraints, decisions " +
+	"made, current state (including uncommitted changes), and immediate next " +
+	"steps. Be terse: plain bullets, under 400 words. Name file paths so the " +
+	"next instance can read them, but do not quote file contents, code, " +
+	"diffs, or command output — everything on disk is re-readable. No " +
+	"headings, no code blocks. Output only the summary."
 
 // compactRatio of the model's context window triggers auto-compaction.
 const compactRatio = 0.8
@@ -216,7 +219,9 @@ func (ag *Agent) Compact(ctx context.Context) error {
 		OnThinkingDelta: ag.IO.ThinkingDelta,
 		OnNotice:        ag.IO.Notice,
 	}
-	err := ag.Prov.Turn(ctx, req, json.RawMessage("[]"), ag.Cfg, cb)
+	cfg := *ag.Cfg // summarizing needs no deep reasoning
+	cfg.Effort = "low"
+	err := ag.Prov.Turn(ctx, req, json.RawMessage("[]"), &cfg, cb)
 	ag.IO.TurnEnd()
 	if err != nil {
 		return err
