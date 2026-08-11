@@ -238,6 +238,14 @@ type sessionRow struct {
 	Pinned bool   `json:"pinned"`
 }
 
+func truncateTitle(title string) string {
+	chars := []rune(title)
+	if len(chars) > 50 {
+		return string(chars[:50])
+	}
+	return title
+}
+
 func (s *Server) handleSessions(rw http.ResponseWriter, r *http.Request) {
 	s.reap()
 	rows, _ := session.ListAll()
@@ -250,7 +258,7 @@ func (s *Server) handleSessions(rw http.ResponseWriter, r *http.Request) {
 
 	out := make([]sessionRow, 0, len(rows))
 	for _, row := range rows {
-		sr := sessionRow{ID: row.ID, Title: row.Title, When: row.When,
+		sr := sessionRow{ID: row.ID, Title: truncateTitle(row.Title), When: row.When,
 			Used: row.Used, Cwd: row.Cwd, Pinned: row.Pinned}
 		if rt, ok := live[row.ID]; ok {
 			sr.Live, sr.Rid, sr.Busy = true, rt.ID, rt.IO.Busy()
