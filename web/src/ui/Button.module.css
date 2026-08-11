@@ -67,7 +67,8 @@
   background: color-mix(in srgb, var(--panel) 72%, transparent);
 }
 .nav[data-active] {
-  background: color-mix(in srgb, var(--cyan) 22%, var(--panel));
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line);
   color: var(--fg);
 }
 /* small: inline with running text, so it drops the tap-target height */

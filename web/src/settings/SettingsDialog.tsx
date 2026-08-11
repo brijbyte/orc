@@ -30,7 +30,6 @@ type NavItem = {
   id: Pane;
   label: string;
   icon: LucideIcon;
-  tone: string;
 };
 
 export function SettingsDialog() {
@@ -88,26 +87,11 @@ export function SettingsDialog() {
     ? providerAuth.provider[0].toUpperCase() + providerAuth.provider.slice(1)
     : "Provider";
   const items: NavItem[] = [
-    { id: "general", label: "General", icon: Palette, tone: "blue" },
-    {
-      id: "provider",
-      label: providerLabel,
-      icon: LogIn,
-      tone: "purple",
-    },
-    { id: "password", label: "Password", icon: KeyRound, tone: "orange" },
-    {
-      id: "notifications",
-      label: "Notifications",
-      icon: BellRing,
-      tone: "red",
-    },
-    {
-      id: "diagnostics",
-      label: "Diagnostics",
-      icon: Activity,
-      tone: "green",
-    },
+    { id: "general", label: "General", icon: Palette },
+    { id: "provider", label: providerLabel, icon: LogIn },
+    { id: "password", label: "Password", icon: KeyRound },
+    { id: "notifications", label: "Notifications", icon: BellRing },
+    { id: "diagnostics", label: "Diagnostics", icon: Activity },
   ];
   const visibleItems = items.filter((item) =>
     item.label.toLowerCase().includes(filter.trim().toLowerCase()),
@@ -152,9 +136,7 @@ export function SettingsDialog() {
                         aria-current={pane === item.id ? "page" : undefined}
                         onClick={() => setPane(item.id)}
                       >
-                        <span className={s.navIcon} data-tone={item.tone}>
-                          <Icon size={15} strokeWidth={1.9} aria-hidden />
-                        </span>
+                        <Icon size={17} strokeWidth={1.8} aria-hidden />
                         {item.label}
                       </Button>
                     </li>
