@@ -15,9 +15,6 @@ export function ProviderSettings() {
 
   if (!providerAuth) return null;
 
-  const providerName = providerAuth.provider
-    ? providerAuth.provider[0].toUpperCase() + providerAuth.provider.slice(1)
-    : "Provider";
   const expires = providerAuth.expires_at
     ? new Date(providerAuth.expires_at)
     : null;
@@ -54,11 +51,7 @@ export function ProviderSettings() {
   };
 
   return (
-    <SettingsSection
-      icon={LogIn}
-      title={`${providerName} sign-in`}
-      description="Manage the account orc uses for model requests."
-    >
+    <SettingsSection>
       <div className={s.status}>
         <span
           className={providerAuth.authenticated ? s.ok : s.off}

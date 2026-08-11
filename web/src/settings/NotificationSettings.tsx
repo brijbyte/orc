@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BellRing, Check, Plus, Trash2 } from "lucide-react";
+import { Check, Plus, Trash2 } from "lucide-react";
 import type { NotifyChannel, NotifyType } from "../lib/types";
 import { Button } from "../ui/Button";
 import { SettingsSection } from "./SettingsSection";
@@ -57,11 +57,7 @@ export function NotificationSettings({
   };
 
   return (
-    <SettingsSection
-      icon={BellRing}
-      title="Notifications"
-      description="Let agents reach you when the web interface is closed."
-    >
+    <SettingsSection>
       {channels.map((channel, index) => {
         const type = types.find((item) => item.id === channel.type);
         const state = tests[index] ?? "idle";

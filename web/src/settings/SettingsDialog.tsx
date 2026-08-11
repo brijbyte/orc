@@ -29,6 +29,7 @@ type Pane =
 type NavItem = {
   id: Pane;
   label: string;
+  description: string;
   icon: LucideIcon;
 };
 
@@ -87,16 +88,46 @@ export function SettingsDialog() {
     ? providerAuth.provider[0].toUpperCase() + providerAuth.provider.slice(1)
     : "Provider";
   const items: NavItem[] = [
-    { id: "general", label: "General", icon: Palette },
-    { id: "provider", label: providerLabel, icon: LogIn },
-    { id: "password", label: "Password", icon: KeyRound },
-    { id: "notifications", label: "Notifications", icon: BellRing },
-    { id: "diagnostics", label: "Diagnostics", icon: Activity },
+    {
+      id: "general",
+      label: "General",
+      description:
+        "Choose defaults for new sessions and how orc looks in this browser.",
+      icon: Palette,
+    },
+    {
+      id: "provider",
+      label: providerLabel,
+      description: "Manage the account orc uses for model requests.",
+      icon: LogIn,
+    },
+    {
+      id: "password",
+      label: "Password",
+      description: "Change the password used to access this web interface.",
+      icon: KeyRound,
+    },
+    {
+      id: "notifications",
+      label: "Notifications",
+      description: "Let agents reach you when the web interface is closed.",
+      icon: BellRing,
+    },
+    {
+      id: "diagnostics",
+      label: "Diagnostics",
+      description: "Version, uptime, and update status for this orc server.",
+      icon: Activity,
+    },
   ];
-  const visibleItems = items.filter((item) =>
-    item.label.toLowerCase().includes(filter.trim().toLowerCase()),
+  const query = filter.trim().toLowerCase();
+  const visibleItems = items.filter(
+    (item) =>
+      item.label.toLowerCase().includes(query) ||
+      item.description.toLowerCase().includes(query),
   );
-  const activeLabel = items.find((item) => item.id === pane)?.label;
+  const activeItem = items.find((item) => item.id === pane) ?? items[0];
+  const ActiveIcon = activeItem.icon;
   const error = loadError || saveError;
 
   return (
@@ -151,7 +182,16 @@ export function SettingsDialog() {
 
           <div className={s.main}>
             <header className={s.toolbar}>
-              <span>{activeLabel}</span>
+              <ActiveIcon
+                className={s.toolbarIcon}
+                size={22}
+                strokeWidth={1.6}
+                aria-hidden
+              />
+              <div className={s.toolbarCopy}>
+                <strong>{activeItem.label}</strong>
+                <span>{activeItem.description}</span>
+              </div>
               <Dialog.Close
                 render={<Button icon />}
                 aria-label="close settings"
