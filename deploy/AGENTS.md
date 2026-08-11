@@ -10,5 +10,5 @@ keeping must leave the box — push it, or put it in your reply to the owner.
   the printed `https://…ts.net:8443` URL; turn it off with
   `sudo tailscale serve --https=8443 off` when done.
 - `rg` (ripgrep) is installed; prefer it for search.
-- The orc service itself runs on this box (port 7777) — do not kill orc
-  processes or touch `~/.config/orc`.
+- The service you are running under lives on this box — do not kill orc
+  processes or bind port 7777.
