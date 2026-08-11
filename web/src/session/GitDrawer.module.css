@@ -75,6 +75,63 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.commitPositioner {
+  z-index: 20;
+  max-width: calc(100vw - 1rem);
+}
+.commitPopup {
+  width: min(22rem, var(--available-width));
+  padding: 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  box-shadow: 0 0.5rem 1.5rem color-mix(in srgb, black 25%, transparent);
+  color: var(--fg);
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity 120ms var(--ease-out),
+    transform 120ms var(--ease-out);
+}
+.commitPopup[data-starting-style],
+.commitPopup[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.98);
+}
+.commitTitle {
+  display: block;
+  margin-bottom: 0.5rem;
+  font: 0.75rem/1.5 var(--font-mono);
+}
+.commit {
+  display: grid;
+  gap: 0.4rem;
+}
+.commit textarea {
+  width: 100%;
+  min-height: 4.25rem;
+  resize: vertical;
+  padding: 0.5rem 0.6rem;
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  color: var(--fg);
+  font: 0.75rem/1.5 var(--font-mono);
+}
+.commit textarea:focus {
+  border-color: var(--cyan);
+  outline: none;
+}
+.commit > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--dim);
+  font: 0.6875rem/1.5 var(--font-ui);
+}
+.commit > .error {
+  font: 0.6875rem/1.5 var(--font-ui);
+}
 .selectionBar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -221,8 +278,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .drawer {
+  .drawer,
+  .commitPopup {
     transition: none;
+  }
+  .commitPopup[data-starting-style],
+  .commitPopup[data-ending-style] {
+    transform: none;
   }
   .spinner {
     animation: none;

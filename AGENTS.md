@@ -89,7 +89,7 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   useSyncExternalStore, over
   `Transcript`/`BlockView`/`Preview`/`InputBar`/`StatusBar`; `FileDrawer` uses
   `CodeEditor` for revision-checked text edits, diffs, and Markdown preview;
-  `GitDrawer` handles branch comparison, staging, discard, and discard undo.
+  `GitDrawer` handles branch comparison, staging, commits, discard, and discard undo.
   Browser previews and Markdown code highlight client-side. `lib/theme.ts`
   resolves light/dark/system onto `<html data-theme>`. Overlays and
   popups use Base UI (`@base-ui/react`): `ui/Select.tsx` wraps its Select,

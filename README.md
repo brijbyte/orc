@@ -67,8 +67,9 @@ conversation the model sees.
 streamed markdown, syntax-highlighted tool previews, an interactive status bar
 (model/effort selects, light/dark/system theme), queueing and interrupt. File
 links open a CodeMirror editor with diffs and Markdown preview; saves stop if
-the file changed on disk. The Git drawer compares branches and stages,
-unstages, or discards files and hunks; the last discard can be undone. Drop
+the file changed on disk. The Git drawer compares branches, commits staged
+changes, and stages, unstages, or discards files and hunks; the last discard
+can be undone. Drop
 files onto the transcript to attach them to the next message — images go to the
 model as images, text files inline. The sidebar manages every session from one
 place — sessions for the server's directory first, then the rest grouped by

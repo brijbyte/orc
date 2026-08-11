@@ -139,6 +139,8 @@ export const api = {
     post(`/api/sessions/${id}/git/stage`, { paths, hunks, hash }),
   gitUnstage: (id: string, paths: string[], hunks?: number[], hash?: string) =>
     post(`/api/sessions/${id}/git/unstage`, { paths, hunks, hash }),
+  gitCommit: (id: string, message: string) =>
+    post(`/api/sessions/${id}/git/commit`, { message }),
   gitDiscard: (id: string, paths: string[], hunks?: number[], hash?: string) =>
     post(`/api/sessions/${id}/git/discard`, {
       paths,

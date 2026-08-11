@@ -51,7 +51,7 @@ export type GitChange = {
 
 export type GitActivity = {
   at: string;
-  action: "stage" | "unstage" | "discard" | "remove" | "undo";
+  action: "stage" | "unstage" | "commit" | "discard" | "remove" | "undo";
   paths: string[];
   hunks?: number;
 };

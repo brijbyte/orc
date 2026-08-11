@@ -21,7 +21,10 @@ import (
 	"github.com/google/uuid"
 )
 
-const gitOutputMax = 8 << 20
+const (
+	gitOutputMax        = 8 << 20
+	gitCommitMessageMax = 64 << 10
+)
 
 var (
 	errNotRepo   = errors.New("not a git repository")
@@ -86,6 +89,10 @@ type gitMutationRequest struct {
 	Hunks   []int    `json:"hunks,omitempty"`
 	Hash    string   `json:"hash,omitempty"`
 	Confirm bool     `json:"confirm,omitempty"`
+}
+
+type gitCommitRequest struct {
+	Message string `json:"message"`
 }
 
 type gitCompare struct {
@@ -709,6 +716,34 @@ func gitMutate(ctx context.Context, rt *Runtime, request gitMutationRequest, sta
 	return loadGitStatus(ctx, rt)
 }
 
+func gitCommit(ctx context.Context, rt *Runtime, request gitCommitRequest) (gitStatus, error) {
+	message := strings.TrimSpace(request.Message)
+	if message == "" {
+		return gitStatus{}, errors.New("commit message is required")
+	}
+	if len(message) > gitCommitMessageMax || strings.ContainsRune(message, '\x00') {
+		return gitStatus{}, errors.New("invalid commit message")
+	}
+	status, err := loadGitStatus(ctx, rt)
+	if err != nil {
+		return gitStatus{}, err
+	}
+	paths := []string{}
+	for _, change := range status.Changes {
+		if change.Index != "." && change.Index != "?" {
+			paths = append(paths, change.Path)
+		}
+	}
+	if len(paths) == 0 {
+		return gitStatus{}, errors.New("no staged changes")
+	}
+	if _, err := runGitInput(ctx, status.Root, []byte(message+"\n"), "commit", "--file=-"); err != nil {
+		return gitStatus{}, err
+	}
+	rt.recordGitActivity("commit", paths, 0)
+	return loadGitStatus(ctx, rt)
+}
+
 func discardPaths(status gitStatus, requested []string, untracked bool) ([]string, []string, error) {
 	if len(requested) == 0 || len(requested) > 256 {
 		return nil, nil, errors.New("select one or more files")
@@ -957,6 +992,22 @@ func (s *Server) handleGitMutation(stage bool) func(http.ResponseWriter, *http.R
 		}
 		writeJSON(rw, status)
 	}
+}
+
+func (s *Server) handleGitCommit(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
+	var request gitCommitRequest
+	if json.NewDecoder(r.Body).Decode(&request) != nil {
+		http.Error(rw, "bad input", http.StatusBadRequest)
+		return
+	}
+	rt.gitMu.Lock()
+	defer rt.gitMu.Unlock()
+	status, err := gitCommit(r.Context(), rt, request)
+	if err != nil {
+		gitHTTPError(rw, err)
+		return
+	}
+	writeJSON(rw, status)
 }
 
 func (s *Server) handleGitRecoveryMutation(kind string) func(http.ResponseWriter, *http.Request, *Runtime) {

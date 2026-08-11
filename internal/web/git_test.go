@@ -131,6 +131,47 @@ func TestGitStageAndUnstageFiles(t *testing.T) {
 	}
 }
 
+func TestGitCommitStagedChanges(t *testing.T) {
+	rt, dir := testRepo(t)
+	path := filepath.Join(dir, "tracked file.txt")
+	if err := os.WriteFile(path, []byte("two\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	testGit(t, dir, "add", "tracked file.txt")
+	if err := os.WriteFile(path, []byte("three\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	status, err := gitCommit(context.Background(), rt, gitCommitRequest{Message: "update tracked file"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(testGit(t, dir, "log", "-1", "--format=%s")); got != "update tracked file" {
+		t.Fatalf("commit subject = %q", got)
+	}
+	if got := testGit(t, dir, "show", "HEAD:tracked file.txt"); got != "two\n" {
+		t.Fatalf("committed content = %q", got)
+	}
+	if len(status.Changes) != 1 || status.Changes[0].Index != "." || status.Changes[0].Worktree != "M" {
+		t.Fatalf("status = %#v", status.Changes)
+	}
+	if len(status.Activity) != 1 || status.Activity[0].Action != "commit" {
+		t.Fatalf("activity = %#v", status.Activity)
+	}
+}
+
+func TestGitCommitRequiresMessageAndStagedChanges(t *testing.T) {
+	rt, dir := testRepo(t)
+	if _, err := gitCommit(context.Background(), rt, gitCommitRequest{Message: "  "}); err == nil {
+		t.Fatal("blank commit message was accepted")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "tracked file.txt"), []byte("two\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gitCommit(context.Background(), rt, gitCommitRequest{Message: "unstaged"}); err == nil || err.Error() != "no staged changes" {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestGitStageAndUnstageHunks(t *testing.T) {
 	rt, dir := testRepo(t)
 	lines := make([]string, 24)

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertDialog } from "@base-ui/react/alert-dialog";
 import { Dialog } from "@base-ui/react/dialog";
+import { Popover } from "@base-ui/react/popover";
 import type { GitStatusEntry } from "@pierre/trees";
 import { FileTree, useFileTree } from "@pierre/trees/react";
 import {
@@ -10,6 +11,7 @@ import {
   Check,
   ExternalLink,
   GitBranch as BranchIcon,
+  GitCommitHorizontal,
   History,
   ListChecks,
   LoaderCircle,
@@ -267,12 +269,16 @@ export function GitDrawer({
   const [selectedHunks, setSelectedHunks] = useState<number[]>([]);
   const [refresh, setRefresh] = useState(0);
   const [mutating, setMutating] = useState(false);
+  const [commitOpen, setCommitOpen] = useState(false);
+  const [commitMessage, setCommitMessage] = useState("");
+  const [commitErr, setCommitErr] = useState("");
   const [recoveryRequest, setRecoveryRequest] =
     useState<RecoveryRequest | null>(null);
   const [err, setErr] = useState("");
   const [diffErr, setDiffErr] = useState("");
   const [mutationErr, setMutationErr] = useState("");
   const close = useRef<HTMLButtonElement>(null);
+  const commitInput = useRef<HTMLTextAreaElement>(null);
   const loadedDiff = useRef("");
   const selected = changes.find((entry) => entry.id === activeID) ?? null;
 
@@ -352,6 +358,7 @@ export function GitDrawer({
   const hunkCount = lines.filter((line) => line.kind === "hunk").length;
   const canMutate = source === WORKTREE;
   const action = selected?.mode === "staged" ? "unstage" : "stage";
+  const stagedChanges = changes.filter((entry) => entry.mode === "staged");
   const stagedSelected = changes.filter(
     (entry) => entry.mode === "staged" && selectedIDs.includes(entry.id),
   );
@@ -411,6 +418,23 @@ export function GitDrawer({
           ? "The diff changed. Review it and try again."
           : `cannot ${mutation} the selected changes`,
       );
+      setRefresh((value) => value + 1);
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const commit = async () => {
+    const message = commitMessage.trim();
+    if (!canMutate || !stagedChanges.length || !message) return;
+    setMutating(true);
+    setCommitErr("");
+    try {
+      applyStatus((await api.gitCommit(sid, message)) as GitStatus);
+      setCommitMessage("");
+      setCommitOpen(false);
+    } catch {
+      setCommitErr("cannot commit the staged changes");
       setRefresh((value) => value + 1);
     } finally {
       setMutating(false);
@@ -501,7 +525,15 @@ export function GitDrawer({
 
   return (
     <>
-      <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
+      <Dialog.Root
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) {
+            setCommitOpen(false);
+            onClose();
+          }
+        }}
+      >
         <Dialog.Portal>
           <Dialog.Backdrop className={d.overlay} />
           <Dialog.Popup className={s.drawer} initialFocus={close}>
@@ -515,6 +547,98 @@ export function GitDrawer({
                   options={branchOptions}
                   onChange={setSource}
                 />
+              )}
+              {status?.repo && canMutate && (
+                <Popover.Root
+                  open={commitOpen}
+                  onOpenChange={(next) => {
+                    setCommitOpen(next);
+                    if (next) setCommitErr("");
+                  }}
+                >
+                  <Popover.Trigger
+                    render={
+                      <Button
+                        outline
+                        small
+                        tone="accent"
+                        disabled={mutating || !stagedChanges.length}
+                      />
+                    }
+                  >
+                    <GitCommitHorizontal
+                      size={13}
+                      strokeWidth={1.8}
+                      aria-hidden
+                    />
+                    commit
+                  </Popover.Trigger>
+                  <Popover.Portal>
+                    <Popover.Positioner
+                      className={s.commitPositioner}
+                      sideOffset={6}
+                      align="end"
+                    >
+                      <Popover.Popup
+                        className={s.commitPopup}
+                        initialFocus={commitInput}
+                      >
+                        <Popover.Title className={s.commitTitle}>
+                          commit staged changes
+                        </Popover.Title>
+                        <form
+                          className={s.commit}
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            void commit();
+                          }}
+                        >
+                          <textarea
+                            ref={commitInput}
+                            aria-label="commit message"
+                            placeholder="Commit message"
+                            maxLength={65536}
+                            value={commitMessage}
+                            onChange={(event) => {
+                              setCommitMessage(event.target.value);
+                              setCommitErr("");
+                            }}
+                            onKeyDown={(event) => {
+                              if (
+                                (event.metaKey || event.ctrlKey) &&
+                                event.key === "Enter"
+                              )
+                                event.currentTarget.form?.requestSubmit();
+                            }}
+                          />
+                          <div>
+                            <span>
+                              {stagedChanges.length} staged file
+                              {stagedChanges.length === 1 ? "" : "s"}
+                            </span>
+                            <Button
+                              type="submit"
+                              outline
+                              small
+                              tone="accent"
+                              disabled={mutating || !commitMessage.trim()}
+                            >
+                              <GitCommitHorizontal
+                                size={13}
+                                strokeWidth={1.8}
+                                aria-hidden
+                              />
+                              commit
+                            </Button>
+                          </div>
+                          {commitErr && (
+                            <span className={s.error}>{commitErr}</span>
+                          )}
+                        </form>
+                      </Popover.Popup>
+                    </Popover.Positioner>
+                  </Popover.Portal>
+                </Popover.Root>
               )}
               <Button
                 outline
