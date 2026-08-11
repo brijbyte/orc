@@ -1,0 +1,54 @@
+.panel {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--code-bg);
+}
+.head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.55rem 0.3rem 0.8rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  font: 0.75rem/1.4 var(--font-ui);
+}
+.title {
+  color: var(--fg);
+  font-weight: 600;
+}
+.state {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--dim);
+}
+.state::before {
+  width: 0.4rem;
+  height: 0.4rem;
+  background: var(--dim);
+  border-radius: 50%;
+  content: "";
+}
+.state[data-status="connected"]::before {
+  background: var(--green);
+}
+.state[data-status="closed"]::before {
+  background: var(--red);
+}
+.terminal {
+  min-height: 0;
+  flex: 1;
+  padding: 0.65rem;
+  overflow: hidden;
+}
+.terminal :global(.xterm) {
+  height: 100%;
+}
+.terminal :global(.xterm-viewport) {
+  scrollbar-width: thin;
+}

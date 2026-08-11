@@ -33,7 +33,10 @@ import type {
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
 import d from "../ui/dialog.module.css";
-import { DiffEditor, type EditorDiffLine } from "./CodeEditor";
+import {
+  DiffEditor,
+  type EditorDiffLine,
+} from "../component/editor/DiffEditor";
 import s from "./GitDrawer.module.css";
 
 const WORKTREE = "@worktree";

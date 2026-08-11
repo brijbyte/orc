@@ -65,10 +65,13 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   `agent.userMessage` turns attachments into `input_image` data-URL parts
   (images) or inlined `input_text` (text files), and `agent.Echo` is the one
   display form for a line + its 📎 names — pending echoes must match later
-  user echoes. Password login sets a signed HTTP-only session cookie; a bcrypt
-  hash and cookie key live in the `web` section of `<orc home>/auth.json` until
-  `orc password --rotate`; plain HTTP binds loopback only, `--domain` adds
-  autocert TLS.
+  user echoes. Password login sets a signed HTTP-only session cookie;
+  `/terminal` connects xterm through PartySocket to a WebSocket-backed PTY in
+  the session cwd and closes its shell with the socket or runtime. The frontend
+  bundles its Nerd Font and uses `react-resizable-panels` for desktop and mobile
+  splits. A bcrypt hash and cookie key live in the `web` section of `<orc
+  home>/auth.json` until `orc password --rotate`; plain HTTP binds loopback
+  only, `--domain` adds autocert TLS.
   Frontend lives in `web/` (React 19 + Vite + react-router data router).
   `src/` groups by area: the shell (`main.tsx`, `App.tsx`, `app.css`,
   `preflight.css`) at the root, then `lib/` (`api`, `events`, `types`,

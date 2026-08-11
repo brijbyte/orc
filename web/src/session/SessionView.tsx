@@ -26,11 +26,17 @@ import { FileDrawer } from "./FileDrawer";
 import { GitDrawer } from "./GitDrawer";
 import s from "./SessionView.module.css";
 
+export type SessionOutletContext = {
+  models: Model[];
+  openTerminal: () => void;
+  toggleTerminal: () => void;
+};
+
 // SessionRoute adapts /s/:sid: the loader has already seeded the store,
 // the key remounts the view (and its local state) per session.
 export function SessionRoute() {
   const { sid = "" } = useParams();
-  const models = useOutletContext<Model[]>();
+  const context = useOutletContext<SessionOutletContext>();
   // /open may resolve sid to a newer chain member; the URL must follow so
   // every session-scoped call targets an id the server can resolve.
   const canonical = useSyncExternalStore(
@@ -39,13 +45,20 @@ export function SessionRoute() {
   );
   if (canonical && canonical !== sid)
     return <Navigate to={`/s/${canonical}`} replace />;
-  return <SessionView key={sid} sid={sid} models={models} />;
+  return <SessionView key={sid} sid={sid} context={context} />;
 }
 
 // SessionView renders the active session from the store. Only the active
 // view is mounted; streams live in store.ts and keep running across
 // switches (App calls store.ensure for every open tab).
-export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
+export function SessionView({
+  sid,
+  context,
+}: {
+  sid: string;
+  context: SessionOutletContext;
+}) {
+  const { models, openTerminal, toggleTerminal } = context;
   const [files, setFiles] = useState<ComposerAttachment[]>([]);
   const [dragging, setDragging] = useState(false);
   const [complete, setComplete] = useState(false);
@@ -70,13 +83,18 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!modShortcut(event, "g") || overlayOpen()) return;
-      event.preventDefault();
-      setGitOpen(true);
+      if (overlayOpen()) return;
+      if (modShortcut(event, "g")) {
+        event.preventDefault();
+        setGitOpen(true);
+      } else if (modShortcut(event, "`")) {
+        event.preventDefault();
+        toggleTerminal();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [toggleTerminal]);
 
   useEffect(() => {
     const didComplete = !busy && wasBusy.current;
@@ -190,6 +208,7 @@ export function SessionView({ sid, models }: { sid: string; models: Model[] }) {
               void api.compact(sid).catch(() => setCompacting(false));
             }}
             onOpenGit={() => setGitOpen(true)}
+            onOpenTerminal={openTerminal}
           />
         </>
       )}

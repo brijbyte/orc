@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PanelLeft, ServerOff } from "lucide-react";
+import { Group, Panel, Separator } from "react-resizable-panels";
 import {
   Outlet,
   useLoaderData,
@@ -18,6 +19,8 @@ import type { SessionRow } from "./lib/types";
 import { Sidebar } from "./sidebar/Sidebar";
 import { DirPicker } from "./sidebar/DirPicker";
 import { DeleteDialog } from "./sidebar/DeleteDialog";
+import { TerminalPanel } from "./session/TerminalPanel";
+import type { SessionOutletContext } from "./session/SessionView";
 import { Button } from "./ui/Button";
 import { Login } from "./auth/Login";
 import s from "./App.module.css";
@@ -40,6 +43,7 @@ export default function App() {
   const [picking, setPicking] = useState(false);
   const [doomed, setDoomed] = useState<SessionRow | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
   const { narrow, sideOpen, setSideOpen } = useNarrowSidebar();
   const selected = rows.find((r) => sid === r.id || sid === r.rid) ?? null;
   const pageTitle = selected ? sessionTitle(selected) : "orc";
@@ -48,6 +52,15 @@ export default function App() {
   const go = useCallback(
     (path: string, replace = false) => navigate(path, { replace }),
     [navigate],
+  );
+  const openTerminal = useCallback(() => setTerminalOpen(true), []);
+  const toggleTerminal = useCallback(
+    () => setTerminalOpen((open) => !open),
+    [],
+  );
+  const outletContext = useMemo<SessionOutletContext>(
+    () => ({ models, openTerminal, toggleTerminal }),
+    [models, openTerminal, toggleTerminal],
   );
 
   // keep the sidebar fresh
@@ -91,7 +104,10 @@ export default function App() {
     if (row.rid) store.drop(row.rid);
     const next = open.filter((x) => x !== row.id && x !== row.rid);
     setOpen(next);
-    if (sid === row.id || sid === row.rid) go(next[0] ? `/s/${next[0]}` : "/");
+    if (sid === row.id || sid === row.rid) {
+      setTerminalOpen(false);
+      go(next[0] ? `/s/${next[0]}` : "/");
+    }
   };
 
   const onStop = (row: SessionRow) => {
@@ -132,6 +148,30 @@ export default function App() {
       </div>
     );
 
+  const sidebar = (
+    <Sidebar
+      rows={rows}
+      serverCwd={serverCwd}
+      home={home}
+      active={sid}
+      openIds={open}
+      sheet={narrow}
+      open={sideOpen}
+      onDismiss={() => setSideOpen(false)}
+      onStop={onStop}
+      onDelete={confirmDelete}
+      onPin={onPin}
+      onNew={() => {
+        setSideOpen(false);
+        setPicking(true);
+      }}
+    />
+  );
+  const chat = <Outlet context={outletContext} />;
+  const terminal = sid && terminalOpen && (
+    <TerminalPanel sid={sid} open onClose={() => setTerminalOpen(false)} />
+  );
+
   return (
     <div className={s.shell}>
       <Button
@@ -145,24 +185,60 @@ export default function App() {
       >
         <PanelLeft size={16} strokeWidth={1.8} aria-hidden />
       </Button>
-      <Sidebar
-        rows={rows}
-        serverCwd={serverCwd}
-        home={home}
-        active={sid}
-        openIds={open}
-        sheet={narrow}
-        open={sideOpen}
-        onDismiss={() => setSideOpen(false)}
-        onStop={onStop}
-        onDelete={confirmDelete}
-        onPin={onPin}
-        onNew={() => {
-          setSideOpen(false);
-          setPicking(true);
-        }}
-      />
-      <Outlet context={models} />
+      {narrow ? (
+        <>
+          {sidebar}
+          <Group orientation="vertical" className={s.group}>
+            <Panel id="chat" minSize="10rem" className={s.pane}>
+              {chat}
+            </Panel>
+            {terminal && (
+              <>
+                <Separator className={s.separator} />
+                <Panel
+                  id="terminal"
+                  defaultSize="42%"
+                  minSize="10rem"
+                  className={s.pane}
+                >
+                  {terminal}
+                </Panel>
+              </>
+            )}
+          </Group>
+        </>
+      ) : (
+        <Group orientation="horizontal" className={s.group}>
+          <Panel
+            id="sessions"
+            defaultSize="18rem"
+            minSize="14rem"
+            maxSize="28rem"
+            groupResizeBehavior="preserve-pixel-size"
+            className={s.pane}
+          >
+            {sidebar}
+          </Panel>
+          <Separator className={s.separator} />
+          <Panel id="chat" minSize="16rem" className={s.pane}>
+            {chat}
+          </Panel>
+          {terminal && (
+            <>
+              <Separator className={s.separator} />
+              <Panel
+                id="terminal"
+                defaultSize="36%"
+                minSize="15rem"
+                maxSize="60%"
+                className={s.pane}
+              >
+                {terminal}
+              </Panel>
+            </>
+          )}
+        </Group>
+      )}
       <DirPicker
         open={picking}
         start={serverCwd}

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GitBranch, Minimize2 } from "lucide-react";
+import { GitBranch, Minimize2, SquareTerminal } from "lucide-react";
 import { api } from "../lib/api";
 import { setThemePref, themePref, type ThemePref } from "../lib/theme";
 import type { Model } from "../lib/types";
@@ -17,6 +17,7 @@ export function StatusBar({
   compactDisabled,
   onCompact,
   onOpenGit,
+  onOpenTerminal,
 }: {
   sid: string;
   status: string;
@@ -24,6 +25,7 @@ export function StatusBar({
   compactDisabled: boolean;
   onCompact: () => void;
   onOpenGit: () => void;
+  onOpenTerminal: () => void;
 }) {
   const [theme, setTheme] = useState<ThemePref>(themePref());
   const [model, effort, ...rest] = status.split(" · ");
@@ -64,6 +66,9 @@ export function StatusBar({
         </Button>
         <Button small tip="open Git (Ctrl/⌘ G)" onClick={onOpenGit}>
           <GitBranch size={13} strokeWidth={1.8} aria-hidden /> Git
+        </Button>
+        <Button small tip="open terminal (Ctrl/⌘ `)" onClick={onOpenTerminal}>
+          <SquareTerminal size={13} strokeWidth={1.8} aria-hidden /> terminal
         </Button>
         <Select
           value={theme}

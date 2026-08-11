@@ -7,7 +7,7 @@ import { Code2, Eye, LoaderCircle, RefreshCw, Save, X } from "lucide-react";
 import { api, APIError } from "../lib/api";
 import { Button } from "../ui/Button";
 import d from "../ui/dialog.module.css";
-import { CodeEditor } from "./CodeEditor";
+import { CodeEditor } from "../component/editor/CodeEditor";
 import s from "./FileDrawer.module.css";
 
 type FileData = {

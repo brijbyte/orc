@@ -1,3 +1,5 @@
+import ReconnectingWebSocket from "partysocket/ws";
+
 export type AttachedFile = { name: string; type: string; data: string };
 
 export class APIError extends Error {
@@ -174,5 +176,18 @@ export const api = {
   retry: (id: string) => post(`/api/sessions/${id}/retry`),
   interrupt: (id: string) =>
     fetch(`/api/sessions/${id}/interrupt`, { method: "POST" }),
+  terminal: (id: string) => {
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    return new ReconnectingWebSocket(
+      `${protocol}//${location.host}/api/sessions/${id}/terminal`,
+      null,
+      {
+        maxRetries: 8,
+        minReconnectionDelay: 500,
+        maxReconnectionDelay: 5000,
+        shouldReconnectOnClose: (event) => event.code !== 1000,
+      },
+    );
+  },
   events: (id: string, after: number) => new SessionEventStream(id, after),
 };

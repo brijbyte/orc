@@ -30,6 +30,8 @@ type Runtime struct {
 	gitMu         sync.Mutex
 	gitActivityMu sync.Mutex
 	gitActivity   []gitActivity
+	terminalMu    sync.Mutex
+	terminals     map[*terminalSession]struct{}
 }
 
 // NewRuntime wires a session into a web IO and starts its driver loop.
@@ -54,6 +56,7 @@ func NewRuntime(prov provider.Provider, cfg *config.Config, sess *session.Sessio
 
 // loop is the TUI driver loop over the web queue; it ends on quit or Close.
 func (rt *Runtime) loop() {
+	defer rt.closeTerminals()
 	defer close(rt.done)
 	w, ag, cmds := rt.IO, rt.Ag, rt.Cmds
 	run := func(f func(ctx context.Context) error) {
@@ -112,8 +115,45 @@ func (rt *Runtime) loop() {
 	}
 }
 
+func (rt *Runtime) addTerminal(terminal *terminalSession) bool {
+	rt.terminalMu.Lock()
+	defer rt.terminalMu.Unlock()
+	if rt.done != nil {
+		select {
+		case <-rt.done:
+			return false
+		default:
+		}
+	}
+	if rt.terminals == nil {
+		rt.terminals = map[*terminalSession]struct{}{}
+	}
+	rt.terminals[terminal] = struct{}{}
+	return true
+}
+
+func (rt *Runtime) removeTerminal(terminal *terminalSession) {
+	rt.terminalMu.Lock()
+	delete(rt.terminals, terminal)
+	rt.terminalMu.Unlock()
+}
+
+func (rt *Runtime) closeTerminals() {
+	rt.terminalMu.Lock()
+	terminals := make([]*terminalSession, 0, len(rt.terminals))
+	for terminal := range rt.terminals {
+		terminals = append(terminals, terminal)
+	}
+	rt.terminals = nil
+	rt.terminalMu.Unlock()
+	for _, terminal := range terminals {
+		_ = terminal.Close()
+	}
+}
+
 // Close interrupts any running turn, ends the loop, and waits for it.
 func (rt *Runtime) Close() {
+	rt.closeTerminals()
 	rt.IO.Interrupt()
 	rt.IO.Close()
 	<-rt.done

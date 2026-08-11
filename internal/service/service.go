@@ -285,7 +285,7 @@ func linuxPath() string {
 
 func serviceEnv() [][2]string {
 	var env [][2]string
-	for _, key := range []string{"PATH", "XDG_CONFIG_HOME", "ORC_PROVIDER", "ORC_MODEL"} {
+	for _, key := range []string{"PATH", "SHELL", "XDG_CONFIG_HOME", "ORC_PROVIDER", "ORC_MODEL"} {
 		if value := os.Getenv(key); value != "" {
 			env = append(env, [2]string{key, value})
 		}

@@ -863,6 +863,7 @@ func (s *Server) router() http.Handler {
 			api.Get("/sessions/{id}/history", s.withRuntime(s.handleHistory))
 			api.Get("/sessions/{id}/catchup", s.withRuntime(s.handleCatchup))
 			api.Get("/sessions/{id}/events", s.withRuntime(s.handleEvents))
+			api.Get("/sessions/{id}/terminal", s.withRuntime(s.handleTerminal))
 			api.Post("/sessions/{id}/input", s.withRuntime(s.handleInput))
 			api.Post("/sessions/{id}/compact", s.withRuntime(handleControl("/compact")))
 			api.Post("/sessions/{id}/retry", s.withRuntime(handleControl("/retry")))

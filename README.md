@@ -67,15 +67,17 @@ conversation the model sees.
 streamed markdown, syntax-highlighted tool previews, an interactive status bar
 (model/effort selects, light/dark/system theme), queueing and interrupt. File
 links open a CodeMirror editor with diffs and Markdown preview; saves stop if
-the file changed on disk. The Git drawer switches and creates local branches,
-compares branches, commits staged changes, and stages, unstages, or discards
-files and hunks; the last discard can be undone. Drop
-files onto the transcript to attach them to the next message — images go to the
-model as images, text files inline. The sidebar manages every session from one
-place — sessions for the server's directory first, then the rest grouped by
-directory — with resume on click, parallel
-live sessions, and "new session" with a server-side directory picker (each
-session's tools run in its own directory). Session files are the same JSONL,
+the file changed on disk. A resizable xterm pane opens the user's shell in the
+session directory through an authenticated WebSocket and PTY. It sits beside
+chat on desktop and below chat on mobile. The Git drawer
+switches and creates local branches, compares branches, commits staged changes,
+and stages, unstages, or discards files and hunks; the last discard can be
+undone. Drop files onto the transcript to attach them to the next message —
+images go to the model as images, text files inline. The sidebar manages every
+session from one place — sessions for the server's directory first, then the
+rest grouped by directory — with resume on click, parallel live sessions, and
+"new session" with a server-side directory picker (each session's tools run in
+its own directory). Session files are the same JSONL,
 so `orc --resume` reopens any of them in the terminal.
 On the first web start, orc creates a password and shows it once. Only its
 bcrypt hash is stored in `<orc home>/auth.json`. Use `orc password --rotate` to
@@ -103,7 +105,7 @@ orc service install --cwd ~/src --port 7799
 The service keeps running after the terminal closes. On Linux, enable user
 lingering if it must run when you are logged out:
 `loginctl enable-linger "$USER"`. Service installation keeps the current
-`PATH`, so agent tools use the same commands as your shell.
+`PATH` and `SHELL`, so agent tools and web terminals use the same environment.
 
 ## Tools exposed to the model
 
