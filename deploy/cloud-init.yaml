@@ -29,6 +29,11 @@ write_files:
       User=orc
       Environment=ORC_SERVICE=1
       ExecStart=/bin/sh -c 'export XDG_RUNTIME_DIR=/run/user/$$(id -u) DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$$(id -u)/bus; curl -fsSL --connect-timeout 5 https://github.com/brijbyte/orc/releases/latest/download/install.sh | sh'
+  # agent instructions for every session on this box; installed into
+  # /home/orc/.agents once the user exists
+  - path: /run/orc-agents.md
+    encoding: b64
+    content: __AGENTS_B64__
   # cert minting retries in the background: after a same-name rebuild the
   # ACME DNS challenge keeps failing until the reclaimed name propagates,
   # which can take tens of minutes
@@ -81,7 +86,8 @@ runcmd:
   # orc user; lingering so its systemd --user service runs without a login.
   # ~/.config must exist before the install so orc's home is stable there.
   - useradd -m -s /bin/bash orc
-  - install -d -o orc -g orc /home/orc/.config
+  - install -d -o orc -g orc /home/orc/.config /home/orc/.agents
+  - install -o orc -g orc -m 0644 /run/orc-agents.md /home/orc/.agents/AGENTS.md
   - echo 'orc ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/90-orc
   - chmod 440 /etc/sudoers.d/90-orc
   - loginctl enable-linger orc

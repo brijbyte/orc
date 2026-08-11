@@ -72,8 +72,10 @@ for dev in json.load(sys.stdin)['devices']:
         done
 fi
 
+agents_b64=$(base64 < "$here/AGENTS.md" | tr -d '\n')
 userdata=$(sed -e "s|__TS_AUTHKEY__|$TS_AUTHKEY|" \
-    -e "s|__SERVER_NAME__|$name|" "$here/cloud-init.yaml")
+    -e "s|__SERVER_NAME__|$name|" \
+    -e "s|__AGENTS_B64__|$agents_b64|" "$here/cloud-init.yaml")
 
 echo "orc: creating $name ($type, $location, $image)"
 payload=$(python3 - "$name" "$type" "$location" "$image" "$keyname" "$userdata" <<'EOF'
