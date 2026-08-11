@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/brijbyte/orc/internal/config"
@@ -69,7 +70,7 @@ func New(cfg *config.Config, prov provider.Provider, sess *session.Session,
 		Sess:    sess,
 		Prov:    prov,
 		IO:      io,
-		tools:   json.RawMessage(tools.SchemaJSON),
+		tools:   tools.Schema(cfg.Routine != ""),
 	}
 }
 
@@ -131,13 +132,24 @@ func parseItem(raw json.RawMessage) item {
 	return it
 }
 
-func (ag *Agent) runCall(ctx context.Context, call item) {
+func (ag *Agent) runCall(ctx context.Context, call item) bool {
 	if call.Name == "" || call.CallID == "" {
-		return
+		return false
 	}
 	ag.IO.ToolCall(call.Name, call.Arguments)
-	output := tools.Run(ctx, ag.Cfg.Cwd, call.Name, call.Arguments)
+	var routine *tools.RoutineCallbacks
+	if ag.Cfg.Routine != "" {
+		routine = &tools.RoutineCallbacks{
+			Sleep: func(wake time.Time, _ string) { ag.Sess.SetWake(wake.Format(time.RFC3339)) },
+			Stop: func(string) {
+				ag.Sess.StopRoutine()
+				ag.Cfg.Routine = ""
+			},
+		}
+	}
+	output, endTurn := tools.RunWithRoutine(ctx, ag.Cfg.Cwd, call.Name, call.Arguments, routine)
 	ag.commit(callOutput(call.CallID, output))
+	return endTurn
 }
 
 // Echo is the display form of a user line with its attachments; UIs must
@@ -180,6 +192,22 @@ func (ag *Agent) steer() {
 }
 
 func (ag *Agent) Replay() { ag.IO.Replay(ag.History) }
+
+func (ag *Agent) LastSleep() (int, string) {
+	for i := len(ag.History) - 1; i >= 0; i-- {
+		it := parseItem(ag.History[i])
+		if it.Type != "function_call" || it.Name != "sleep" {
+			continue
+		}
+		var args struct {
+			Seconds int    `json:"seconds"`
+			Reason  string `json:"reason"`
+		}
+		json.Unmarshal([]byte(it.Arguments), &args)
+		return min(max(args.Seconds, 60), 24*60*60), args.Reason
+	}
+	return 60, "scheduled check"
+}
 
 const compactPrompt = "Write a handoff summary for another LLM instance " +
 	"that will resume this work. Cover: the user's goals and constraints, decisions " +
@@ -240,6 +268,9 @@ func (ag *Agent) Compact(ctx context.Context) error {
 		ag.Cfg.SessionID = oldID
 		return errors.New("cannot create session file")
 	}
+	if ag.Sess.Wake != "" {
+		next.SetWake(ag.Sess.Wake)
+	}
 	ag.Sess.Close()
 	*ag.Sess = *next
 	ag.History = nil
@@ -282,7 +313,7 @@ func (ag *Agent) Retry(ctx context.Context) error {
 
 func (ag *Agent) begin(ctx context.Context) {
 	if ag.Cfg.Instructions == "" {
-		ag.Cfg.Instructions = instructions.Build(ag.Cfg.Cwd)
+		ag.Cfg.Instructions = instructions.Build(ag.Cfg.Cwd, ag.Cfg.Routine)
 	}
 	ag.maybeCompact(ctx)
 }
@@ -322,7 +353,7 @@ func (ag *Agent) run(ctx context.Context) error {
 			return nil
 		}
 
-		interrupted := false
+		interrupted, endTurn := false, false
 		for _, call := range calls {
 			if ctx.Err() != nil {
 				interrupted = true
@@ -330,12 +361,16 @@ func (ag *Agent) run(ctx context.Context) error {
 			if interrupted {
 				// Committed calls must still get outputs or the next request 400s.
 				ag.commit(callOutput(call.CallID, "[interrupted by user]"))
-			} else {
-				ag.runCall(ctx, call)
+			} else if ag.runCall(ctx, call) {
+				endTurn = true
 			}
 		}
 		if interrupted {
 			return provider.ErrInterrupted
+		}
+		if endTurn {
+			ag.tools = tools.Schema(ag.Cfg.Routine != "")
+			return nil
 		}
 		ag.steer()
 		ag.maybeCompact(ctx) // history is consistent between tool rounds

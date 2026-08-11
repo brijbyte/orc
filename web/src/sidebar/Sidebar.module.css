@@ -103,7 +103,7 @@
   display: flex;
   align-items: center;
   padding-left: 1.1rem;
-  padding-right: calc(var(--hit) + var(--hit) + var(--hit) + 0.2rem);
+  padding-right: calc(var(--hit) * 4 + 0.2rem);
   min-height: 1.2em;
 }
 .age {
@@ -114,6 +114,10 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.wake {
+  margin-left: 0.45rem;
+  color: var(--cyan);
 }
 .acts {
   position: absolute;

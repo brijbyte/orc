@@ -27,7 +27,7 @@ func appendAgents(sb *strings.Builder, path string) {
 	}
 }
 
-func Build(cwd string) string {
+func Build(cwd string, routine ...string) string {
 	if cwd == "" {
 		cwd, _ = os.Getwd()
 	}
@@ -40,6 +40,10 @@ func Build(cwd string) string {
 		cwd, sysname(), runtime.GOARCH)
 	appendAgents(&sb, config.ExpandHome("~/.agents/AGENTS.md"))
 	appendAgents(&sb, filepath.Join(cwd, "AGENTS.md"))
+	if len(routine) > 0 && routine[0] != "" {
+		fmt.Fprintf(&sb, "\n\n# Routine\nMission: %s\nEnd every turn with the sleep or stop tool. "+
+			"A wake message has this form: ⏰ wake: <reason>.", routine[0])
+	}
 	return sb.String()
 }
 

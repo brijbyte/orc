@@ -93,7 +93,11 @@ export const api = {
   login: (password: string) => post("/api/login", { password }),
   logout: () => post("/api/logout"),
   sessions: () => get("/api/sessions"),
-  create: (cwd?: string) => post("/api/sessions", cwd ? { cwd } : {}),
+  create: (cwd?: string, routine?: string) =>
+    post("/api/sessions", {
+      ...(cwd ? { cwd } : {}),
+      ...(routine ? { routine } : {}),
+    }),
   open: (id: string) => post(`/api/sessions/${id}/open`),
   stop: (id: string) => fetch(`/api/sessions/${id}`, { method: "DELETE" }),
   remove: (id: string) =>
@@ -174,6 +178,7 @@ export const api = {
     }),
   compact: (id: string) => post(`/api/sessions/${id}/compact`),
   retry: (id: string) => post(`/api/sessions/${id}/retry`),
+  wake: (id: string) => post(`/api/sessions/${id}/wake`),
   interrupt: (id: string) =>
     fetch(`/api/sessions/${id}/interrupt`, { method: "POST" }),
   terminal: (id: string) => {

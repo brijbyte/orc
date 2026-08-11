@@ -131,6 +131,41 @@ func TestCompactionChainListsAndDeletesAsOneConversation(t *testing.T) {
 	}
 }
 
+func TestRoutineMetaRoundTripAndLaterStateWins(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	cfg := &config.Config{SessionID: "routine1-1234-1234-1234-123456789abc", Cwd: "/tmp", Routine: "check the clock"}
+	s, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendUser(s, cfg.Routine)
+	s.SetWake("2026-01-02T03:04:05Z")
+
+	rows, err := ListAll()
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("ListAll() = %#v, %v", rows, err)
+	}
+	if rows[0].Routine != cfg.Routine || rows[0].Wake != "2026-01-02T03:04:05Z" {
+		t.Fatalf("routine row = %#v", rows[0])
+	}
+
+	s.StopRoutine()
+	s.Close()
+	resumedCfg := &config.Config{}
+	resumed, _, err := Resume(cfg.SessionID, resumedCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resumed.Close()
+	if resumed.Routine != "" || resumed.Wake != "" || resumedCfg.Routine != "" {
+		t.Fatalf("stopped state = routine %q, wake %q, config %q", resumed.Routine, resumed.Wake, resumedCfg.Routine)
+	}
+	rows, _ = ListAll()
+	if rows[0].Routine != "" || rows[0].Wake != "" {
+		t.Fatalf("stopped row = %#v", rows[0])
+	}
+}
+
 func TestResumeRefusesLockedSession(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	id := "aaaa1111-1234-1234-1234-123456789abc"

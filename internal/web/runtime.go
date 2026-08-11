@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/brijbyte/orc/internal/agent"
 	"github.com/brijbyte/orc/internal/commands"
@@ -26,6 +28,10 @@ type Runtime struct {
 	Cmds *commands.Commands
 
 	done chan struct{}
+
+	afterMu     sync.Mutex
+	afterTurn   func(*Runtime)
+	stopRoutine bool
 
 	gitMu         sync.Mutex
 	gitActivityMu sync.Mutex
@@ -54,6 +60,55 @@ func NewRuntime(prov provider.Provider, cfg *config.Config, sess *session.Sessio
 	return rt
 }
 
+func (rt *Runtime) notifyTurn() {
+	rt.afterMu.Lock()
+	fn := rt.afterTurn
+	rt.afterMu.Unlock()
+	if fn != nil {
+		fn(rt)
+	}
+}
+
+func (rt *Runtime) setAfterTurn(fn func(*Runtime)) {
+	rt.afterMu.Lock()
+	rt.afterTurn = fn
+	rt.afterMu.Unlock()
+}
+
+func (rt *Runtime) routineError(err error) error {
+	ag := rt.Ag
+	if !errors.Is(err, provider.ErrInterrupted) && ag.Cfg.Routine != "" {
+		seconds, _ := ag.LastSleep()
+		delay := time.Duration(min(seconds*2, 24*60*60)) * time.Second
+		wake := time.Now().UTC().Add(delay).Format(time.RFC3339)
+		ag.Sess.SetWake(wake)
+		rt.IO.Notice(fmt.Sprintf("⚠️ routine failed; retrying at %s", wake))
+	}
+	return err
+}
+
+func (rt *Runtime) routineTurn(ctx context.Context, text string, atts []agent.Attachment) error {
+	ag := rt.Ag
+	if ag.Cfg.Routine != "" && ag.Sess.Wake != "" {
+		ag.Sess.SetWake("")
+	}
+	if err := ag.Turn(ctx, text, atts); err != nil {
+		return rt.routineError(err)
+	}
+	if ag.Cfg.Routine == "" || ag.Sess.Wake != "" {
+		return nil
+	}
+	if err := ag.Turn(ctx, "call sleep or stop", nil); err != nil {
+		return rt.routineError(err)
+	}
+	if ag.Cfg.Routine != "" && ag.Sess.Wake == "" {
+		ag.Sess.StopRoutine()
+		ag.Cfg.Routine = ""
+		rt.IO.Notice("⚠️ routine stopped: sleep or stop was not called")
+	}
+	return nil
+}
+
 // loop is the TUI driver loop over the web queue; it ends on quit or Close.
 func (rt *Runtime) loop() {
 	defer rt.closeTerminals()
@@ -70,6 +125,7 @@ func (rt *Runtime) loop() {
 		if err != nil && !errors.Is(err, provider.ErrInterrupted) {
 			w.Printf("❌ orc: %v", err)
 		}
+		rt.notifyTurn()
 	}
 	for {
 		line, atts, queued, ok := w.WaitTake()
@@ -94,6 +150,14 @@ func (rt *Runtime) loop() {
 		case "/retry":
 			run(ag.Retry)
 			continue
+		case "/wake":
+			if ag.Cfg.Routine != "" {
+				_, reason := ag.LastSleep()
+				run(func(ctx context.Context) error {
+					return rt.routineTurn(ctx, "⏰ wake: "+reason, nil)
+				})
+			}
+			continue
 		}
 		if strings.HasPrefix(line, "/") {
 			handled, quit, prompt := cmds.Dispatch(ag, line)
@@ -105,9 +169,20 @@ func (rt *Runtime) loop() {
 			}
 			line = prompt // custom command: run its prompt as the turn
 		}
-		run(func(ctx context.Context) error { return ag.Turn(ctx, line, atts) })
+		if ag.Cfg.Routine != "" {
+			run(func(ctx context.Context) error { return rt.routineTurn(ctx, line, atts) })
+		} else {
+			run(func(ctx context.Context) error { return ag.Turn(ctx, line, atts) })
+		}
 	}
 	w.Close()
+	rt.afterMu.Lock()
+	stopRoutine := rt.stopRoutine
+	rt.afterMu.Unlock()
+	if stopRoutine && ag.Cfg.Routine != "" {
+		ag.Sess.StopRoutine()
+		ag.Cfg.Routine = ""
+	}
 	sess := ag.Sess
 	sess.Close()
 	if sess.Items == 0 {
@@ -149,6 +224,13 @@ func (rt *Runtime) closeTerminals() {
 	for _, terminal := range terminals {
 		_ = terminal.Close()
 	}
+}
+
+func (rt *Runtime) StopRoutine() {
+	rt.afterMu.Lock()
+	rt.stopRoutine = true
+	rt.afterMu.Unlock()
+	rt.Close()
 }
 
 // Close interrupts any running turn, ends the loop, and waits for it.

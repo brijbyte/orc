@@ -1,6 +1,14 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { Link } from "react-router";
-import { Circle, LoaderCircle, Pin, Plus, Trash2, X } from "lucide-react";
+import {
+  AlarmClock,
+  Circle,
+  LoaderCircle,
+  Pin,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import * as store from "../lib/store";
 import type { SessionRow } from "../lib/types";
 import { Button } from "../ui/Button";
@@ -30,6 +38,14 @@ function ago(ts: string): string {
   return new Date(t).toLocaleDateString();
 }
 
+function until(ts?: string): string {
+  if (!ts) return "";
+  const min = Math.max(0, (Date.parse(ts) - Date.now()) / 60000);
+  if (min < 1) return "now";
+  if (min < 60) return `${Math.ceil(min)}m`;
+  return `${Math.ceil(min / 60)}h`;
+}
+
 function Row({
   row,
   active,
@@ -38,6 +54,7 @@ function Row({
   onStop,
   onDelete,
   onPin,
+  onWake,
   onOpen,
 }: {
   row: SessionRow;
@@ -47,6 +64,7 @@ function Row({
   onStop: () => void;
   onDelete: () => void;
   onPin: () => void;
+  onWake: () => void;
   onOpen: () => void;
 }) {
   const sid = row.rid ?? row.id;
@@ -91,8 +109,22 @@ function Row({
         <span className={s.age} title={showDir ? row.cwd : undefined}>
           {ago(row.used)}
           {showDir ? ` · ${tailDir(row.cwd)}` : ""}
+          {row.routine && row.wake ? (
+            <span className={s.wake}>⏰ {until(row.wake)}</span>
+          ) : null}
         </span>
         <span className={s.acts}>
+          {row.routine && row.wake && (
+            <Button
+              icon
+              tone="accent"
+              tip="wake now"
+              className={s.act}
+              onClick={onWake}
+            >
+              <AlarmClock size={12} />
+            </Button>
+          )}
           <Button
             icon
             tone={row.pinned ? "accent" : undefined}
@@ -142,6 +174,7 @@ export function Sidebar({
   onStop,
   onDelete,
   onPin,
+  onWake,
   onNew,
 }: {
   rows: SessionRow[];
@@ -155,6 +188,7 @@ export function Sidebar({
   onStop: (row: SessionRow) => void;
   onDelete: (row: SessionRow) => void;
   onPin: (row: SessionRow) => void;
+  onWake: (row: SessionRow) => void;
   onNew: () => void;
 }) {
   const pinned = rows.filter((r) => r.pinned);
@@ -196,6 +230,7 @@ export function Sidebar({
           onStop={() => onStop(r)}
           onDelete={() => onDelete(r)}
           onPin={() => onPin(r)}
+          onWake={() => onWake(r)}
           onOpen={onDismiss}
         />
       ))}

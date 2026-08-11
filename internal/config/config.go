@@ -18,6 +18,7 @@ type Config struct {
 	SessionID    string
 	Cwd          string // session working directory for tools and instructions
 	Instructions string
+	Routine      string // standing mission; non-empty enables routine tools
 }
 
 func ExpandHome(path string) string {

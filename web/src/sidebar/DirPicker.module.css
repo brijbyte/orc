@@ -15,6 +15,26 @@
 .err {
   color: var(--red);
 }
+.routine {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--dim);
+  font-size: 0.75rem;
+}
+.routine span {
+  font-size: 0.6875rem;
+}
+.routine textarea {
+  resize: vertical;
+  min-height: 4rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  color: var(--fg);
+  font: inherit;
+  padding: 0.5em;
+  outline: none;
+}
 .list {
   max-height: 40vh;
   overflow-y: auto;

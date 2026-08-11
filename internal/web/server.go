@@ -58,6 +58,7 @@ type Server struct {
 	mu              sync.Mutex
 	openMu          sync.Mutex // serializes open: one runtime per session file
 	runtimes        map[string]*Runtime
+	scheduler       *wakeScheduler
 	http            *http.Server
 	acmeHTTP        *http.Server
 }
@@ -67,16 +68,29 @@ func NewServer(prov provider.Provider, base *config.Config, addr, domain string)
 	if err != nil {
 		return nil, fmt.Errorf("web password: %w", err)
 	}
-	return &Server{
+	s := &Server{
 		Addr: addr, Domain: domain, prov: prov, base: *base,
 		initialPassword: password,
 		passwordCreated: created,
 		runtimes:        map[string]*Runtime{},
-	}, nil
+	}
+	s.scheduler = newWakeScheduler(s)
+	return s, nil
 }
 
 // Register adds an already-built runtime (the initial --serve session).
 func (s *Server) Register(rt *Runtime) {
+	scheduledID := rt.Cfg.SessionID
+	rt.setAfterTurn(func(rt *Runtime) {
+		if s.scheduler != nil {
+			current := rt.Cfg.SessionID
+			if scheduledID != current {
+				s.scheduler.arm(scheduledID, "")
+				scheduledID = current
+			}
+			s.scheduler.arm(current, rt.Ag.Sess.Wake)
+		}
+	})
 	s.mu.Lock()
 	s.runtimes[rt.ID] = rt
 	s.mu.Unlock()
@@ -227,15 +241,17 @@ func (s *Server) withRuntime(next func(http.ResponseWriter, *http.Request, *Runt
 
 // sessionRow is one /api/sessions entry.
 type sessionRow struct {
-	ID     string `json:"id"`
-	Rid    string `json:"rid,omitempty"` // live runtime handle
-	Title  string `json:"title"`
-	When   string `json:"when"`
-	Used   string `json:"used"`
-	Cwd    string `json:"cwd"`
-	Live   bool   `json:"live"`
-	Busy   bool   `json:"busy"`
-	Pinned bool   `json:"pinned"`
+	ID      string `json:"id"`
+	Rid     string `json:"rid,omitempty"` // live runtime handle
+	Title   string `json:"title"`
+	When    string `json:"when"`
+	Used    string `json:"used"`
+	Cwd     string `json:"cwd"`
+	Routine string `json:"routine,omitempty"`
+	Wake    string `json:"wake,omitempty"`
+	Live    bool   `json:"live"`
+	Busy    bool   `json:"busy"`
+	Pinned  bool   `json:"pinned"`
 }
 
 func truncateTitle(title string) string {
@@ -259,7 +275,7 @@ func (s *Server) handleSessions(rw http.ResponseWriter, r *http.Request) {
 	out := make([]sessionRow, 0, len(rows))
 	for _, row := range rows {
 		sr := sessionRow{ID: row.ID, Title: truncateTitle(row.Title), When: row.When,
-			Used: row.Used, Cwd: row.Cwd, Pinned: row.Pinned}
+			Used: row.Used, Cwd: row.Cwd, Routine: row.Routine, Wake: row.Wake, Pinned: row.Pinned}
 		if rt, ok := live[row.ID]; ok {
 			sr.Live, sr.Rid, sr.Busy = true, rt.ID, rt.IO.Busy()
 		}
@@ -272,12 +288,18 @@ func (s *Server) handleSessions(rw http.ResponseWriter, r *http.Request) {
 // handleNew starts a fresh session, optionally in another directory.
 func (s *Server) handleNew(rw http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Cwd string `json:"cwd"`
+		Cwd     string `json:"cwd"`
+		Routine string `json:"routine"`
 	}
 	json.NewDecoder(r.Body).Decode(&in)
 	cfg := s.base
 	cfg.SessionID = uuid.NewString()
 	cfg.Instructions = ""
+	cfg.Routine = strings.TrimSpace(in.Routine)
+	if len(cfg.Routine) > 32768 {
+		http.Error(rw, "routine is too long", http.StatusBadRequest)
+		return
+	}
 	if in.Cwd != "" {
 		dir := config.ExpandHome(in.Cwd)
 		st, err := os.Stat(dir)
@@ -294,35 +316,29 @@ func (s *Server) handleNew(rw http.ResponseWriter, r *http.Request) {
 	}
 	rt := NewRuntime(s.prov, &cfg, sess, nil, false)
 	s.Register(rt)
+	if cfg.Routine != "" {
+		rt.IO.UserLine(cfg.Routine)
+		rt.IO.q.push(cfg.Routine, nil, false)
+	}
 	writeJSON(rw, map[string]string{"id": rt.ID})
 }
 
-// handleOpen resumes a session from disk (or returns the live runtime).
-func (s *Server) handleOpen(rw http.ResponseWriter, r *http.Request) {
+func (s *Server) openRuntime(id string) (*Runtime, error) {
 	s.openMu.Lock()
 	defer s.openMu.Unlock()
-	id := chi.URLParam(r, "id")
-	if !validSessionRef(id) {
-		http.Error(rw, "bad session id", http.StatusBadRequest)
-		return
-	}
 	if rt := s.runtime(id); rt != nil {
-		writeJSON(rw, map[string]string{"id": rt.ID})
-		return
+		return rt, nil
 	}
-	// an old chain-member id may resolve to a live runtime on the newest member
 	if cur := session.CurrentID(id); cur != "" {
 		if rt := s.runtime(cur); rt != nil {
-			writeJSON(rw, map[string]string{"id": rt.ID})
-			return
+			return rt, nil
 		}
 	}
 	cfg := s.base
 	cfg.Instructions = ""
 	sess, resumed, err := session.Resume(id, &cfg)
 	if err != nil {
-		http.Error(rw, err.Error(), http.StatusNotFound)
-		return
+		return nil, err
 	}
 	if sess.Model != "" {
 		cfg.Model = sess.Model
@@ -332,6 +348,21 @@ func (s *Server) handleOpen(rw http.ResponseWriter, r *http.Request) {
 	}
 	rt := NewRuntime(s.prov, &cfg, sess, resumed, true)
 	s.Register(rt)
+	return rt, nil
+}
+
+// handleOpen resumes a session from disk (or returns the live runtime).
+func (s *Server) handleOpen(rw http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if !validSessionRef(id) {
+		http.Error(rw, "bad session id", http.StatusBadRequest)
+		return
+	}
+	rt, err := s.openRuntime(id)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusNotFound)
+		return
+	}
 	writeJSON(rw, map[string]string{"id": rt.ID})
 }
 
@@ -348,7 +379,7 @@ func (s *Server) handleCloseSession(rw http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		delete(s.runtimes, rt.ID)
 		s.mu.Unlock()
-		rt.Close()
+		rt.StopRoutine()
 	}
 	if r.URL.Query().Get("purge") == "1" {
 		// A stopped empty runtime already dropped its file; that is success.
@@ -359,6 +390,9 @@ func (s *Server) handleCloseSession(rw http.ResponseWriter, r *http.Request) {
 	} else if rt == nil {
 		http.Error(rw, "no such live session", http.StatusNotFound)
 		return
+	}
+	if s.scheduler != nil {
+		s.scheduler.arm(id, "")
 	}
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -538,6 +572,32 @@ func (s *Server) handleInput(rw http.ResponseWriter, r *http.Request, rt *Runtim
 		w.UserLine(display)
 	}
 	w.q.push(line, atts, busy)
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleWake(rw http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if !validSessionRef(id) {
+		http.Error(rw, "bad session id", http.StatusBadRequest)
+		return
+	}
+	rt, err := s.openRuntime(id)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusNotFound)
+		return
+	}
+	if rt.Cfg.Routine == "" {
+		http.Error(rw, "routine is stopped", http.StatusConflict)
+		return
+	}
+	if rt.IO.Busy() {
+		http.Error(rw, "busy", http.StatusConflict)
+		return
+	}
+	if s.scheduler != nil {
+		s.scheduler.arm(rt.Cfg.SessionID, "")
+	}
+	rt.IO.q.push("/wake", nil, false)
 	rw.WriteHeader(http.StatusNoContent)
 }
 
@@ -868,6 +928,7 @@ func (s *Server) router() http.Handler {
 			api.Post("/sessions/{id}/input", s.withRuntime(s.handleInput))
 			api.Post("/sessions/{id}/compact", s.withRuntime(handleControl("/compact")))
 			api.Post("/sessions/{id}/retry", s.withRuntime(handleControl("/retry")))
+			api.Post("/sessions/{id}/wake", s.handleWake)
 			api.Post("/sessions/{id}/interrupt", s.withRuntime(s.handleInterrupt))
 			api.Get("/sessions/{id}/browse", s.withRuntime(s.handleBrowse))
 			api.Get("/sessions/{id}/file", s.withRuntime(s.handleFile))
@@ -922,6 +983,7 @@ func (s *Server) Start(notify func(string)) (string, error) {
 	}
 	s.http = s.httpServer()
 	go s.http.Serve(ln)
+	s.scheduler.start()
 	if s.passwordCreated {
 		notify("🔑 web password: " + s.initialPassword)
 	}
@@ -957,6 +1019,7 @@ func (s *Server) startTLS(notify func(string)) (string, error) {
 		s.Domain, config.Path("autocert")))
 	s.http = s.httpServer()
 	go s.http.Serve(ln)
+	s.scheduler.start()
 	if s.passwordCreated {
 		notify("🔑 web password: " + s.initialPassword)
 	}
@@ -965,6 +1028,9 @@ func (s *Server) startTLS(notify func(string)) (string, error) {
 
 // Shutdown closes every runtime, then the HTTP server.
 func (s *Server) Shutdown() {
+	if s.scheduler != nil {
+		s.scheduler.close()
+	}
 	s.mu.Lock()
 	all := make([]*Runtime, 0, len(s.runtimes))
 	for _, rt := range s.runtimes {

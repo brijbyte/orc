@@ -99,6 +99,8 @@ export type SessionRow = {
   when: string;
   used: string;
   cwd: string;
+  routine?: string;
+  wake?: string;
   live: boolean;
   busy: boolean;
   pinned: boolean;

@@ -15,7 +15,7 @@ export function DirPicker({
 }: {
   open: boolean;
   start: string;
-  onPick: (path: string) => void;
+  onPick: (path: string, routine: string) => void;
   onCancel: () => void;
 }) {
   const [path, setPath] = useState(start);
@@ -24,7 +24,8 @@ export function DirPicker({
   const [dirs, setDirs] = useState<string[]>([]);
   const [err, setErr] = useState("");
   const [newName, setNewName] = useState<string | null>(null);
-  const picked = useRef<string | null>(null);
+  const [routine, setRoutine] = useState("");
+  const picked = useRef<{ path: string; routine: string } | null>(null);
   const pathRef = useRef<HTMLInputElement>(null);
 
   const mkdir = () => {
@@ -67,10 +68,11 @@ export function DirPicker({
       onOpenChange={(isOpen) => !isOpen && onCancel()}
       onOpenChangeComplete={(isOpen) => {
         if (isOpen) return;
-        const path = picked.current;
+        const choice = picked.current;
         picked.current = null;
         browse(start);
-        if (path) onPick(path);
+        setRoutine("");
+        if (choice) onPick(choice.path, choice.routine);
       }}
     >
       <Dialog.Portal>
@@ -113,6 +115,15 @@ export function DirPicker({
               </Button>
             ))}
           </div>
+          <label className={s.routine}>
+            routine mission <span>(optional)</span>
+            <textarea
+              value={routine}
+              onChange={(e) => setRoutine(e.target.value)}
+              placeholder="Check the time, report changes, then sleep again."
+              rows={3}
+            />
+          </label>
           <div className={d.foot}>
             {newName === null ? (
               <Button outline onClick={() => setNewName("")}>
@@ -151,7 +162,7 @@ export function DirPicker({
               outline
               tone="success"
               onClick={() => {
-                picked.current = path;
+                picked.current = { path, routine: routine.trim() };
                 onCancel();
               }}
             >

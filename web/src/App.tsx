@@ -130,10 +130,14 @@ export default function App() {
     api.pin(row.id, !row.pinned).finally(revalidate);
   };
 
-  const onNew = (cwd: string) => {
+  const onWake = (row: SessionRow) => {
+    api.wake(row.id).finally(revalidate);
+  };
+
+  const onNew = (cwd: string, routine: string) => {
     setPicking(false);
     api
-      .create(cwd)
+      .create(cwd, routine)
       .then((d) => go(`/s/${d.id}`))
       .catch(() => {});
   };
@@ -161,6 +165,7 @@ export default function App() {
       onStop={onStop}
       onDelete={confirmDelete}
       onPin={onPin}
+      onWake={onWake}
       onNew={() => {
         setSideOpen(false);
         setPicking(true);

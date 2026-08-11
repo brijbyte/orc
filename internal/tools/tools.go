@@ -64,6 +64,29 @@ const SchemaJSON = `[{"type":"function","name":"bash",` +
 	`"query":{"type":"string",` +
 	`"description":"Search by name or description. Omit to list all skills."}}}}]`
 
+const routineSchemaJSON = `,{"type":"function","name":"sleep",` +
+	`"description":"Sleep the routine until a future wake time.",` +
+	`"parameters":{"type":"object","properties":{` +
+	`"seconds":{"type":"integer"},"reason":{"type":"string"}},` +
+	`"required":["seconds","reason"]}},` +
+	`{"type":"function","name":"stop",` +
+	`"description":"Stop the routine.",` +
+	`"parameters":{"type":"object","properties":{` +
+	`"reason":{"type":"string"}},"required":["reason"]}}]`
+
+func Schema(routine bool) json.RawMessage {
+	if !routine {
+		return json.RawMessage(SchemaJSON)
+	}
+	return json.RawMessage(SchemaJSON[:len(SchemaJSON)-1] + routineSchemaJSON)
+}
+
+type RoutineCallbacks struct {
+	Sleep func(wake time.Time, reason string)
+	Stop  func(reason string)
+	now   func() time.Time
+}
+
 type args map[string]any
 
 func (a args) str(key string) string {
@@ -99,25 +122,55 @@ func resolve(cwd, path string) string {
 // Run executes one tool call in the session cwd; ctx cancellation
 // interrupts bash.
 func Run(ctx context.Context, cwd, name, argsJSON string) string {
+	out, _ := RunWithRoutine(ctx, cwd, name, argsJSON, nil)
+	return out
+}
+
+// RunWithRoutine also reports when sleep or stop must end the turn.
+func RunWithRoutine(ctx context.Context, cwd, name, argsJSON string, routine *RoutineCallbacks) (string, bool) {
 	var a args
 	if json.Unmarshal([]byte(argsJSON), &a) != nil || a == nil {
-		return "error: bad arguments JSON"
+		return "error: bad arguments JSON", false
 	}
+	if routine != nil {
+		switch name {
+		case "sleep":
+			seconds := min(max(a.num("seconds", 60), 60), 24*60*60)
+			now := time.Now
+			if routine.now != nil {
+				now = routine.now
+			}
+			wake, reason := now().UTC().Add(time.Duration(seconds)*time.Second), a.str("reason")
+			if routine.Sleep != nil {
+				routine.Sleep(wake, reason)
+			}
+			return fmt.Sprintf("sleeping until %s — %s", wake.Format(time.RFC3339), reason), true
+		case "stop":
+			reason := a.str("reason")
+			if routine.Stop != nil {
+				routine.Stop(reason)
+			}
+			return "routine stopped — " + reason, true
+		}
+	}
+	var out string
 	switch name {
 	case "bash":
-		return toolBash(ctx, cwd, a)
+		out = toolBash(ctx, cwd, a)
 	case "process":
-		return clampOutput(processTool(a))
+		out = clampOutput(processTool(a))
 	case "read":
-		return clampOutput(toolRead(cwd, a))
+		out = clampOutput(toolRead(cwd, a))
 	case "write":
-		return toolWrite(cwd, a)
+		out = toolWrite(cwd, a)
 	case "edit":
-		return toolEdit(cwd, a)
+		out = toolEdit(cwd, a)
 	case "skill":
-		return clampOutput(skills.Query(cwd, a.str("query")))
+		out = clampOutput(skills.Query(cwd, a.str("query")))
+	default:
+		out = fmt.Sprintf("error: unknown tool %s", name)
 	}
-	return fmt.Sprintf("error: unknown tool %s", name)
+	return out, false
 }
 
 func toolBash(ctx context.Context, cwd string, a args) string {

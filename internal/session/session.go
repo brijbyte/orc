@@ -17,35 +17,41 @@ import (
 )
 
 type Session struct {
-	Path   string
-	Items  int
-	Ctx    int64
-	Model  string // from resumed _meta; empty otherwise
-	Effort string
-	Root   string // first session id in a compaction chain
-	f      *os.File
+	Path    string
+	Items   int
+	Ctx     int64
+	Model   string // from resumed _meta; empty otherwise
+	Effort  string
+	Root    string // first session id in a compaction chain
+	Routine string
+	Wake    string
+	f       *os.File
 }
 
 type Info struct {
-	ID     string
-	Root   string
-	Parent string
-	When   string // created
-	Used   string // last turn written
-	Title  string
-	Cwd    string
-	Pinned bool
+	ID      string
+	Root    string
+	Parent  string
+	When    string // created
+	Used    string // last turn written
+	Title   string
+	Cwd     string
+	Routine string
+	Wake    string
+	Pinned  bool
 }
 
 type meta struct {
-	ID     string `json:"id,omitempty"`
-	Root   string `json:"root,omitempty"`
-	Parent string `json:"parent,omitempty"`
-	Model  string `json:"model,omitempty"`
-	Effort string `json:"effort,omitempty"`
-	Cwd    string `json:"cwd,omitempty"`
-	T      string `json:"t,omitempty"`
-	Ctx    int64  `json:"ctx,omitempty"`
+	ID      string  `json:"id,omitempty"`
+	Root    string  `json:"root,omitempty"`
+	Parent  string  `json:"parent,omitempty"`
+	Model   string  `json:"model,omitempty"`
+	Effort  string  `json:"effort,omitempty"`
+	Cwd     string  `json:"cwd,omitempty"`
+	T       string  `json:"t,omitempty"`
+	Ctx     int64   `json:"ctx,omitempty"`
+	Routine *string `json:"routine,omitempty"`
+	Wake    *string `json:"wake,omitempty"`
 }
 
 func now() string { return time.Now().UTC().Format("2006-01-02T15:04:05.000Z") }
@@ -81,7 +87,8 @@ func newSession(cfg *config.Config, parent, root string) (*Session, error) {
 		return nil, err
 	}
 	s := &Session{Path: filepath.Join(dir,
-		fmt.Sprintf("%d-%.8s.jsonl", time.Now().Unix(), cfg.SessionID)), Root: root}
+		fmt.Sprintf("%d-%.8s.jsonl", time.Now().Unix(), cfg.SessionID)), Root: root,
+		Routine: cfg.Routine}
 	f, err := os.OpenFile(s.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, err
@@ -105,6 +112,7 @@ func (s *Session) writeMeta(m meta) {
 	if s.f == nil {
 		return
 	}
+	m.Routine, m.Wake = &s.Routine, &s.Wake
 	line, _ := json.Marshal(map[string]meta{"_meta": m})
 	fmt.Fprintf(s.f, "%s\n", line)
 	s.f.Sync()
@@ -126,6 +134,16 @@ func (s *Session) SetCtx(tokens int64) {
 
 func (s *Session) SetCfg(cfg *config.Config) {
 	s.writeMeta(meta{Model: cfg.Model, Effort: cfg.Effort})
+}
+
+func (s *Session) SetWake(wake string) {
+	s.Wake = wake
+	s.writeMeta(meta{})
+}
+
+func (s *Session) StopRoutine() {
+	s.Routine, s.Wake = "", ""
+	s.writeMeta(meta{})
 }
 
 func (s *Session) Close() {
@@ -202,6 +220,12 @@ func fileMeta(path string) (meta, bool) {
 		}
 		if m.T != "" {
 			out.T = m.T
+		}
+		if m.Routine != nil {
+			out.Routine = m.Routine
+		}
+		if m.Wake != nil {
+			out.Wake = m.Wake
 		}
 	}
 	return out, out.ID != ""
@@ -364,6 +388,12 @@ func Resume(ref string, cfg *config.Config) (*Session, []json.RawMessage, error)
 			if m.Root != "" {
 				s.Root = m.Root
 			}
+			if m.Routine != nil {
+				s.Routine, cfg.Routine = *m.Routine, *m.Routine
+			}
+			if m.Wake != nil {
+				s.Wake = *m.Wake
+			}
 			continue
 		}
 		if json.Valid([]byte(line)) {
@@ -436,10 +466,16 @@ func listOne(path string) (Info, bool) {
 			if probe.Meta.T != "" {
 				info.When = probe.Meta.T
 			}
+			if probe.Meta.Routine != nil {
+				info.Routine = *probe.Meta.Routine
+			}
+			if probe.Meta.Wake != nil {
+				info.Wake = *probe.Meta.Wake
+			}
 			continue
 		}
 		hasItems = true
-		if probe.Role == "user" && len(probe.Content) > 0 {
+		if info.Title == "" && probe.Role == "user" && len(probe.Content) > 0 {
 			title := probe.Content[0].Text
 			info.Title = strings.Map(func(r rune) rune {
 				if r == '\n' || r == '\t' {
@@ -447,7 +483,6 @@ func listOne(path string) (Info, bool) {
 				}
 				return r
 			}, title)
-			break
 		}
 	}
 	if sc.Err() != nil {
