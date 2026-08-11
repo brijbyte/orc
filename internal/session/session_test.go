@@ -130,3 +130,25 @@ func TestCompactionChainListsAndDeletesAsOneConversation(t *testing.T) {
 		t.Fatalf("ListAll() after delete = %#v", rows)
 	}
 }
+
+func TestResumeRefusesLockedSession(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	id := "aaaa1111-1234-1234-1234-123456789abc"
+	cfg := &config.Config{SessionID: id, Cwd: "/tmp"}
+	s, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendUser(s, "hello")
+
+	if _, _, err := Resume(id[:8], &config.Config{}); err == nil {
+		t.Fatal("Resume succeeded on a session another handle holds locked")
+	}
+
+	s.Close()
+	r, _, err := Resume(id[:8], &config.Config{})
+	if err != nil {
+		t.Fatalf("Resume after Close: %v", err)
+	}
+	r.Close()
+}

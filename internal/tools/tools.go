@@ -153,7 +153,13 @@ func toolBash(ctx context.Context, cwd string, a args) string {
 	}
 	if timedOut || interrupted {
 		syscall.Kill(-c.Process.Pid, syscall.SIGKILL)
-		waitErr = <-done
+		select {
+		case waitErr = <-done:
+		case <-time.After(2 * time.Second):
+			// Wait outlives the kill when an orphaned child holds the pipe.
+			fmt.Fprintf(os.Stderr, "⏳ orc: waiting for %q — a child process still holds its output\n", cmdLabel(cmd))
+			waitErr = <-done
+		}
 	}
 
 	tail := ""
@@ -175,6 +181,18 @@ func toolBash(ctx context.Context, cwd string, a args) string {
 		}
 	}
 	return clampOutput(out.String() + tail)
+}
+
+// cmdLabel shortens a command to one short line for user-facing notes.
+func cmdLabel(cmd string) string {
+	cmd = strings.TrimSpace(cmd)
+	if i := strings.IndexByte(cmd, '\n'); i >= 0 {
+		cmd = cmd[:i] + " …"
+	}
+	if len(cmd) > 48 {
+		cmd = cmd[:47] + "…"
+	}
+	return cmd
 }
 
 func toolRead(cwd string, a args) string {

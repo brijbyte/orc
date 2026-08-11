@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/brijbyte/orc/internal/config"
@@ -49,6 +50,16 @@ type meta struct {
 
 func now() string { return time.Now().UTC().Format("2006-01-02T15:04:05.000Z") }
 
+// lock takes a non-blocking exclusive flock so two processes cannot append
+// to one session file; the kernel releases it when the file closes.
+func lock(f *os.File) error {
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		return fmt.Errorf("session %s is already open in another orc process",
+			filepath.Base(f.Name()))
+	}
+	return nil
+}
+
 func New(cfg *config.Config) (*Session, error) {
 	return newSession(cfg, "", "")
 }
@@ -73,6 +84,11 @@ func newSession(cfg *config.Config, parent, root string) (*Session, error) {
 		fmt.Sprintf("%d-%.8s.jsonl", time.Now().Unix(), cfg.SessionID)), Root: root}
 	f, err := os.OpenFile(s.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
+		return nil, err
+	}
+	if err := lock(f); err != nil {
+		f.Close()
+		os.Remove(s.Path)
 		return nil, err
 	}
 	s.f = f
@@ -256,6 +272,20 @@ func latestInChain(path string) string {
 	return best
 }
 
+// CurrentID resolves a session ref to the id of its chain's newest member,
+// or "" when nothing matches.
+func CurrentID(ref string) string {
+	target := findSession(ref)
+	if target == "" {
+		return ""
+	}
+	m, ok := fileMeta(latestInChain(target))
+	if !ok {
+		return ""
+	}
+	return m.ID
+}
+
 // Delete removes all files in a logical conversation.
 func Delete(id string) error {
 	paths, ids := chainFiles(id)
@@ -353,6 +383,10 @@ func Resume(ref string, cfg *config.Config) (*Session, []json.RawMessage, error)
 	s.f, err = os.OpenFile(resolved, os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot open %s", resolved)
+	}
+	if err := lock(s.f); err != nil {
+		s.f.Close()
+		return nil, nil, err
 	}
 	s.Items = len(history)
 	return s, history, nil

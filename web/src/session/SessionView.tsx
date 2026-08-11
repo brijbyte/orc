@@ -6,7 +6,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { CircleAlert, LoaderCircle, Paperclip } from "lucide-react";
-import { useOutletContext, useParams } from "react-router";
+import { Navigate, useOutletContext, useParams } from "react-router";
 import * as store from "../lib/store";
 import { api } from "../lib/api";
 import { revalidateSoon } from "../lib/revalidate";
@@ -31,6 +31,14 @@ import s from "./SessionView.module.css";
 export function SessionRoute() {
   const { sid = "" } = useParams();
   const models = useOutletContext<Model[]>();
+  // /open may resolve sid to a newer chain member; the URL must follow so
+  // every session-scoped call targets an id the server can resolve.
+  const canonical = useSyncExternalStore(
+    useCallback((fn: () => void) => store.subscribe(sid, fn), [sid]),
+    useCallback(() => store.snapshot(sid).canonical, [sid]),
+  );
+  if (canonical && canonical !== sid)
+    return <Navigate to={`/s/${canonical}`} replace />;
   return <SessionView key={sid} sid={sid} models={models} />;
 }
 

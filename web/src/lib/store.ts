@@ -6,6 +6,7 @@ import type { Block, Ev } from "./types";
 // every open tab keeps streaming while only the active view is mounted.
 
 export type SessionState = {
+  canonical: string; // current session id from /open; may differ after compaction
   blocks: Block[] | null;
   busy: boolean;
   status: string;
@@ -15,6 +16,7 @@ export type SessionState = {
 };
 
 type Entry = {
+  cid?: string; // canonical id from /open, used for every later API call
   state: SessionState;
   events: Ev[];
   before: number;
@@ -25,6 +27,7 @@ type Entry = {
 
 const entries = new Map<string, Entry>();
 const initial: SessionState = {
+  canonical: "",
   blocks: null,
   busy: false,
   status: "",
@@ -79,7 +82,7 @@ export function ensure(sid: string, onOpened?: () => void): Promise<void> {
     if (catchingUp) return;
     catchingUp = true;
     api
-      .catchup(sid, lastID)
+      .catchup(e.cid ?? sid, lastID)
       .then((page) => (page.events ?? []).forEach(onEvent))
       .catch(() => {})
       .finally(() => {
@@ -88,9 +91,13 @@ export function ensure(sid: string, onOpened?: () => void): Promise<void> {
   };
   e.ready = api
     .open(sid)
-    .then(() => {
+    .then((opened) => {
+      // /open resolves compaction-chain ids; later calls need the current id
+      const cid: string = opened?.id || sid;
+      e.cid = cid;
+      set(e, { canonical: cid });
       onOpened?.();
-      return api.state(sid);
+      return api.state(cid);
     })
     .then((state) => {
       const seed: Block[] = [];
@@ -106,7 +113,7 @@ export function ensure(sid: string, onOpened?: () => void): Promise<void> {
         status: state.status ?? "",
         hasMore: !!state.has_more,
       });
-      e.es = api.events(sid, lastID);
+      e.es = api.events(e.cid ?? sid, lastID);
       e.es.onmessage = (m) => onEvent(JSON.parse(m.data));
       let opened = false;
       e.es.onopen = () => {
@@ -127,7 +134,7 @@ export function loadOlder(sid: string): Promise<void> {
     return Promise.resolve();
   set(e, { loadingOlder: true });
   return api
-    .history(sid, e.before)
+    .history(e.cid ?? sid, e.before)
     .then((page) => {
       const byID = new Map<number, Ev>();
       for (const ev of [...(page.events ?? []), ...e.events])

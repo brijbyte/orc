@@ -179,21 +179,22 @@ func Cleanup() {
 	jobsMu.Lock()
 	all := append([]*job(nil), jobs...)
 	jobsMu.Unlock()
-	anyRunning := false
+	running := 0
 	for _, j := range all {
-		if running, _, _ := j.state(); running {
+		if on, _, _ := j.state(); on {
 			syscall.Kill(-j.proc.Pid, syscall.SIGTERM)
-			anyRunning = true
+			running++
 		}
 	}
-	if !anyRunning {
+	if running == 0 {
 		return
 	}
+	fmt.Fprintf(os.Stderr, "⏳ orc: stopping %d background process(es)…\n", running)
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		anyRunning = false
+		anyRunning := false
 		for _, j := range all {
-			if running, _, _ := j.state(); running {
+			if on, _, _ := j.state(); on {
 				anyRunning = true
 			}
 		}
@@ -202,9 +203,14 @@ func Cleanup() {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+	killed := 0
 	for _, j := range all {
-		if running, _, _ := j.state(); running {
+		if on, _, _ := j.state(); on {
 			syscall.Kill(-j.proc.Pid, syscall.SIGKILL)
+			killed++
 		}
+	}
+	if killed > 0 {
+		fmt.Fprintf(os.Stderr, "⏳ orc: killed %d process(es) that ignored the stop request\n", killed)
 	}
 }

@@ -302,6 +302,13 @@ func (s *Server) handleOpen(rw http.ResponseWriter, r *http.Request) {
 		writeJSON(rw, map[string]string{"id": rt.ID})
 		return
 	}
+	// an old chain-member id may resolve to a live runtime on the newest member
+	if cur := session.CurrentID(id); cur != "" {
+		if rt := s.runtime(cur); rt != nil {
+			writeJSON(rw, map[string]string{"id": rt.ID})
+			return
+		}
+	}
 	cfg := s.base
 	cfg.Instructions = ""
 	sess, resumed, err := session.Resume(id, &cfg)

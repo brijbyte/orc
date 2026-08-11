@@ -208,8 +208,21 @@ export default function App() {
 
   // every open tab streams, mounted or not; the view only subscribes
   useEffect(() => {
-    if (authenticated) for (const s of open) store.ensure(s, revalidateSoon);
-  }, [authenticated, open]);
+    if (!authenticated) return;
+    for (const s of open)
+      store.ensure(s, revalidateSoon).then(() => {
+        // /open can resolve s to another chain id; keep one tab per session.
+        // The active sid is left for SessionRoute to redirect first.
+        const c = store.snapshot(s).canonical;
+        if (!c || c === s || s === sid) return;
+        store.drop(s);
+        setOpen((o) =>
+          o.includes(c)
+            ? o.filter((x) => x !== s)
+            : o.map((x) => (x === s ? c : x)),
+        );
+      });
+  }, [authenticated, open, sid]);
 
   const closeTab = (row: SessionRow) => {
     store.drop(row.id);
