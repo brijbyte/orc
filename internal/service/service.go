@@ -189,9 +189,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 ExecStart=` + strings.Join(execArgs, " ") + `
-WorkingDirectory=` + systemdQuote(opts.Cwd) + `
-` + environment.String() + `StandardOutput=` + systemdQuote("append:"+LogPath()) + `
-StandardError=` + systemdQuote("append:"+LogPath()) + `
+WorkingDirectory=` + opts.Cwd + `
+` + environment.String() + `StandardOutput=append:` + LogPath() + `
+StandardError=append:` + LogPath() + `
 Restart=on-failure
 RestartSec=2
 

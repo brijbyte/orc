@@ -1,0 +1,53 @@
+#cloud-config
+# Rendered by deploy/provision.sh: __TS_AUTHKEY__ / __SERVER_NAME__ are
+# substituted. First-boot only; the VM is disposable by design.
+package_update: true
+package_upgrade: true
+packages:
+  - git
+  - curl
+  - jq
+  - ripgrep
+  - ufw
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/99-hardening.conf
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+
+runcmd:
+  # small VM + agent workloads: swap keeps the OOM killer away from the server
+  - fallocate -l 2G /swapfile && chmod 600 /swapfile
+  - mkswap /swapfile && swapon /swapfile
+  - echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  # Tailscale first, then lock the box down to tailnet-only.
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  - tailscale up --authkey=__TS_AUTHKEY__ --hostname=__SERVER_NAME__ --ssh
+  - ufw allow in on tailscale0
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw --force enable
+  - systemctl restart ssh
+  # orc user; lingering so its systemd --user service runs without a login.
+  # ~/.config must exist before the install so orc's home is stable there.
+  - useradd -m -s /bin/bash orc
+  - install -d -o orc -g orc /home/orc/.config
+  - echo 'orc ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/90-orc
+  - chmod 440 /etc/sudoers.d/90-orc
+  - loginctl enable-linger orc
+  - tailscale set --operator=orc
+  # install the latest orc release and its service (binds 127.0.0.1:7777)
+  - >-
+    sudo -iu orc
+    env ORC_SERVICE=1
+    XDG_RUNTIME_DIR=/run/user/$(id -u orc)
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u orc)/bus
+    sh -c 'curl -fsSL --connect-timeout 5 https://github.com/brijbyte/orc/releases/latest/download/install.sh | sh'
+  # HTTPS on the tailnet MagicDNS name, proxying to the loopback service.
+  # Mint the cert eagerly; first ACME orders can fail while the fresh DNS
+  # name settles, so retry instead of leaving it to the first visitor.
+  - tailscale serve --bg http://127.0.0.1:7777
+  - >-
+    sh -c 'fqdn=$(tailscale status --json | jq -r .Self.DNSName | sed "s/\.$//");
+    for i in 1 2 3 4 5; do tailscale cert "$fqdn" && break; sleep 20; done'

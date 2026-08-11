@@ -3,6 +3,7 @@ out/
 bin/
 /orc
 .DS_Store
+deploy/.env
 vendor/
 dist/
 node_modules/
