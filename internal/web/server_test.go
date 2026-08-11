@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/brijbyte/orc/internal/config"
+	"github.com/brijbyte/orc/internal/provider"
 )
 
 func TestTruncateTitle(t *testing.T) {
@@ -29,6 +31,55 @@ func TestValidSessionRefRejectsPaths(t *testing.T) {
 		if !validSessionRef(ref) {
 			t.Errorf("rejected %q", ref)
 		}
+	}
+}
+
+type webLoginProvider struct {
+	routineProvider
+	completed string
+}
+
+func (p *webLoginProvider) WebAuthStatus() provider.WebAuthState {
+	return provider.WebAuthState{Authenticated: true, ExpiresAt: "2030-01-02T03:04:05Z"}
+}
+func (p *webLoginProvider) BeginWebLogin() (string, error) { return "https://auth.example", nil }
+func (p *webLoginProvider) CompleteWebLogin(_ context.Context, callback string) error {
+	p.completed = callback
+	return nil
+}
+
+func TestParseUpdateTimerStatus(t *testing.T) {
+	status := parseUpdateTimerStatus("NextElapseUSecRealtime=Tue 2026-08-11 22:14:15 UTC\n" +
+		"LoadState=loaded\nActiveState=active\nUnitFileState=enabled\n")
+	if !status.Available || status.Active != "active" || status.Enabled != "enabled" ||
+		status.NextAt != "2026-08-11T22:14:15Z" {
+		t.Fatalf("status = %#v", status)
+	}
+}
+
+func TestProviderWebAuthHandlers(t *testing.T) {
+	prov := new(webLoginProvider)
+	s := &Server{prov: prov}
+
+	rw := httptest.NewRecorder()
+	s.handleProviderAuth(rw, httptest.NewRequest(http.MethodGet, "/", nil))
+	var status providerAuthResponse
+	if rw.Code != http.StatusOK || json.NewDecoder(rw.Body).Decode(&status) != nil ||
+		!status.Supported || !status.Authenticated || status.ExpiresAt == "" {
+		t.Fatalf("status = %d, %#v", rw.Code, status)
+	}
+
+	rw = httptest.NewRecorder()
+	s.handleProviderLoginStart(rw, httptest.NewRequest(http.MethodPost, "/", nil))
+	if rw.Code != http.StatusOK || !strings.Contains(rw.Body.String(), "auth.example") {
+		t.Fatalf("start = %d, %s", rw.Code, rw.Body.String())
+	}
+
+	rw = httptest.NewRecorder()
+	s.handleProviderLoginComplete(rw, httptest.NewRequest(http.MethodPost, "/",
+		strings.NewReader(`{"callback":"pasted-code"}`)))
+	if rw.Code != http.StatusNoContent || prov.completed != "pasted-code" {
+		t.Fatalf("complete = %d, %q", rw.Code, prov.completed)
 	}
 }
 

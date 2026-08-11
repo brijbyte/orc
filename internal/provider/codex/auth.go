@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/brijbyte/orc/internal/config"
+	"github.com/brijbyte/orc/internal/provider"
 )
 
 const (
@@ -72,10 +73,7 @@ func loadAuthFile() (*authFile, error) {
 }
 
 func (af *authFile) write() error {
-	sec, _ := json.Marshal(af.sec)
-	af.root["codex"] = sec
-	out, _ := json.MarshalIndent(af.root, "", "  ")
-	return config.WriteFileAtomic(af.path, out)
+	return config.PutAuthSection("codex", af.sec)
 }
 
 func (af *authFile) str(key string) string {
@@ -218,12 +216,22 @@ func loadAuth(notify func(string)) (accessToken, accountID string, err error) {
 }
 
 func (p *Codex) Authenticated() bool {
+	return p.WebAuthStatus().Authenticated
+}
+
+func (p *Codex) WebAuthStatus() provider.WebAuthState {
 	af, err := loadAuthFile()
 	if err != nil {
-		return false
+		return provider.WebAuthState{}
 	}
 	tokens := af.tokens()
-	return tokens["access_token"] != "" && tokens["account_id"] != ""
+	state := provider.WebAuthState{
+		Authenticated: tokens["access_token"] != "" && tokens["account_id"] != "",
+	}
+	if exp := jwtExp(tokens["access_token"]); exp != 0 {
+		state.ExpiresAt = time.Unix(exp, 0).UTC().Format(time.RFC3339)
+	}
+	return state
 }
 
 func (p *Codex) AuthStatus() error {
@@ -270,26 +278,5 @@ func (p *Codex) AuthStatus() error {
 
 // storePut writes a provider section into orc's auth store.
 func storePut(providerName string, section any) error {
-	root := map[string]json.RawMessage{}
-	if data, err := os.ReadFile(config.Path("auth.json")); err == nil {
-		if m := parseObject(data); m != nil {
-			// drop legacy flat layout (pre provider-keyed store)
-			if _, wasFlat := m["tokens"]; !wasFlat {
-				root = m
-			}
-		}
-	}
-	sec, err := json.Marshal(section)
-	if err != nil {
-		return err
-	}
-	root[providerName] = sec
-	if err := os.MkdirAll(config.Home(), 0o700); err != nil {
-		return err
-	}
-	if err := os.Chmod(config.Home(), 0o700); err != nil {
-		return err
-	}
-	out, _ := json.MarshalIndent(root, "", "  ")
-	return config.WriteFileAtomic(config.Path("auth.json"), out)
+	return config.PutAuthSection(providerName, section)
 }

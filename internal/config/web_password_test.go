@@ -75,6 +75,21 @@ func TestChangeWebPasswordRequiresCurrentAndInvalidatesSessions(t *testing.T) {
 	}
 }
 
+func TestProviderAuthWritePreservesWebSection(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	password, _, err := EnsureWebAuth()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := PutAuthSection("codex", map[string]string{"token": "saved"}); err != nil {
+		t.Fatal(err)
+	}
+	valid, err := VerifyWebPassword(password)
+	if err != nil || !valid {
+		t.Fatalf("web password after provider write: valid=%v err=%v", valid, err)
+	}
+}
+
 func TestWebAuthPreservesProviderSections(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	if err := os.MkdirAll(Home(), 0o700); err != nil {

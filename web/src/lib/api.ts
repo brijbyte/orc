@@ -93,6 +93,17 @@ class SessionEventStream implements EventStream {
 export const api = {
   login: (password: string) => post("/api/login", { password }),
   logout: () => post("/api/logout"),
+  diagnostics: () => get("/api/diagnostics"),
+  providerAuth: () => get("/api/provider/auth"),
+  providerLoginStart: () => post("/api/provider/login/start"),
+  providerLoginComplete: (callback: string) =>
+    fetch("/api/provider/login/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback }),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error((await response.text()).trim());
+    }),
   settings: () => get("/api/settings"),
   settingsSave: (settings: Partial<Settings>) =>
     fetch("/api/settings", {

@@ -34,6 +34,20 @@ type Model struct {
 	ContextWindow int64
 }
 
+// WebAuthState is the provider sign-in state safe to expose to the web UI.
+type WebAuthState struct {
+	Authenticated bool   `json:"authenticated"`
+	ExpiresAt     string `json:"expires_at,omitempty"`
+}
+
+// WebAuthenticator is optionally implemented by providers with a browser flow
+// that can be completed by pasting its callback URL or authorization code.
+type WebAuthenticator interface {
+	WebAuthStatus() WebAuthState
+	BeginWebLogin() (string, error)
+	CompleteWebLogin(context.Context, string) error
+}
+
 type Provider interface {
 	Name() string
 	DefaultModel() string
