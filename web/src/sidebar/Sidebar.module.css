@@ -13,9 +13,13 @@
 .dismiss {
   display: none;
 }
-.new {
-  width: 100%;
+.top {
+  display: flex;
+  gap: 0.4rem;
   margin-bottom: 0.6rem;
+}
+.new {
+  flex: 1;
 }
 .group {
   margin-bottom: 0.6rem;

@@ -1,4 +1,5 @@
 import ReconnectingWebSocket from "partysocket/ws";
+import type { NotifyChannel } from "./types";
 
 export type AttachedFile = { name: string; type: string; data: string };
 
@@ -162,6 +163,23 @@ export const api = {
     post(`/api/sessions/${id}/git/remove`, { paths, confirm: true }),
   gitUndoDiscard: (id: string) => post(`/api/sessions/${id}/git/undo-discard`),
   models: () => get("/api/models"),
+  notify: () => get("/api/notify"),
+  notifySave: (channels: NotifyChannel[]) =>
+    fetch("/api/notify", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channels }),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error(await response.text());
+    }),
+  notifyTest: (channel: NotifyChannel) =>
+    fetch("/api/notify/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(channel),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error(await response.text());
+    }),
   dirs: (path?: string) =>
     get(`/api/dirs${path ? `?path=${encodeURIComponent(path)}` : ""}`),
   mkdir: (path: string) => post("/api/dirs", { path }),

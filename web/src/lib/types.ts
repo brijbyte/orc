@@ -14,6 +14,27 @@ export type Block = { id: number } & (
     }
 );
 
+export type NotifyField = {
+  key: string;
+  label: string;
+  placeholder?: string;
+  secret?: boolean;
+  optional?: boolean;
+};
+
+export type NotifyType = {
+  id: string;
+  label: string;
+  fields: NotifyField[];
+};
+
+export type NotifyChannel = {
+  type: string;
+  name: string;
+  enabled: boolean;
+  settings?: Record<string, string>;
+};
+
 export type Model = {
   slug: string;
   name?: string;

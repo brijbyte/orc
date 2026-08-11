@@ -310,7 +310,9 @@ func (c *Commands) cmdModel(ag *agent.Agent, arg string) {
 
 // saveDefaults makes the current model/effort the defaults for new sessions.
 func (c *Commands) saveDefaults() {
-	config.SaveSettings(config.Settings{Model: c.cfg.Model, Effort: c.cfg.Effort})
+	s := config.LoadSettings()
+	s.Model, s.Effort = c.cfg.Model, c.cfg.Effort
+	config.SaveSettings(s)
 }
 
 // Efforts lists the current model's selectable efforts.

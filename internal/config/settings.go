@@ -7,9 +7,18 @@ import (
 
 // Settings are user defaults persisted at <orc home>/config.json.
 type Settings struct {
-	Model  string   `json:"model,omitempty"`
-	Effort string   `json:"effort,omitempty"`
-	Pinned []string `json:"pinned,omitempty"` // session ids kept at the top
+	Model  string          `json:"model,omitempty"`
+	Effort string          `json:"effort,omitempty"`
+	Pinned []string        `json:"pinned,omitempty"` // session ids kept at the top
+	Notify []NotifyChannel `json:"notify,omitempty"`
+}
+
+// NotifyChannel is one user-configured notification channel.
+type NotifyChannel struct {
+	Type     string            `json:"type"` // channel provider id, e.g. "ntfy"
+	Name     string            `json:"name"`
+	Enabled  bool              `json:"enabled"`
+	Settings map[string]string `json:"settings,omitempty"`
 }
 
 func LoadSettings() Settings {

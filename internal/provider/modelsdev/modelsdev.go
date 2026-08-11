@@ -94,7 +94,7 @@ func fetch() *cache {
 				Type   string   `json:"type"`
 				Values []string `json:"values"`
 			} `json:"reasoning_options"`
-			Modalities  struct {
+			Modalities struct {
 				Output []string `json:"output"`
 			} `json:"modalities"`
 			Limit struct {

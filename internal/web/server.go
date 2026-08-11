@@ -27,6 +27,7 @@ import (
 
 	"github.com/brijbyte/orc/internal/agent"
 	"github.com/brijbyte/orc/internal/config"
+	"github.com/brijbyte/orc/internal/notify"
 	"github.com/brijbyte/orc/internal/provider"
 	"github.com/brijbyte/orc/internal/session"
 	"github.com/go-chi/chi/v5"
@@ -819,6 +820,58 @@ func (s *Server) handleModels(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, map[string]any{"models": out})
 }
 
+// handleNotify serves channel providers and the user's configured channels.
+func (s *Server) handleNotify(rw http.ResponseWriter, r *http.Request) {
+	channels := config.LoadSettings().Notify
+	if channels == nil {
+		channels = []config.NotifyChannel{}
+	}
+	writeJSON(rw, map[string]any{"types": notify.Types(), "channels": channels})
+}
+
+// handleNotifySave replaces the configured channel list.
+func (s *Server) handleNotifySave(rw http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Channels []config.NotifyChannel `json:"channels"`
+	}
+	if json.NewDecoder(r.Body).Decode(&in) != nil {
+		http.Error(rw, "bad request", http.StatusBadRequest)
+		return
+	}
+	for _, ch := range in.Channels {
+		if err := notify.Validate(ch); err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	settings := config.LoadSettings()
+	settings.Notify = in.Channels
+	if err := config.SaveSettings(settings); err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// handleNotifyTest sends a test message on one (possibly unsaved) channel.
+func (s *Server) handleNotifyTest(rw http.ResponseWriter, r *http.Request) {
+	var ch config.NotifyChannel
+	if json.NewDecoder(r.Body).Decode(&ch) != nil {
+		http.Error(rw, "bad request", http.StatusBadRequest)
+		return
+	}
+	err := notify.SendTo(r.Context(), ch, notify.Message{
+		Title:   "orc test notification",
+		Body:    "channel “" + ch.Name + "” works",
+		Urgency: "info",
+	})
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusBadGateway)
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 // handleDirs lists subdirectories for the new-session directory picker.
 func (s *Server) handleDirs(rw http.ResponseWriter, r *http.Request) {
 	path := config.ExpandHome(r.URL.Query().Get("path"))
@@ -945,6 +998,9 @@ func (s *Server) router() http.Handler {
 			api.Post("/sessions/{id}/git/remove", s.withRuntime(s.handleGitRecoveryMutation("remove")))
 			api.Post("/sessions/{id}/git/undo-discard", s.withRuntime(s.handleGitRecoveryMutation("undo")))
 			api.Get("/models", s.handleModels)
+			api.Get("/notify", s.handleNotify)
+			api.Put("/notify", s.handleNotifySave)
+			api.Post("/notify/test", s.handleNotifyTest)
 			api.Get("/dirs", s.handleDirs)
 			api.Post("/dirs", s.handleMkdir)
 		})
