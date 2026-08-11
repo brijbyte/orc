@@ -34,6 +34,11 @@ write_files:
   - path: /run/orc-agents.md
     encoding: b64
     content: __AGENTS_B64__
+  # push key for the git bot identity; moved into ~orc/.ssh in runcmd
+  - path: /run/orc-git-key
+    encoding: b64
+    permissions: "0600"
+    content: __GIT_KEY_B64__
   # cert minting retries in the background: after a same-name rebuild the
   # ACME DNS challenge keeps failing until the reclaimed name propagates,
   # which can take tens of minutes
@@ -88,6 +93,17 @@ runcmd:
   - useradd -m -s /bin/bash orc
   - install -d -o orc -g orc /home/orc/.config /home/orc/.agents
   - install -o orc -g orc -m 0644 /run/orc-agents.md /home/orc/.agents/AGENTS.md
+  # git: bot attribution, pushes over the provisioned key
+  - install -d -o orc -g orc -m 0700 /home/orc/.ssh
+  - install -o orc -g orc -m 0600 /run/orc-git-key /home/orc/.ssh/id_ed25519
+  - rm /run/orc-git-key
+  - ssh-keyscan github.com > /home/orc/.ssh/known_hosts 2>/dev/null
+  - chown orc:orc /home/orc/.ssh/known_hosts
+  - sudo -u orc git config --global user.name '__GIT_BOT_NAME__'
+  - sudo -u orc git config --global user.email '__GIT_BOT_EMAIL__'
+  - sudo -u orc git config --global init.defaultBranch main
+  # user-data holds secrets; block the metadata service for everyone else
+  - ufw deny out to 169.254.169.254
   - echo 'orc ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/90-orc
   - chmod 440 /etc/sudoers.d/90-orc
   - loginctl enable-linger orc

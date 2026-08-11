@@ -22,7 +22,12 @@ for f in "$here/.env" "$here/../../orchestrator/.env"; do
     : "${HCLOUD_TOKEN:=$(envval "$f" HCLOUD_TOKEN || true)}"
     : "${TS_AUTHKEY:=$(envval "$f" TS_AUTHKEY || true)}"
     : "${TS_API_KEY:=$(envval "$f" TS_API_KEY || true)}"
+    : "${GIT_BOT_NAME:=$(envval "$f" GIT_BOT_NAME || true)}"
+    : "${GIT_BOT_EMAIL:=$(envval "$f" GIT_BOT_EMAIL || true)}"
 done
+: "${GIT_BOT_NAME:=orc-bot}"
+: "${GIT_BOT_EMAIL:=orc-bot@users.noreply.github.com}"
+gitkey=${ORC_GIT_KEY:-$here/../../orchestrator/keys/orc_ed25519}
 [ -n "${HCLOUD_TOKEN:-}" ] || { echo "orc: HCLOUD_TOKEN not set" >&2; exit 1; }
 [ -n "${TS_AUTHKEY:-}" ] || { echo "orc: TS_AUTHKEY not set" >&2; exit 1; }
 
@@ -72,10 +77,15 @@ for dev in json.load(sys.stdin)['devices']:
         done
 fi
 
+[ -f "$gitkey" ] || { echo "orc: no git key at $gitkey (set ORC_GIT_KEY)" >&2; exit 1; }
 agents_b64=$(base64 < "$here/AGENTS.md" | tr -d '\n')
+gitkey_b64=$(base64 < "$gitkey" | tr -d '\n')
 userdata=$(sed -e "s|__TS_AUTHKEY__|$TS_AUTHKEY|" \
     -e "s|__SERVER_NAME__|$name|" \
-    -e "s|__AGENTS_B64__|$agents_b64|" "$here/cloud-init.yaml")
+    -e "s|__AGENTS_B64__|$agents_b64|" \
+    -e "s|__GIT_KEY_B64__|$gitkey_b64|" \
+    -e "s|__GIT_BOT_NAME__|$GIT_BOT_NAME|" \
+    -e "s|__GIT_BOT_EMAIL__|$GIT_BOT_EMAIL|" "$here/cloud-init.yaml")
 
 echo "orc: creating $name ($type, $location, $image)"
 payload=$(python3 - "$name" "$type" "$location" "$image" "$keyname" "$userdata" <<'EOF'
