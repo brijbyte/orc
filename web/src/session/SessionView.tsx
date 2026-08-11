@@ -12,13 +12,13 @@ import { api } from "../lib/api";
 import { revalidateSoon } from "../lib/revalidate";
 import { modShortcut, overlayOpen } from "../lib/shortcuts";
 import type { Block, ComposerAttachment } from "../lib/types";
+import { useSettings } from "../settings/SettingsContext";
 
 const fileMax = 16 << 20; // per-file cap, matches the server's request cap
 const hasFiles = (dt: DataTransfer) => dt.types.includes("Files");
 
 // a failed turn commits nothing, so its error notice can be retried as-is
 const failed = (b?: Block) => b?.kind === "notice" && b.text.startsWith("❌");
-import type { Model } from "../lib/types";
 import { Transcript } from "./Transcript";
 import { InputBar } from "./InputBar";
 import { StatusBar } from "./StatusBar";
@@ -27,7 +27,6 @@ import { GitDrawer } from "./GitDrawer";
 import s from "./SessionView.module.css";
 
 export type SessionOutletContext = {
-  models: Model[];
   openTerminal: () => void;
   toggleTerminal: () => void;
 };
@@ -58,7 +57,8 @@ export function SessionView({
   sid: string;
   context: SessionOutletContext;
 }) {
-  const { models, openTerminal, toggleTerminal } = context;
+  const { models } = useSettings();
+  const { openTerminal, toggleTerminal } = context;
   const [files, setFiles] = useState<ComposerAttachment[]>([]);
   const [dragging, setDragging] = useState(false);
   const [complete, setComplete] = useState(false);

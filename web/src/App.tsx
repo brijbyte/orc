@@ -19,6 +19,8 @@ import type { SessionRow } from "./lib/types";
 import { Sidebar } from "./sidebar/Sidebar";
 import { DirPicker } from "./sidebar/DirPicker";
 import { DeleteDialog } from "./sidebar/DeleteDialog";
+import { SettingsDialog } from "./settings/SettingsDialog";
+import { SettingsProvider } from "./settings/SettingsContext";
 import { TerminalPanel } from "./session/TerminalPanel";
 import type { SessionOutletContext } from "./session/SessionView";
 import { Button } from "./ui/Button";
@@ -59,8 +61,8 @@ export default function App() {
     [],
   );
   const outletContext = useMemo<SessionOutletContext>(
-    () => ({ models, openTerminal, toggleTerminal }),
-    [models, openTerminal, toggleTerminal],
+    () => ({ openTerminal, toggleTerminal }),
+    [openTerminal, toggleTerminal],
   );
 
   // keep the sidebar fresh
@@ -178,23 +180,55 @@ export default function App() {
   );
 
   return (
-    <div className={s.shell}>
-      <Button
-        icon
-        outline
-        tip={sideOpen ? "hide sessions" : "show sessions"}
-        className={s.menu}
-        aria-controls="session-sidebar"
-        aria-expanded={sideOpen}
-        onClick={() => setSideOpen((open) => !open)}
-      >
-        <PanelLeft size={16} strokeWidth={1.8} aria-hidden />
-      </Button>
-      {narrow ? (
-        <>
-          {sidebar}
-          <Group orientation="vertical" className={s.group}>
-            <Panel id="chat" minSize="10rem" className={s.pane}>
+    <SettingsProvider models={models}>
+      <div className={s.shell}>
+        <Button
+          icon
+          outline
+          tip={sideOpen ? "hide sessions" : "show sessions"}
+          className={s.menu}
+          aria-controls="session-sidebar"
+          aria-expanded={sideOpen}
+          onClick={() => setSideOpen((open) => !open)}
+        >
+          <PanelLeft size={16} strokeWidth={1.8} aria-hidden />
+        </Button>
+        {narrow ? (
+          <>
+            {sidebar}
+            <Group orientation="vertical" className={s.group}>
+              <Panel id="chat" minSize="10rem" className={s.pane}>
+                {chat}
+              </Panel>
+              {terminal && (
+                <>
+                  <Separator className={s.separator} />
+                  <Panel
+                    id="terminal"
+                    defaultSize="42%"
+                    minSize="10rem"
+                    className={s.pane}
+                  >
+                    {terminal}
+                  </Panel>
+                </>
+              )}
+            </Group>
+          </>
+        ) : (
+          <Group orientation="horizontal" className={s.group}>
+            <Panel
+              id="sessions"
+              defaultSize="18rem"
+              minSize="14rem"
+              maxSize="28rem"
+              groupResizeBehavior="preserve-pixel-size"
+              className={s.pane}
+            >
+              {sidebar}
+            </Panel>
+            <Separator className={s.separator} />
+            <Panel id="chat" minSize="16rem" className={s.pane}>
               {chat}
             </Panel>
             {terminal && (
@@ -202,8 +236,9 @@ export default function App() {
                 <Separator className={s.separator} />
                 <Panel
                   id="terminal"
-                  defaultSize="42%"
-                  minSize="10rem"
+                  defaultSize="36%"
+                  minSize="15rem"
+                  maxSize="60%"
                   className={s.pane}
                 >
                   {terminal}
@@ -211,52 +246,22 @@ export default function App() {
               </>
             )}
           </Group>
-        </>
-      ) : (
-        <Group orientation="horizontal" className={s.group}>
-          <Panel
-            id="sessions"
-            defaultSize="18rem"
-            minSize="14rem"
-            maxSize="28rem"
-            groupResizeBehavior="preserve-pixel-size"
-            className={s.pane}
-          >
-            {sidebar}
-          </Panel>
-          <Separator className={s.separator} />
-          <Panel id="chat" minSize="16rem" className={s.pane}>
-            {chat}
-          </Panel>
-          {terminal && (
-            <>
-              <Separator className={s.separator} />
-              <Panel
-                id="terminal"
-                defaultSize="36%"
-                minSize="15rem"
-                maxSize="60%"
-                className={s.pane}
-              >
-                {terminal}
-              </Panel>
-            </>
-          )}
-        </Group>
-      )}
-      <DirPicker
-        open={picking}
-        start={serverCwd}
-        onPick={onNew}
-        onCancel={() => setPicking(false)}
-      />
-      <DeleteDialog
-        open={deleteOpen}
-        row={doomed}
-        onOpenChange={setDeleteOpen}
-        onClosed={() => setDoomed(null)}
-        onDelete={doDelete}
-      />
-    </div>
+        )}
+        <DirPicker
+          open={picking}
+          start={serverCwd}
+          onPick={onNew}
+          onCancel={() => setPicking(false)}
+        />
+        <DeleteDialog
+          open={deleteOpen}
+          row={doomed}
+          onOpenChange={setDeleteOpen}
+          onClosed={() => setDoomed(null)}
+          onDelete={doDelete}
+        />
+      </div>
+      <SettingsDialog />
+    </SettingsProvider>
   );
 }

@@ -35,6 +35,11 @@ export type NotifyChannel = {
   settings?: Record<string, string>;
 };
 
+export type Settings = {
+  model: string;
+  effort: string;
+};
+
 export type Model = {
   slug: string;
   name?: string;

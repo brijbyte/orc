@@ -1,5 +1,5 @@
 import ReconnectingWebSocket from "partysocket/ws";
-import type { NotifyChannel } from "./types";
+import type { NotifyChannel, Settings } from "./types";
 
 export type AttachedFile = { name: string; type: string; data: string };
 
@@ -93,6 +93,23 @@ class SessionEventStream implements EventStream {
 export const api = {
   login: (password: string) => post("/api/login", { password }),
   logout: () => post("/api/logout"),
+  settings: () => get("/api/settings"),
+  settingsSave: (settings: Partial<Settings>) =>
+    fetch("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error((await response.text()).trim());
+    }),
+  changePassword: (current: string, next: string) =>
+    fetch("/api/password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current, next }),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error((await response.text()).trim());
+    }),
   sessions: () => get("/api/sessions"),
   create: (cwd?: string, routine?: string) =>
     post("/api/sessions", {

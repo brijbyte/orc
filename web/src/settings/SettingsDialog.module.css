@@ -1,0 +1,27 @@
+.title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  color: var(--fg);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.title svg {
+  flex: none;
+  color: var(--cyan);
+}
+.description {
+  margin: 0 0 0.35rem;
+  color: var(--dim);
+  font-size: 0.75rem;
+}
+.loading {
+  color: var(--dim);
+  font-size: 0.75rem;
+}
+.error {
+  color: var(--red);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}

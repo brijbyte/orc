@@ -1,4 +1,4 @@
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { Link } from "react-router";
 import {
   AlarmClock,
@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 import * as store from "../lib/store";
 import type { SessionRow } from "../lib/types";
+import { useSettings } from "../settings/SettingsContext";
 import { Button } from "../ui/Button";
-import { SettingsDialog } from "./SettingsDialog";
 import s from "./Sidebar.module.css";
 
 // prettyDir abbreviates a home-prefixed path and keeps it short from the left.
@@ -193,7 +193,7 @@ export function Sidebar({
   onWake: (row: SessionRow) => void;
   onNew: () => void;
 }) {
-  const [settings, setSettings] = useState(false);
+  const { openDialog } = useSettings();
   const pinned = rows.filter((r) => r.pinned);
   const groups = new Map<string, SessionRow[]>();
   for (const r of rows) {
@@ -268,14 +268,13 @@ export function Sidebar({
             <Plus size={13} strokeWidth={1.8} aria-hidden />
             new session
           </Button>
-          <Button icon outline tip="settings" onClick={() => setSettings(true)}>
+          <Button icon outline tip="settings" onClick={openDialog}>
             <Settings size={14} strokeWidth={1.8} aria-hidden />
           </Button>
         </div>
         {!!pinned.length && group("pinned", pinned, true, true)}
         {[...groups.entries()].map(([cwd, list]) => group(cwd, list))}
       </nav>
-      <SettingsDialog open={settings} onClose={() => setSettings(false)} />
     </>
   );
 }

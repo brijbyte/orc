@@ -1,0 +1,25 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.65rem;
+}
+.title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--fg);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.title svg {
+  flex: none;
+  color: var(--cyan);
+}
+.description {
+  margin: -0.15rem 0 0;
+  color: var(--dim);
+  font-size: 0.75rem;
+}
