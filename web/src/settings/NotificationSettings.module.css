@@ -1,0 +1,71 @@
+.channel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  padding: 0.6rem;
+}
+.row,
+.adds {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--dim);
+  font-size: 0.75rem;
+}
+.name,
+.channel input[type="text"],
+.channel input[type="password"] {
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0.3rem;
+  padding: 0.35rem 0.5rem;
+  color: var(--fg);
+  font: 0.8125rem var(--font-mono);
+}
+.channel input:focus-visible {
+  outline: 1px solid var(--cyan);
+}
+.name {
+  flex: 1;
+  min-width: 6rem;
+}
+.type {
+  color: var(--dim);
+  font-size: 0.75rem;
+}
+.field {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--dim);
+  font-size: 0.75rem;
+}
+.ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--green);
+  font-size: 0.75rem;
+}
+.error {
+  color: var(--red);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 30rem) {
+  .field {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+}

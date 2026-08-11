@@ -77,7 +77,8 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   `preflight.css`) at the root, then `lib/` (`api`, `events`, `types`,
   `store`, `revalidate`, `theme` — no JSX), `ui/` (shared primitives),
   `session/` (one session's view), `sidebar/` (session list + `DirPicker`),
-  and `auth/` (`Login`).
+  `settings/` (app-level context, dialog, and feature sections), and `auth/`
+  (`Login`).
   The root layout route loads sessions+models (`rootLoader`; models are
   fetched once per page load, and a dead server is loader data so the 5s
   `useRevalidator` poll can recover), and the `/s/:sid` route's loader
