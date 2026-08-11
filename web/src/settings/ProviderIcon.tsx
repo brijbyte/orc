@@ -2,6 +2,7 @@ import { Box } from "lucide-react";
 import codex from "../assets/providers/codex.svg";
 import s from "./ProviderIcon.module.css";
 
+// OpenAI mark downloaded from Simple Icons 15.14.0 (simpleicons.org).
 const icons: Record<string, string> = { codex };
 
 export function ProviderIcon({
