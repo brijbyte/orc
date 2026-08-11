@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { SubmitEvent, useState } from "react";
 import { Bot, LoaderCircle, LogIn } from "lucide-react";
 import { api } from "../lib/api";
 import { Button } from "../ui/Button";
@@ -9,7 +9,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const submit = (event: FormEvent) => {
+  const submit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     setBusy(true);
     setError(false);

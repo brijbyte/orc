@@ -81,22 +81,17 @@ git status --short
 
 Require `./bin/orc --version` to contain the exact proposed version. Require a clean worktree after the build. Fix failures before tagging.
 
-## 6. Create the local tag
+## 6. Create the local tag and push
 
 Create an annotated tag:
 
 ```sh
 git tag -a "$tag" -m "Release $tag"
 git show --no-patch --decorate "$tag"
-```
-
-Do not push it. Give the user this command:
-
-```sh
 git push origin "$tag"
 ```
 
-If tagging was incorrect and the tag was not pushed, delete it only after user approval.
+If tagging was incorrect and the tag was not pushed, delete it.
 
 ## 7. Verify a pushed release
 
@@ -116,4 +111,4 @@ Require these assets:
 - `orc-linux-x86_64.tar.gz`
 - `checksums.txt`
 
-Confirm that the release workflow passed. If `TAP_PUSH_TOKEN` is configured, also confirm that `brijbyte/homebrew-orc` contains the new formula version. Report failures with the failed job or missing artifact. Do not retry, rerun, or change a remote release without user approval.
+Confirm that the release workflow passed. Report failures with the failed job or missing artifact. Do not retry, rerun, or change a remote release without user approval.
