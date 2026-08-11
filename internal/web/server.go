@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -14,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"mime"
 	"net"
 	"net/http"
 	"os"
@@ -924,6 +926,17 @@ func (s *Server) handleMkdir(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, map[string]string{"path": path})
 }
 
+// gzipped caches compressed embedded assets; they are immutable per build.
+var gzipped sync.Map
+
+func compressible(path string) bool {
+	switch filepath.Ext(path) {
+	case ".js", ".css", ".html", ".svg", ".json", ".map", ".txt":
+		return true
+	}
+	return false
+}
+
 // handleStatic serves the embedded frontend; unknown paths fall back to
 // index.html (client-side routing), missing build falls back to placeholder.
 func handleStatic(rw http.ResponseWriter, r *http.Request) {
@@ -938,6 +951,42 @@ func handleStatic(rw http.ResponseWriter, r *http.Request) {
 	if _, err := fs.Stat(dist, path); err != nil {
 		rw.Header().Set("Content-Type", "text/html")
 		fmt.Fprint(rw, placeholder)
+		return
+	}
+	// hashed build output never changes; index.html revalidates by ETag
+	etag := `"` + config.Version + "/" + path + `"`
+	if strings.HasPrefix(path, "assets/") {
+		rw.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	} else {
+		rw.Header().Set("Cache-Control", "no-cache")
+	}
+	rw.Header().Set("ETag", etag)
+	if r.Header.Get("If-None-Match") == etag {
+		rw.WriteHeader(http.StatusNotModified)
+		return
+	}
+	if compressible(path) && r.Header.Get("Range") == "" &&
+		strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		body, ok := gzipped.Load(path)
+		if !ok {
+			raw, err := fs.ReadFile(dist, path)
+			if err != nil {
+				http.Error(rw, "read error", http.StatusInternalServerError)
+				return
+			}
+			var buf bytes.Buffer
+			zw, _ := gzip.NewWriterLevel(&buf, gzip.BestCompression)
+			zw.Write(raw)
+			zw.Close()
+			body, _ = gzipped.LoadOrStore(path, buf.Bytes())
+		}
+		data := body.([]byte)
+		h := rw.Header()
+		h.Set("Content-Encoding", "gzip")
+		h.Set("Content-Type", mime.TypeByExtension(filepath.Ext(path)))
+		h.Set("Content-Length", strconv.Itoa(len(data)))
+		h.Set("Vary", "Accept-Encoding")
+		rw.Write(data)
 		return
 	}
 	http.ServeFileFS(rw, r, dist, path)
