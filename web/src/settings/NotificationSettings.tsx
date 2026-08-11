@@ -59,8 +59,9 @@ export function NotificationSettings({
   return (
     <SettingsSection
       icon={BellRing}
-      title="notification channels"
-      description="agents use these channels to reach you when the UI is closed."
+      title="Notifications"
+      description="Let agents reach you when the web interface is closed."
+      tone="red"
     >
       {channels.map((channel, index) => {
         const type = types.find((item) => item.id === channel.type);

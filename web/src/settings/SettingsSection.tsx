@@ -5,21 +5,25 @@ export function SettingsSection({
   icon: Icon,
   title,
   description,
+  tone = "blue",
   children,
 }: {
   icon: LucideIcon;
   title: string;
   description?: string;
+  tone?: "blue" | "purple" | "orange" | "red" | "green";
   children: React.ReactNode;
 }) {
   return (
     <section className={s.section}>
-      <h2 className={s.title}>
-        <Icon size={14} strokeWidth={1.8} aria-hidden />
-        {title}
-      </h2>
-      {description && <p className={s.description}>{description}</p>}
-      {children}
+      <header className={s.hero}>
+        <span className={s.icon} data-tone={tone}>
+          <Icon size={26} strokeWidth={1.7} aria-hidden />
+        </span>
+        <h2>{title}</h2>
+        {description && <p>{description}</p>}
+      </header>
+      <div className={s.card}>{children}</div>
     </section>
   );
 }

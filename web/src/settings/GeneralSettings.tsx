@@ -42,7 +42,12 @@ export function GeneralSettings({
   };
 
   return (
-    <SettingsSection icon={Palette} title="general">
+    <SettingsSection
+      icon={Palette}
+      title="General"
+      description="Choose defaults for new sessions and how orc looks in this browser."
+      tone="blue"
+    >
       <label className={s.setting}>
         <span>default model</span>
         <select

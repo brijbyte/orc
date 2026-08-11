@@ -26,7 +26,12 @@ export function PasswordSettings() {
   };
 
   return (
-    <SettingsSection icon={KeyRound} title="password">
+    <SettingsSection
+      icon={KeyRound}
+      title="Password"
+      description="Change the password used to access this web interface."
+      tone="orange"
+    >
       <form className={s.form} onSubmit={submit}>
         <label className={s.setting}>
           <span>current password</span>

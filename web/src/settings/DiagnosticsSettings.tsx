@@ -18,18 +18,27 @@ function formatUptime(total: number) {
     .join(" ");
 }
 
+const section = {
+  icon: Activity,
+  title: "Diagnostics",
+  description: "Version, uptime, and update status for this orc server.",
+  tone: "green" as const,
+};
+
 export function DiagnosticsSettings() {
   const { diagnostics } = useSettings();
-  if (!diagnostics) return null;
+  if (!diagnostics)
+    return (
+      <SettingsSection {...section}>
+        <span className={s.loading}>loading diagnostics…</span>
+      </SettingsSection>
+    );
+
   const timer = diagnostics.update_timer;
   const next = timer.next_at ? new Date(timer.next_at) : null;
 
   return (
-    <SettingsSection
-      icon={Activity}
-      title="diagnostics"
-      description="read-only server information."
-    >
+    <SettingsSection {...section}>
       <dl className={s.list}>
         <div>
           <dt>version</dt>
