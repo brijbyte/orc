@@ -80,6 +80,10 @@ runcmd:
   - fallocate -l 2G /swapfile && chmod 600 /swapfile
   - mkswap /swapfile && swapon /swapfile
   - echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  # Current Node.js and Corepack are used frequently by development workloads.
+  - curl -fsSL https://deb.nodesource.com/setup_current.x | bash -
+  - apt-get install -y nodejs
+  - npm install --global corepack@latest
   # Tailscale first, then lock the box down to tailnet-only.
   - curl -fsSL https://tailscale.com/install.sh | sh
   - tailscale up --authkey=__TS_AUTHKEY__ --hostname=__SERVER_NAME__ --ssh
