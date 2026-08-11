@@ -111,6 +111,7 @@ lingering if it must run when you are logged out:
 
 ```
 deploy/provision.sh [name]   # create the VM; defaults: cx23, fsn1, ubuntu-24.04
+deploy/update.sh [name]       # apply package updates to a running VM
 deploy/destroy.sh [name]     # delete it again (tailnet node cleanup is manual)
 ```
 
