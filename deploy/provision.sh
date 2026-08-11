@@ -5,7 +5,7 @@
 #
 # Reads HCLOUD_TOKEN and TS_AUTHKEY from the environment or deploy/.env.
 # Optional overrides: ORC_VM_TYPE (cx23), ORC_VM_LOCATION (fsn1),
-# ORC_VM_IMAGE (ubuntu-24.04), ORC_SSH_PUBKEY (~/.ssh/id_ed25519.pub),
+# ORC_VM_IMAGE (debian-13), ORC_SSH_PUBKEY (~/.ssh/id_ed25519.pub),
 # ORC_GIT_KEY (deploy/orc_ed25519).
 set -eu
 
@@ -32,7 +32,7 @@ gitkey=${ORC_GIT_KEY:-$here/orc_ed25519}
 
 type=${ORC_VM_TYPE:-cx23}
 location=${ORC_VM_LOCATION:-fsn1}
-image=${ORC_VM_IMAGE:-ubuntu-24.04}
+image=${ORC_VM_IMAGE:-debian-13}
 pubkey=${ORC_SSH_PUBKEY:-$HOME/.ssh/id_ed25519.pub}
 [ -f "$pubkey" ] || { echo "orc: no SSH public key at $pubkey" >&2; exit 1; }
 
@@ -115,7 +115,8 @@ public SSH ($ip) closes once the firewall comes up mid-boot; use the
 tailnet for everything after the node appears.
 next steps:
   1. watch it:        ssh root@$name tail -f /var/log/cloud-init-output.log
-  2. open the UI:     https://$name.<tailnet>.ts.net
+  2. open the UI:     http://$name.<tailnet>.ts.net
+     (https on the same name once the ACME cert lands; see orc-cert.service)
   3. web password:    ssh orc@$name orc password --rotate
   4. codex sign-in:   ssh orc@$name orc --login
      (or copy your local auth.json to ~/.config/orc/auth.json on the VM)

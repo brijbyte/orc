@@ -41,14 +41,18 @@ write_files:
     content: __GIT_KEY_B64__
   # cert minting retries in the background: after a same-name rebuild the
   # ACME DNS challenge keeps failing until the reclaimed name propagates,
-  # which can take tens of minutes
+  # which can take tens of minutes. HTTP serve carries the tailnet in the
+  # meantime, so add the HTTPS handler only once the cert exists.
   - path: /usr/local/bin/orc-cert
     permissions: "0755"
     content: |
       #!/bin/sh
       fqdn=$(tailscale status --json | jq -r .Self.DNSName | sed 's/\.$//')
-      for i in $(seq 1 30); do
-          tailscale cert "$fqdn" && exit 0
+      for i in $(seq 1 60); do
+          if tailscale cert "$fqdn"; then
+              tailscale serve --bg http://127.0.0.1:7777
+              exit 0
+          fi
           sleep 60
       done
       exit 1
@@ -124,7 +128,7 @@ runcmd:
   # non-interactive ssh has no ~/.local/bin on PATH; a symlink keeps
   # `ssh orc@<name> orc ...` working (nightly updates replace the target)
   - ln -sf /home/orc/.local/bin/orc /usr/local/bin/orc
-  # HTTPS on the tailnet MagicDNS name, proxying to the loopback service;
-  # the cert unit retries in the background without blocking cloud-init
-  - tailscale serve --bg http://127.0.0.1:7777
+  # HTTP on the tailnet MagicDNS name works without a cert (WireGuard already
+  # encrypts it); the cert unit adds the HTTPS handler when ACME succeeds
+  - tailscale serve --http=80 --bg http://127.0.0.1:7777
   - systemctl start --no-block orc-cert.service
