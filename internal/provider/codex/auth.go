@@ -66,7 +66,7 @@ func loadAuthFile() (*authFile, error) {
 		af.write()
 	}
 	if af.sec == nil {
-		return nil, fmt.Errorf("no codex credentials in %s — run `orc --login`", path)
+		return nil, fmt.Errorf("you are not logged in to codex — run `orc --login`")
 	}
 	return af, nil
 }
