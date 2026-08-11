@@ -148,9 +148,14 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   them before `Run()` (park state and deliver from `Init`).
 - Return tool errors as model output. Do not abort the agent.
 - `deploy/provision.sh [name]` creates a Hetzner VM (tokens from env or
-  `deploy/.env`): tailnet-only via cloud-init,
-  latest release as a user service, `tailscale serve` HTTPS.
-  `deploy/destroy.sh` deletes it.
+  `deploy/.env`): tailnet-only via cloud-init, latest release as a user
+  service, `tailscale serve` HTTPS, nightly self-update timer,
+  `deploy/AGENTS.md` installed at `~orc/.agents/AGENTS.md`. VM commits are
+  authored as the GitHub App bot (`GIT_BOT_NAME`/`GIT_BOT_EMAIL` in
+  `deploy/.env`, currently `orc-by-brijbyte[bot]`) and pushed over the
+  gitignored `deploy/orc_ed25519` key; the metadata service is firewalled
+  because user-data carries that key. `deploy/destroy.sh` deletes the VM
+  and its tailnet node.
 - Release: push a `vX.Y.Z` tag. CI builds the web UI, cross-compiles, uploads
   tarballs + `checksums.txt` + `install.sh` as release assets, and updates
   the Homebrew tap.
