@@ -62,7 +62,17 @@ const SchemaJSON = `[{"type":"function","name":"bash",` +
 	`"description":"Find installed skills. Use when the user asks to find or use a skill.",` +
 	`"parameters":{"type":"object","properties":{` +
 	`"query":{"type":"string",` +
-	`"description":"Search by name or description. Omit to list all skills."}}}}]`
+	`"description":"Search by name or description. Omit to list all skills."}}}},` +
+	`{"type":"function","name":"notify",` +
+	`"description":"Reach the user away from the UI. Use when long work ends ` +
+	`or you need a decision to continue. Delivered only when no UI is open, ` +
+	`so never rely on it being seen mid-conversation. Do not use for progress ` +
+	`updates or to repeat what you already said.",` +
+	`"parameters":{"type":"object","properties":{` +
+	`"title":{"type":"string","description":"One short line."},` +
+	`"body":{"type":"string","description":"A sentence or two of detail."},` +
+	`"urgency":{"type":"string","enum":["info","warn","urgent"]}},` +
+	`"required":["title","body"]}}]`
 
 const routineSchemaJSON = `,{"type":"function","name":"sleep",` +
 	`"description":"Sleep the routine until a future wake time.",` +
@@ -167,6 +177,8 @@ func RunWithRoutine(ctx context.Context, cwd, name, argsJSON string, routine *Ro
 		out = toolEdit(cwd, a)
 	case "skill":
 		out = clampOutput(skills.Query(cwd, a.str("query")))
+	case "notify":
+		out = toolNotify(ctx, a)
 	default:
 		out = fmt.Sprintf("error: unknown tool %s", name)
 	}

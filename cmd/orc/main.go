@@ -15,6 +15,7 @@ import (
 	"github.com/brijbyte/orc/internal/agent"
 	"github.com/brijbyte/orc/internal/commands"
 	"github.com/brijbyte/orc/internal/config"
+	"github.com/brijbyte/orc/internal/notify"
 	"github.com/brijbyte/orc/internal/provider"
 	_ "github.com/brijbyte/orc/internal/provider/codex"
 	"github.com/brijbyte/orc/internal/provider/modelsdev"
@@ -340,6 +341,7 @@ func runServe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 func runTUI(cfg *config.Config, prov provider.Provider, sess *session.Session,
 	resumed []json.RawMessage, didResume bool) int {
 	t := ui.NewTUI()
+	defer notify.Attach()() // the user is at the terminal; hold notifications
 	cmds := commands.New(prov, cfg, t)
 	t.SetCommands(cmds)
 	ag := agent.New(cfg, prov, sess, resumed, t)

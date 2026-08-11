@@ -472,6 +472,9 @@ func (s *Server) handleEvents(rw http.ResponseWriter, r *http.Request, rt *Runti
 	rw.Header().Set("Cache-Control", "no-store")
 	fl.Flush()
 
+	// A live stream means the user is at the UI; notifications hold off.
+	defer notify.Attach()()
+
 	// Wake the cond wait when the client leaves or its login expires.
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()

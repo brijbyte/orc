@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
 
 	"github.com/brijbyte/orc/internal/config"
 )
@@ -70,6 +72,39 @@ func SendTo(ctx context.Context, ch config.NotifyChannel, m Message) error {
 		return err
 	}
 	return typeByID(ch.Type).Send(ctx, ch.Settings, m)
+}
+
+// watchers counts live UI attachments across every session: browser SSE
+// streams and the TUI. Notifications exist to reach the user when no UI is
+// open, so any watcher suppresses them.
+var watchers atomic.Int64
+
+// Attach marks a UI as connected and returns its detach function.
+func Attach() func() {
+	watchers.Add(1)
+	return sync.OnceFunc(func() { watchers.Add(-1) })
+}
+
+// Watched reports whether any UI is currently connected.
+func Watched() bool { return watchers.Load() > 0 }
+
+// Configured reports whether any channel is enabled to receive messages.
+func Configured() bool {
+	for _, ch := range config.LoadSettings().Notify {
+		if ch.Enabled {
+			return true
+		}
+	}
+	return false
+}
+
+// SendAway delivers m only when no UI is attached. It reports whether it
+// sent, so callers can tell "skipped" apart from "delivered".
+func SendAway(ctx context.Context, m Message) (bool, error) {
+	if Watched() {
+		return false, nil
+	}
+	return true, Send(ctx, m)
 }
 
 // Send fans a message out to every enabled channel; errors are joined.
