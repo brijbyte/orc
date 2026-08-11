@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"testing"
 )
@@ -48,6 +49,29 @@ func TestWebPasswordIsHashedAndPersistsUntilRotation(t *testing.T) {
 	}
 	if st.Mode().Perm() != 0o600 {
 		t.Fatalf("auth mode = %v", st.Mode().Perm())
+	}
+}
+
+func TestChangeWebPasswordRequiresCurrentAndInvalidatesSessions(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	current, _, err := EnsureWebAuth()
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldKey, err := WebSessionKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ChangeWebPassword("wrong", "replacement password"); !errors.Is(err, ErrInvalidWebPassword) {
+		t.Fatalf("wrong current password error = %v", err)
+	}
+	if err := ChangeWebPassword(current, "replacement password"); err != nil {
+		t.Fatal(err)
+	}
+	valid, err := VerifyWebPassword("replacement password")
+	newKey, keyErr := WebSessionKey()
+	if err != nil || keyErr != nil || !valid || newKey == oldKey {
+		t.Fatalf("changed password: valid=%v key changed=%v errors=%v, %v", valid, newKey != oldKey, err, keyErr)
 	}
 }
 

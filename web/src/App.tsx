@@ -157,6 +157,7 @@ export default function App() {
       rows={rows}
       serverCwd={serverCwd}
       home={home}
+      models={models}
       active={sid}
       openIds={open}
       sheet={narrow}

@@ -157,6 +157,20 @@ func TestHandleFileRejectsForgedPath(t *testing.T) {
 	}
 }
 
+func TestSettingsSaveUpdatesPersistedAndServerDefaults(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	s := &Server{prov: &routineProvider{}, base: config.Config{Model: "old", Effort: "low"}}
+	req := httptest.NewRequest(http.MethodPut, "/api/settings", strings.NewReader(`{"model":"next","effort":"high"}`))
+	rw := httptest.NewRecorder()
+	s.handleSettingsSave(rw, req)
+	got := config.LoadSettings()
+	base := s.baseConfig()
+	if rw.Code != http.StatusNoContent || got.Model != "next" || got.Effort != "high" ||
+		base.Model != "next" || base.Effort != "high" {
+		t.Fatalf("status=%d settings=%#v base=%#v", rw.Code, got, base)
+	}
+}
+
 func TestLoginSetsAuthCookie(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	password, _, err := config.EnsureWebAuth()

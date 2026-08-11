@@ -7,7 +7,8 @@
   font-weight: 600;
   color: var(--fg);
 }
-.title svg {
+.title svg,
+.sectionTitle svg {
   flex: none;
   color: var(--cyan);
 }
@@ -15,6 +16,62 @@
   margin: 0 0 0.35rem;
   color: var(--dim);
   font-size: 0.75rem;
+}
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.65rem;
+}
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--fg);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.setting,
+.field {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+.setting input,
+.setting select,
+.channel input[type="text"],
+.channel input[type="password"],
+.name {
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0.3rem;
+  padding: 0.35rem 0.5rem;
+  font: 0.8125rem var(--font-mono);
+  color: var(--fg);
+}
+.setting select {
+  cursor: pointer;
+}
+.setting input:focus-visible,
+.setting select:focus-visible,
+.channel input:focus-visible {
+  outline: 1px solid var(--cyan);
+}
+.hint {
+  margin: -0.15rem 0 0;
+  color: var(--dim);
+  font-size: 0.75rem;
+}
+.password {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 .channel {
   display: flex;
@@ -24,9 +81,11 @@
   border-radius: 0.4rem;
   padding: 0.6rem;
 }
-.row {
+.row,
+.adds {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.6rem;
 }
 .toggle {
@@ -45,25 +104,7 @@
   font-size: 0.75rem;
 }
 .field {
-  display: grid;
-  grid-template-columns: 7rem 1fr;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 0.75rem;
-  color: var(--dim);
-}
-.channel input[type="text"],
-.channel input[type="password"],
-.name {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 0.3rem;
-  padding: 0.3rem 0.5rem;
-  font: 0.8125rem var(--font-mono);
-  color: var(--fg);
-}
-.channel input:focus-visible {
-  outline: 1px solid var(--cyan);
+  grid-template-columns: 7rem minmax(0, 1fr);
 }
 .ok {
   display: inline-flex;
@@ -76,4 +117,12 @@
   color: var(--red);
   font-size: 0.75rem;
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 30rem) {
+  .setting,
+  .field {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
 }

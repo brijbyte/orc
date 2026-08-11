@@ -1,15 +1,12 @@
-import { useState } from "react";
 import { GitBranch, Minimize2, SquareTerminal } from "lucide-react";
 import { api } from "../lib/api";
-import { setThemePref, themePref, type ThemePref } from "../lib/theme";
 import type { Model } from "../lib/types";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Select";
 import s from "./StatusBar.module.css";
 
 // StatusBar renders "model · effort · rest…" with model and effort as
-// selects that dispatch the matching slash command, and the theme
-// switcher at the right edge.
+// selects that dispatch the matching slash command.
 export function StatusBar({
   sid,
   status,
@@ -27,7 +24,6 @@ export function StatusBar({
   onOpenGit: () => void;
   onOpenTerminal: () => void;
 }) {
-  const [theme, setTheme] = useState<ThemePref>(themePref());
   const [model, effort, ...rest] = status.split(" · ");
   const modelOpts = models.map((m) => ({
     value: m.slug,
@@ -77,14 +73,6 @@ export function StatusBar({
         <Button small tip="open terminal (Ctrl/⌘ `)" onClick={onOpenTerminal}>
           <SquareTerminal size={13} strokeWidth={1.8} aria-hidden /> terminal
         </Button>
-        <Select
-          value={theme}
-          options={["system", "light", "dark"].map((value) => ({ value }))}
-          onChange={(v) => {
-            setThemePref(v as ThemePref);
-            setTheme(v as ThemePref);
-          }}
-        />
       </div>
     </footer>
   );

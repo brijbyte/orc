@@ -56,6 +56,7 @@ type Server struct {
 
 	prov            provider.Provider
 	base            config.Config // template for new sessions (model/effort/cwd)
+	baseMu          sync.RWMutex
 	initialPassword string
 	passwordCreated bool
 	mu              sync.Mutex
@@ -82,6 +83,12 @@ func NewServer(prov provider.Provider, base *config.Config, addr, domain string)
 }
 
 // Register adds an already-built runtime (the initial --serve session).
+func (s *Server) baseConfig() config.Config {
+	s.baseMu.RLock()
+	defer s.baseMu.RUnlock()
+	return s.base
+}
+
 func (s *Server) Register(rt *Runtime) {
 	scheduledID := rt.Cfg.SessionID
 	rt.setAfterTurn(func(rt *Runtime) {
@@ -285,7 +292,7 @@ func (s *Server) handleSessions(rw http.ResponseWriter, r *http.Request) {
 		out = append(out, sr)
 	}
 	home, _ := os.UserHomeDir()
-	writeJSON(rw, map[string]any{"cwd": s.base.Cwd, "home": home, "sessions": out})
+	writeJSON(rw, map[string]any{"cwd": s.baseConfig().Cwd, "home": home, "sessions": out})
 }
 
 // handleNew starts a fresh session, optionally in another directory.
@@ -295,7 +302,7 @@ func (s *Server) handleNew(rw http.ResponseWriter, r *http.Request) {
 		Routine string `json:"routine"`
 	}
 	json.NewDecoder(r.Body).Decode(&in)
-	cfg := s.base
+	cfg := s.baseConfig()
 	cfg.SessionID = uuid.NewString()
 	cfg.Instructions = ""
 	cfg.Routine = strings.TrimSpace(in.Routine)
@@ -337,7 +344,7 @@ func (s *Server) openRuntime(id string) (*Runtime, error) {
 			return rt, nil
 		}
 	}
-	cfg := s.base
+	cfg := s.baseConfig()
 	cfg.Instructions = ""
 	sess, resumed, err := session.Resume(id, &cfg)
 	if err != nil {
@@ -822,6 +829,84 @@ func (s *Server) handleModels(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, map[string]any{"models": out})
 }
 
+// handleSettings serves defaults used for newly-created sessions.
+func (s *Server) handleSettings(rw http.ResponseWriter, r *http.Request) {
+	base := s.baseConfig()
+	writeJSON(rw, map[string]string{"model": base.Model, "effort": base.Effort})
+}
+
+// handleSettingsSave persists and applies defaults for newly-created sessions.
+func (s *Server) handleSettingsSave(rw http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Model  string `json:"model"`
+		Effort string `json:"effort"`
+	}
+	if json.NewDecoder(r.Body).Decode(&in) != nil {
+		http.Error(rw, "bad request", http.StatusBadRequest)
+		return
+	}
+	in.Model = strings.TrimSpace(in.Model)
+	in.Effort = strings.TrimSpace(in.Effort)
+	if in.Model == "" || len(in.Model) > 256 || !validDefaultEffort(s.prov.Models(), in.Model, in.Effort) {
+		http.Error(rw, "invalid model or effort", http.StatusBadRequest)
+		return
+	}
+	settings := config.LoadSettings()
+	settings.Model, settings.Effort = in.Model, in.Effort
+	if err := config.SaveSettings(settings); err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.baseMu.Lock()
+	s.base.Model, s.base.Effort = in.Model, in.Effort
+	s.baseMu.Unlock()
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func validDefaultEffort(models []provider.Model, model, effort string) bool {
+	if effort == "" || len(effort) > 64 {
+		return false
+	}
+	efforts := []string{"low", "medium", "high"}
+	for _, m := range models {
+		if m.Slug == model && len(m.Efforts) > 0 {
+			efforts = m.Efforts
+			break
+		}
+	}
+	for _, allowed := range efforts {
+		if effort == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+// handlePassword changes the web password and invalidates signed-in clients.
+func (s *Server) handlePassword(rw http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Current string `json:"current"`
+		Next    string `json:"next"`
+	}
+	if json.NewDecoder(r.Body).Decode(&in) != nil {
+		http.Error(rw, "bad request", http.StatusBadRequest)
+		return
+	}
+	if utf8.RuneCountInString(in.Next) < 8 || len(in.Next) > 72 {
+		http.Error(rw, "new password must be at least 8 characters and at most 72 bytes", http.StatusBadRequest)
+		return
+	}
+	if err := config.ChangeWebPassword(in.Current, in.Next); err != nil {
+		if errors.Is(err, config.ErrInvalidWebPassword) {
+			http.Error(rw, err.Error(), http.StatusUnauthorized)
+		} else {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+	s.handleLogout(rw, r)
+}
+
 // handleNotify serves channel providers and the user's configured channels.
 func (s *Server) handleNotify(rw http.ResponseWriter, r *http.Request) {
 	channels := config.LoadSettings().Notify
@@ -878,7 +963,7 @@ func (s *Server) handleNotifyTest(rw http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDirs(rw http.ResponseWriter, r *http.Request) {
 	path := config.ExpandHome(r.URL.Query().Get("path"))
 	if path == "" {
-		path = s.base.Cwd
+		path = s.baseConfig().Cwd
 	}
 	path = filepath.Clean(path)
 	if !filepath.IsAbs(path) {
@@ -1017,6 +1102,9 @@ func (s *Server) router() http.Handler {
 		api.Group(func(api chi.Router) {
 			api.Use(s.auth)
 			api.Post("/logout", s.handleLogout)
+			api.Get("/settings", s.handleSettings)
+			api.Put("/settings", s.handleSettingsSave)
+			api.Post("/password", s.handlePassword)
 			api.Get("/sessions", s.handleSessions)
 			api.Post("/sessions", s.handleNew)
 			api.Post("/sessions/{id}/open", s.handleOpen)

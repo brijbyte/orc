@@ -13,6 +13,8 @@ import (
 
 const webAuthSection = "web"
 
+var ErrInvalidWebPassword = errors.New("current password is incorrect")
+
 type webAuth struct {
 	PasswordHash string `json:"password_hash"`
 	SessionKey   string `json:"session_key"`
@@ -82,6 +84,28 @@ func RotateWebPassword() (string, error) {
 		return "", err
 	}
 	return password, nil
+}
+
+// ChangeWebPassword verifies the current password, then replaces it and
+// invalidates every signed web session.
+func ChangeWebPassword(current, next string) error {
+	root, err := loadAuthRoot()
+	if err != nil {
+		return err
+	}
+	var old webAuth
+	raw, ok := root[webAuthSection]
+	if !ok || json.Unmarshal(raw, &old) != nil || old.PasswordHash == "" || old.SessionKey == "" {
+		return fmt.Errorf("no web credentials — start `orc --serve`")
+	}
+	if bcrypt.CompareHashAndPassword([]byte(old.PasswordHash), []byte(current)) != nil {
+		return ErrInvalidWebPassword
+	}
+	auth, err := newWebAuth(next)
+	if err != nil {
+		return err
+	}
+	return putWebAuth(root, auth)
 }
 
 func loadWebAuth() (webAuth, error) {

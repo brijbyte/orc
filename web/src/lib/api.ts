@@ -93,6 +93,23 @@ class SessionEventStream implements EventStream {
 export const api = {
   login: (password: string) => post("/api/login", { password }),
   logout: () => post("/api/logout"),
+  settings: () => get("/api/settings"),
+  settingsSave: (model: string, effort: string) =>
+    fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, effort }),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error((await response.text()).trim());
+    }),
+  changePassword: (current: string, next: string) =>
+    fetch("/api/password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current, next }),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error((await response.text()).trim());
+    }),
   sessions: () => get("/api/sessions"),
   create: (cwd?: string, routine?: string) =>
     post("/api/sessions", {

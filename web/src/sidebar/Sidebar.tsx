@@ -11,7 +11,7 @@ import {
   X,
 } from "lucide-react";
 import * as store from "../lib/store";
-import type { SessionRow } from "../lib/types";
+import type { Model, SessionRow } from "../lib/types";
 import { Button } from "../ui/Button";
 import { SettingsDialog } from "./SettingsDialog";
 import s from "./Sidebar.module.css";
@@ -168,6 +168,7 @@ export function Sidebar({
   rows,
   serverCwd,
   home,
+  models,
   active,
   openIds,
   sheet,
@@ -182,6 +183,7 @@ export function Sidebar({
   rows: SessionRow[];
   serverCwd: string;
   home: string;
+  models: Model[];
   active: string;
   openIds: string[];
   sheet: boolean;
@@ -275,7 +277,11 @@ export function Sidebar({
         {!!pinned.length && group("pinned", pinned, true, true)}
         {[...groups.entries()].map(([cwd, list]) => group(cwd, list))}
       </nav>
-      <SettingsDialog open={settings} onClose={() => setSettings(false)} />
+      <SettingsDialog
+        open={settings}
+        models={models}
+        onClose={() => setSettings(false)}
+      />
     </>
   );
 }
