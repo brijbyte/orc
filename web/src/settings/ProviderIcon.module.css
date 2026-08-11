@@ -1,0 +1,8 @@
+.icon {
+  display: block;
+  flex: none;
+  opacity: 0.65;
+}
+:global(:root[data-theme="dark"]) .icon {
+  filter: invert(1);
+}

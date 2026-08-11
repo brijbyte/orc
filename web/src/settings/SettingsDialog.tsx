@@ -3,9 +3,9 @@ import { Dialog } from "@base-ui/react/dialog";
 import {
   Activity,
   BellRing,
+  Boxes,
   Check,
   KeyRound,
-  LogIn,
   Palette,
   Search,
   Settings,
@@ -19,12 +19,12 @@ import { DiagnosticsSettings } from "./DiagnosticsSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { NotificationSettings } from "./NotificationSettings";
 import { PasswordSettings } from "./PasswordSettings";
-import { ProviderSettings } from "./ProviderSettings";
+import { ProvidersSettings } from "./ProvidersSettings";
 import { useSettings } from "./SettingsContext";
 import s from "./SettingsDialog.module.css";
 
 type Pane =
-  "general" | "provider" | "password" | "notifications" | "diagnostics";
+  "general" | "providers" | "password" | "notifications" | "diagnostics";
 
 type NavItem = {
   id: Pane;
@@ -40,7 +40,6 @@ export function SettingsDialog() {
     loading,
     error: loadError,
     data,
-    providerAuth,
     save,
   } = useSettings();
   const [model, setModel] = useState("");
@@ -84,9 +83,6 @@ export function SettingsDialog() {
     }
   };
 
-  const providerLabel = providerAuth?.provider
-    ? providerAuth.provider[0].toUpperCase() + providerAuth.provider.slice(1)
-    : "Provider";
   const items: NavItem[] = [
     {
       id: "general",
@@ -96,10 +92,10 @@ export function SettingsDialog() {
       icon: Palette,
     },
     {
-      id: "provider",
-      label: providerLabel,
-      description: "Manage the account orc uses for model requests.",
-      icon: LogIn,
+      id: "providers",
+      label: "Providers",
+      description: "Manage model providers and their accounts.",
+      icon: Boxes,
     },
     {
       id: "password",
@@ -212,8 +208,8 @@ export function SettingsDialog() {
                       onEffortChange={setEffort}
                     />
                   </div>
-                  <div hidden={pane !== "provider"}>
-                    <ProviderSettings />
+                  <div hidden={pane !== "providers"}>
+                    <ProvidersSettings />
                   </div>
                   <div hidden={pane !== "password"}>
                     <PasswordSettings />

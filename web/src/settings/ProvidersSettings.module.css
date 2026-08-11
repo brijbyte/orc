@@ -1,3 +1,27 @@
+.provider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.provider + .provider {
+  margin-top: 0.3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.identity {
+  min-width: 0;
+}
+.identity h3 {
+  margin: 0 0 0.1rem;
+  color: var(--fg);
+  font-size: 0.875rem;
+  font-weight: 650;
+}
 .status,
 .actions {
   display: flex;
