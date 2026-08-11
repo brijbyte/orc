@@ -27,9 +27,10 @@ const (
 )
 
 var (
-	errNotRepo   = errors.New("not a git repository")
-	errGitOutput = errors.New("git output is too large")
-	errGitStale  = errors.New("Git diff changed; refresh and try again")
+	errNotRepo          = errors.New("not a git repository")
+	errGitOutput        = errors.New("git output is too large")
+	errGitStale         = errors.New("Git diff changed; refresh and try again")
+	errGitSwitchBlocked = errors.New("local changes prevent the branch switch")
 )
 
 type gitBranch struct {
@@ -93,6 +94,10 @@ type gitMutationRequest struct {
 
 type gitCommitRequest struct {
 	Message string `json:"message"`
+}
+
+type gitBranchRequest struct {
+	Name string `json:"name"`
 }
 
 type gitCompare struct {
@@ -744,6 +749,65 @@ func gitCommit(ctx context.Context, rt *Runtime, request gitCommitRequest) (gitS
 	return loadGitStatus(ctx, rt)
 }
 
+func gitSwitchBranch(ctx context.Context, rt *Runtime, request gitBranchRequest) (gitStatus, error) {
+	status, err := loadGitStatus(ctx, rt)
+	if err != nil {
+		return gitStatus{}, err
+	}
+	name := request.Name
+	known := false
+	for _, branch := range status.Branches {
+		if !branch.Remote && branch.Name == name {
+			known = true
+			break
+		}
+	}
+	if !known {
+		return gitStatus{}, errors.New("unknown local branch")
+	}
+	if name == status.Branch && !status.Detached {
+		return status, nil
+	}
+	if _, err := runGit(ctx, status.Root, "switch", "--", name); err != nil {
+		if gitSwitchConflict(err) {
+			return gitStatus{}, fmt.Errorf("%w: %v", errGitSwitchBlocked, err)
+		}
+		return gitStatus{}, err
+	}
+	return loadGitStatus(ctx, rt)
+}
+
+func gitSwitchConflict(err error) bool {
+	message := err.Error()
+	return strings.Contains(message, "would be overwritten by checkout") ||
+		strings.Contains(message, "you need to resolve your current index first") ||
+		strings.Contains(message, "cannot switch branch while merging")
+}
+
+func gitCreateBranch(ctx context.Context, rt *Runtime, request gitBranchRequest) (gitStatus, error) {
+	name := strings.TrimSpace(request.Name)
+	if name == "" || name != request.Name || len(name) > 255 {
+		return gitStatus{}, errors.New("invalid branch name")
+	}
+	status, err := loadGitStatus(ctx, rt)
+	if err != nil {
+		return gitStatus{}, err
+	}
+	checked, err := runGit(ctx, status.Root, "check-ref-format", "--branch", name)
+	if err != nil || strings.TrimSpace(string(checked)) != name {
+		return gitStatus{}, errors.New("invalid branch name")
+	}
+	for _, branch := range status.Branches {
+		if !branch.Remote && branch.Name == name {
+			return gitStatus{}, errors.New("branch already exists")
+		}
+	}
+	if _, err := runGit(ctx, status.Root, "switch", "--no-track", "-c", name); err != nil {
+		return gitStatus{}, err
+	}
+	return loadGitStatus(ctx, rt)
+}
+
 func discardPaths(status gitStatus, requested []string, untracked bool) ([]string, []string, error) {
 	if len(requested) == 0 || len(requested) > 256 {
 		return nil, nil, errors.New("select one or more files")
@@ -930,7 +994,7 @@ func gitHTTPError(rw http.ResponseWriter, err error) {
 		http.Error(rw, err.Error(), http.StatusNotFound)
 	case errors.Is(err, errGitOutput):
 		http.Error(rw, err.Error(), http.StatusRequestEntityTooLarge)
-	case errors.Is(err, errGitStale):
+	case errors.Is(err, errGitStale), errors.Is(err, errGitSwitchBlocked):
 		http.Error(rw, err.Error(), http.StatusConflict)
 	default:
 		http.Error(rw, err.Error(), http.StatusBadRequest)
@@ -1008,6 +1072,30 @@ func (s *Server) handleGitCommit(rw http.ResponseWriter, r *http.Request, rt *Ru
 		return
 	}
 	writeJSON(rw, status)
+}
+
+func (s *Server) handleGitBranch(create bool) func(http.ResponseWriter, *http.Request, *Runtime) {
+	return func(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
+		var request gitBranchRequest
+		if json.NewDecoder(r.Body).Decode(&request) != nil {
+			http.Error(rw, "bad input", http.StatusBadRequest)
+			return
+		}
+		rt.gitMu.Lock()
+		defer rt.gitMu.Unlock()
+		var status gitStatus
+		var err error
+		if create {
+			status, err = gitCreateBranch(r.Context(), rt, request)
+		} else {
+			status, err = gitSwitchBranch(r.Context(), rt, request)
+		}
+		if err != nil {
+			gitHTTPError(rw, err)
+			return
+		}
+		writeJSON(rw, status)
+	}
 }
 
 func (s *Server) handleGitRecoveryMutation(kind string) func(http.ResponseWriter, *http.Request, *Runtime) {

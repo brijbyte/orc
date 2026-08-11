@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertDialog } from "@base-ui/react/alert-dialog";
 import { Dialog } from "@base-ui/react/dialog";
 import { Popover } from "@base-ui/react/popover";
@@ -269,6 +269,9 @@ export function GitDrawer({
   const [selectedHunks, setSelectedHunks] = useState<number[]>([]);
   const [refresh, setRefresh] = useState(0);
   const [mutating, setMutating] = useState(false);
+  const [branchOpen, setBranchOpen] = useState(false);
+  const [branchName, setBranchName] = useState("");
+  const [branchErr, setBranchErr] = useState("");
   const [commitOpen, setCommitOpen] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
   const [commitErr, setCommitErr] = useState("");
@@ -278,6 +281,7 @@ export function GitDrawer({
   const [diffErr, setDiffErr] = useState("");
   const [mutationErr, setMutationErr] = useState("");
   const close = useRef<HTMLButtonElement>(null);
+  const branchInput = useRef<HTMLInputElement>(null);
   const commitInput = useRef<HTMLTextAreaElement>(null);
   const loadedDiff = useRef("");
   const selected = changes.find((entry) => entry.id === activeID) ?? null;
@@ -354,7 +358,7 @@ export function GitDrawer({
 
   useEffect(() => setSelectedHunks([]), [diff?.hash, source, activeID]);
 
-  const lines = diff ? parseDiff(diff) : [];
+  const lines = useMemo(() => (diff ? parseDiff(diff) : []), [diff]);
   const hunkCount = lines.filter((line) => line.kind === "hunk").length;
   const canMutate = source === WORKTREE;
   const action = selected?.mode === "staged" ? "unstage" : "stage";
@@ -365,7 +369,7 @@ export function GitDrawer({
   const unstagedSelected = changes.filter(
     (entry) => entry.mode === "worktree" && selectedIDs.includes(entry.id),
   );
-  const branchOptions = [
+  const comparisonOptions = [
     { value: WORKTREE, label: "Working tree" },
     ...(status?.branches ?? [])
       .filter((branch) => !branch.current)
@@ -374,6 +378,9 @@ export function GitDrawer({
         label: `Compare ${branch.name}`,
       })),
   ];
+  const localBranches = (status?.branches ?? []).filter(
+    (branch) => !branch.remote,
+  );
 
   const applyStatus = (next: GitStatus) => {
     setStatus(next);
@@ -417,6 +424,52 @@ export function GitDrawer({
         error instanceof APIError && error.status === 409
           ? "The diff changed. Review it and try again."
           : `cannot ${mutation} the selected changes`,
+      );
+      setRefresh((value) => value + 1);
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const applyBranchStatus = (next: GitStatus) => {
+    const list = workingTreeChanges(next);
+    setSource(WORKTREE);
+    setStatus(next);
+    setChanges(list);
+    setSelectedIDs(list[0] ? [list[0].id] : []);
+    setActiveID(list[0]?.id ?? "");
+    setSelectedHunks([]);
+    setDiff(null);
+    loadedDiff.current = "";
+    setRefresh((value) => value + 1);
+  };
+
+  const toggleHunk = useCallback((hunk: number) => {
+    setSelectedHunks((old) =>
+      old.includes(hunk)
+        ? old.filter((selected) => selected !== hunk)
+        : [...old, hunk].sort((a, b) => a - b),
+    );
+  }, []);
+
+  const changeBranch = async (create: boolean, branch = "") => {
+    const name = create ? branchName.trim() : branch;
+    if (!name) return;
+    setMutating(true);
+    setBranchErr("");
+    try {
+      const next = (await (create ? api.gitCreateBranch : api.gitSwitch)(
+        sid,
+        name,
+      )) as GitStatus;
+      applyBranchStatus(next);
+      if (create) setBranchName("");
+      setBranchOpen(false);
+    } catch (error) {
+      setBranchErr(
+        error instanceof APIError && error.status === 409
+          ? "Local changes or conflicts prevent this switch."
+          : `cannot ${create ? "create" : "switch"} branch`,
       );
       setRefresh((value) => value + 1);
     } finally {
@@ -529,6 +582,7 @@ export function GitDrawer({
         open={open}
         onOpenChange={(next) => {
           if (!next) {
+            setBranchOpen(false);
             setCommitOpen(false);
             onClose();
           }
@@ -542,9 +596,97 @@ export function GitDrawer({
                 <BranchIcon size={16} strokeWidth={1.8} aria-hidden /> Git
               </Dialog.Title>
               {status?.repo && (
+                <Popover.Root
+                  open={branchOpen}
+                  onOpenChange={(next) => {
+                    setBranchOpen(next);
+                    if (next) setBranchErr("");
+                  }}
+                >
+                  <Popover.Trigger
+                    render={<Button outline small disabled={mutating} />}
+                  >
+                    <BranchIcon size={13} strokeWidth={1.8} aria-hidden />
+                    branches
+                  </Popover.Trigger>
+                  <Popover.Portal>
+                    <Popover.Positioner
+                      className={s.popoverPositioner}
+                      sideOffset={6}
+                      align="end"
+                    >
+                      <Popover.Popup
+                        className={s.popoverPopup}
+                        initialFocus={branchInput}
+                      >
+                        <Popover.Title className={s.popoverTitle}>
+                          branches
+                        </Popover.Title>
+                        <div className={s.branch}>
+                          <form
+                            className={s.branchCreate}
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              void changeBranch(true);
+                            }}
+                          >
+                            <input
+                              ref={branchInput}
+                              aria-label="new branch name"
+                              placeholder="New branch name"
+                              maxLength={255}
+                              value={branchName}
+                              onChange={(event) => {
+                                setBranchName(event.target.value);
+                                setBranchErr("");
+                              }}
+                            />
+                            <Button
+                              type="submit"
+                              outline
+                              small
+                              tone="accent"
+                              disabled={mutating || !branchName.trim()}
+                            >
+                              create
+                            </Button>
+                          </form>
+                          {branchErr && (
+                            <span className={s.error}>{branchErr}</span>
+                          )}
+                          <div className={s.branchList}>
+                            {localBranches.map((branch) => (
+                              <div className={s.branchRow} key={branch.ref}>
+                                <span title={branch.name}>{branch.name}</span>
+                                {branch.current ? (
+                                  <span className={s.branchCurrent}>
+                                    current
+                                  </span>
+                                ) : (
+                                  <Button
+                                    outline
+                                    small
+                                    disabled={mutating}
+                                    onClick={() =>
+                                      void changeBranch(false, branch.name)
+                                    }
+                                  >
+                                    switch
+                                  </Button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </Popover.Popup>
+                    </Popover.Positioner>
+                  </Popover.Portal>
+                </Popover.Root>
+              )}
+              {status?.repo && (
                 <Select
                   value={source}
-                  options={branchOptions}
+                  options={comparisonOptions}
                   onChange={setSource}
                 />
               )}
@@ -575,15 +717,15 @@ export function GitDrawer({
                   </Popover.Trigger>
                   <Popover.Portal>
                     <Popover.Positioner
-                      className={s.commitPositioner}
+                      className={s.popoverPositioner}
                       sideOffset={6}
                       align="end"
                     >
                       <Popover.Popup
-                        className={s.commitPopup}
+                        className={s.popoverPopup}
                         initialFocus={commitInput}
                       >
-                        <Popover.Title className={s.commitTitle}>
+                        <Popover.Title className={s.popoverTitle}>
                           commit staged changes
                         </Popover.Title>
                         <form
@@ -943,57 +1085,23 @@ export function GitDrawer({
                     <div className={s.message}>No text diff.</div>
                   )}
                   {diff && diff.patch && selected && (
-                    <>
-                      {canMutate && hunkCount > 0 && (
-                        <div className={s.hunkBar} aria-label="diff hunks">
-                          {lines
-                            .filter(
-                              (line): line is DiffLine & { hunk: number } =>
-                                line.kind === "hunk" && line.hunk !== undefined,
-                            )
-                            .map((line) => (
-                              <Button
-                                outline
-                                small
-                                tone={
-                                  selectedHunks.includes(line.hunk)
-                                    ? "success"
-                                    : undefined
-                                }
-                                onClick={() =>
-                                  setSelectedHunks((old) =>
-                                    old.includes(line.hunk)
-                                      ? old.filter((hunk) => hunk !== line.hunk)
-                                      : [...old, line.hunk].sort(
-                                          (a, b) => a - b,
-                                        ),
-                                  )
-                                }
-                                key={line.hunk}
-                              >
-                                hunk {line.hunk + 1}
-                              </Button>
-                            ))}
-                        </div>
-                      )}
-                      <DiffEditor
-                        path={selected.change.path}
-                        lines={lines}
-                        selectedHunks={selectedHunks}
-                        focusHunk={selectedHunks.at(-1)}
-                        onOpenLine={
-                          selected.change.file
-                            ? (line) =>
-                                onOpenFile(
-                                  selected.change.path,
-                                  selected.change.file!,
-                                  line,
-                                )
-                            : undefined
-                        }
-                        className={s.diffEditor}
-                      />
-                    </>
+                    <DiffEditor
+                      path={selected.change.path}
+                      lines={lines}
+                      selectedHunks={selectedHunks}
+                      onToggleHunk={canMutate ? toggleHunk : undefined}
+                      onOpenLine={
+                        selected.change.file
+                          ? (line) =>
+                              onOpenFile(
+                                selected.change.path,
+                                selected.change.file!,
+                                line,
+                              )
+                          : undefined
+                      }
+                      className={s.diffEditor}
+                    />
                   )}
                   {canMutate && diff?.patch && hunkCount === 0 && (
                     <div className={s.message}>

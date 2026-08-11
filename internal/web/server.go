@@ -876,6 +876,8 @@ func (s *Server) router() http.Handler {
 			api.Post("/sessions/{id}/git/stage", s.withRuntime(s.handleGitMutation(true)))
 			api.Post("/sessions/{id}/git/unstage", s.withRuntime(s.handleGitMutation(false)))
 			api.Post("/sessions/{id}/git/commit", s.withRuntime(s.handleGitCommit))
+			api.Post("/sessions/{id}/git/switch", s.withRuntime(s.handleGitBranch(false)))
+			api.Post("/sessions/{id}/git/create-branch", s.withRuntime(s.handleGitBranch(true)))
 			api.Post("/sessions/{id}/git/discard", s.withRuntime(s.handleGitRecoveryMutation("discard")))
 			api.Post("/sessions/{id}/git/remove", s.withRuntime(s.handleGitRecoveryMutation("remove")))
 			api.Post("/sessions/{id}/git/undo-discard", s.withRuntime(s.handleGitRecoveryMutation("undo")))

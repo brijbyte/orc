@@ -172,6 +172,72 @@ func TestGitCommitRequiresMessageAndStagedChanges(t *testing.T) {
 	}
 }
 
+func TestGitSwitchLocalBranch(t *testing.T) {
+	rt, dir := testRepo(t)
+	testGit(t, dir, "branch", "feature")
+	path := filepath.Join(dir, "tracked file.txt")
+	if err := os.WriteFile(path, []byte("local\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	status, err := gitSwitchBranch(context.Background(), rt, gitBranchRequest{Name: "feature"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Branch != "feature" || status.Detached || status.Clean {
+		t.Fatalf("status = %#v", status)
+	}
+	if got := strings.TrimSpace(testGit(t, dir, "branch", "--show-current")); got != "feature" {
+		t.Fatalf("current branch = %q", got)
+	}
+	content, readErr := os.ReadFile(path)
+	if readErr != nil || string(content) != "local\n" {
+		t.Fatalf("content=%q err=%v", content, readErr)
+	}
+}
+
+func TestGitSwitchRejectsOverwrittenLocalChanges(t *testing.T) {
+	rt, dir := testRepo(t)
+	path := filepath.Join(dir, "tracked file.txt")
+	testGit(t, dir, "switch", "-c", "feature")
+	if err := os.WriteFile(path, []byte("feature\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	testGit(t, dir, "commit", "-am", "feature")
+	testGit(t, dir, "switch", "main")
+	if err := os.WriteFile(path, []byte("local\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := gitSwitchBranch(context.Background(), rt, gitBranchRequest{Name: "feature"})
+	if !errors.Is(err, errGitSwitchBlocked) {
+		t.Fatalf("error = %v", err)
+	}
+	if got := strings.TrimSpace(testGit(t, dir, "branch", "--show-current")); got != "main" {
+		t.Fatalf("current branch = %q", got)
+	}
+	content, readErr := os.ReadFile(path)
+	if readErr != nil || string(content) != "local\n" {
+		t.Fatalf("content=%q err=%v", content, readErr)
+	}
+}
+
+func TestGitCreateBranchFromHead(t *testing.T) {
+	rt, dir := testRepo(t)
+	oldHead := strings.TrimSpace(testGit(t, dir, "rev-parse", "HEAD"))
+	status, err := gitCreateBranch(context.Background(), rt, gitBranchRequest{Name: "feature/new"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Branch != "feature/new" {
+		t.Fatalf("status = %#v", status)
+	}
+	if got := strings.TrimSpace(testGit(t, dir, "rev-parse", "HEAD")); got != oldHead {
+		t.Fatalf("new HEAD = %q, want %q", got, oldHead)
+	}
+	if _, err := gitCreateBranch(context.Background(), rt, gitBranchRequest{Name: " bad "}); err == nil {
+		t.Fatal("invalid branch name was accepted")
+	}
+}
+
 func TestGitStageAndUnstageHunks(t *testing.T) {
 	rt, dir := testRepo(t)
 	lines := make([]string, 24)

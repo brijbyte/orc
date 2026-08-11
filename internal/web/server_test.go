@@ -12,6 +12,13 @@ import (
 	"github.com/brijbyte/orc/internal/config"
 )
 
+func TestTruncateTitle(t *testing.T) {
+	got := truncateTitle(strings.Repeat("a", 49) + "界界")
+	if got != strings.Repeat("a", 49)+"界" || len([]rune(got)) != 50 {
+		t.Fatalf("truncateTitle() = %q", got)
+	}
+}
+
 func TestValidSessionRefRejectsPaths(t *testing.T) {
 	for _, ref := range []string{"../session.jsonl", "/tmp/session.jsonl", `..\\session.jsonl`, ""} {
 		if validSessionRef(ref) {

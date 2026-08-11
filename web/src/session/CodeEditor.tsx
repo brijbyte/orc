@@ -16,6 +16,9 @@ import {
   highlightSpecialChars,
   keymap,
   lineNumbers,
+  ViewPlugin,
+  type ViewUpdate,
+  WidgetType,
 } from "@codemirror/view";
 import {
   HighlightStyle,
@@ -23,7 +26,7 @@ import {
   syntaxHighlighting,
 } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
-import { unifiedMergeView } from "@codemirror/merge";
+import { Chunk, unifiedMergeView } from "@codemirror/merge";
 import {
   defaultKeymap,
   history,
@@ -31,6 +34,8 @@ import {
   indentWithTab,
 } from "@codemirror/commands";
 import { tags } from "@lezer/highlight";
+import { createRoot, type Root } from "react-dom/client";
+import { Button } from "../ui/Button";
 
 export type EditorDiffLine = {
   text: string;
@@ -92,6 +97,11 @@ const editorTheme = EditorView.theme({
     fontFamily: "var(--font-mono)",
     lineHeight: "1.55",
   },
+  ".cm-scroller:has(.cm-change-map)": { scrollbarWidth: "none" },
+  ".cm-scroller:has(.cm-change-map)::-webkit-scrollbar": {
+    width: "0",
+    height: "0.5rem",
+  },
   ".cm-content": { minWidth: "max-content", padding: "0.75rem 0" },
   ".cm-line": { minHeight: "1.55em", padding: "0 1rem 0 0.65rem" },
   ".cm-gutters": {
@@ -130,6 +140,43 @@ const editorTheme = EditorView.theme({
   },
   ".cm-diff-meta": { color: "var(--dim)" },
   ".cm-diff-number": { cursor: "pointer", textDecoration: "underline" },
+  ".cm-hunk-widget": {
+    display: "inline-flex",
+    margin: "0.2rem 0.65rem",
+    verticalAlign: "middle",
+  },
+  ".cm-change-map": {
+    position: "sticky",
+    right: "0",
+    top: "0",
+    width: "0.875rem",
+    height: "100%",
+    flexShrink: "0",
+    backgroundColor: "var(--code-bg)",
+    borderLeft: "1px solid var(--line)",
+    borderRight: "0",
+    cursor: "pointer",
+    touchAction: "none",
+    userSelect: "none",
+  },
+  ".cm-change-map-mark, .cm-change-map-viewport": {
+    position: "absolute",
+    left: "0",
+    right: "0",
+  },
+  ".cm-change-map[data-dragging]": { cursor: "grabbing" },
+  ".cm-change-map-mark": { zIndex: "1", minHeight: "2px" },
+  ".cm-change-map-add": { backgroundColor: "var(--green)" },
+  ".cm-change-map-del": { backgroundColor: "var(--red)" },
+  ".cm-change-map-both": {
+    background: "linear-gradient(to right, var(--red) 50%, var(--green) 50%)",
+  },
+  ".cm-change-map-viewport": {
+    zIndex: "2",
+    boxSizing: "border-box",
+    backgroundColor: "color-mix(in srgb, var(--cyan) 12%, transparent)",
+    border: "1px solid color-mix(in srgb, var(--cyan) 55%, transparent)",
+  },
   ".cm-diff-markers .cm-gutterElement": {
     minWidth: "2.5rem",
     padding: "0 0.75rem",
@@ -140,6 +187,207 @@ const editorTheme = EditorView.theme({
   ".cm-diff-marker-add": { color: "var(--green)" },
   ".cm-diff-marker-del": { color: "var(--red)" },
 });
+
+type ChangeMapMark = {
+  line: number;
+  added?: boolean;
+  deleted?: boolean;
+};
+
+function changeMap(marks: ChangeMapMark[]) {
+  if (!marks.length) return [];
+  return ViewPlugin.fromClass(
+    class {
+      readonly dom = document.createElement("div");
+      readonly viewport = document.createElement("div");
+      readonly resize: ResizeObserver;
+      readonly onScroll = () => this.renderViewport();
+      dragOffset: number | null = null;
+      readonly onPointerDown = (event: PointerEvent) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        const viewport = this.viewport.getBoundingClientRect();
+        this.dragOffset = this.viewport.contains(event.target as Node)
+          ? event.clientY - viewport.top
+          : viewport.height / 2;
+        this.dom.dataset.dragging = "";
+        this.dom.setPointerCapture(event.pointerId);
+        this.scrollFromPointer(event.clientY);
+      };
+      readonly onPointerMove = (event: PointerEvent) => {
+        if (this.dragOffset !== null) this.scrollFromPointer(event.clientY);
+      };
+      readonly onPointerUp = (event: PointerEvent) => {
+        if (this.dragOffset === null) return;
+        this.dragOffset = null;
+        delete this.dom.dataset.dragging;
+        if (this.dom.hasPointerCapture(event.pointerId)) {
+          this.dom.releasePointerCapture(event.pointerId);
+        }
+      };
+      readonly onKeyDown = (event: KeyboardEvent) => {
+        const { clientHeight, scrollHeight } = this.view.scrollDOM;
+        let top: number | undefined;
+        switch (event.key) {
+          case "ArrowUp":
+            top = this.view.scrollDOM.scrollTop - this.view.defaultLineHeight;
+            break;
+          case "ArrowDown":
+            top = this.view.scrollDOM.scrollTop + this.view.defaultLineHeight;
+            break;
+          case "PageUp":
+            top = this.view.scrollDOM.scrollTop - clientHeight;
+            break;
+          case "PageDown":
+            top = this.view.scrollDOM.scrollTop + clientHeight;
+            break;
+          case "Home":
+            top = 0;
+            break;
+          case "End":
+            top = scrollHeight;
+            break;
+        }
+        if (top === undefined) return;
+        event.preventDefault();
+        this.view.scrollDOM.scrollTo({ top });
+      };
+
+      constructor(readonly view: EditorView) {
+        this.dom.className = "cm-gutters cm-change-map";
+        this.dom.setAttribute("role", "scrollbar");
+        this.dom.setAttribute("aria-orientation", "vertical");
+        this.dom.setAttribute("aria-label", "editor change map and scrollbar");
+        this.dom.tabIndex = 0;
+        this.viewport.className = "cm-change-map-viewport";
+        const count = Math.max(1, view.state.doc.lines);
+        for (const mark of marks) {
+          const line = document.createElement("div");
+          const kind =
+            mark.added && mark.deleted ? "both" : mark.added ? "add" : "del";
+          line.className = `cm-change-map-mark cm-change-map-${kind}`;
+          line.style.top = `${((mark.line - 1) / count) * 100}%`;
+          line.style.height = `${100 / count}%`;
+          this.dom.appendChild(line);
+        }
+        this.dom.appendChild(this.viewport);
+        view.scrollDOM.insertBefore(this.dom, view.contentDOM.nextSibling);
+        view.scrollDOM.addEventListener("scroll", this.onScroll);
+        this.dom.addEventListener("pointerdown", this.onPointerDown);
+        this.dom.addEventListener("pointermove", this.onPointerMove);
+        this.dom.addEventListener("pointerup", this.onPointerUp);
+        this.dom.addEventListener("pointercancel", this.onPointerUp);
+        this.dom.addEventListener("keydown", this.onKeyDown);
+        this.resize = new ResizeObserver(this.onScroll);
+        this.resize.observe(view.scrollDOM);
+        this.renderViewport();
+      }
+
+      update(update: ViewUpdate) {
+        if (update.geometryChanged) this.renderViewport();
+      }
+
+      scrollFromPointer(clientY: number) {
+        const track = this.dom.getBoundingClientRect();
+        const viewportHeight = this.viewport.getBoundingClientRect().height;
+        const travel = Math.max(0, track.height - viewportHeight);
+        const offset = Math.min(
+          travel,
+          Math.max(0, clientY - track.top - (this.dragOffset ?? 0)),
+        );
+        const { clientHeight, scrollHeight } = this.view.scrollDOM;
+        const scrollTravel = Math.max(0, scrollHeight - clientHeight);
+        this.view.scrollDOM.scrollTop = travel
+          ? (offset / travel) * scrollTravel
+          : 0;
+      }
+
+      renderViewport() {
+        const { clientHeight, scrollHeight, scrollTop } = this.view.scrollDOM;
+        const height = scrollHeight ? (clientHeight / scrollHeight) * 100 : 100;
+        const top = scrollHeight ? (scrollTop / scrollHeight) * 100 : 0;
+        this.viewport.style.top = `${top}%`;
+        this.viewport.style.height = `${height}%`;
+        this.dom.setAttribute("aria-valuemin", "0");
+        this.dom.setAttribute(
+          "aria-valuemax",
+          String(Math.max(0, scrollHeight - clientHeight)),
+        );
+        this.dom.setAttribute("aria-valuenow", String(Math.round(scrollTop)));
+      }
+
+      destroy() {
+        this.resize.disconnect();
+        this.view.scrollDOM.removeEventListener("scroll", this.onScroll);
+        this.dom.removeEventListener("pointerdown", this.onPointerDown);
+        this.dom.removeEventListener("pointermove", this.onPointerMove);
+        this.dom.removeEventListener("pointerup", this.onPointerUp);
+        this.dom.removeEventListener("pointercancel", this.onPointerUp);
+        this.dom.removeEventListener("keydown", this.onKeyDown);
+        this.dom.remove();
+      }
+    },
+  );
+}
+
+function setMark(
+  marks: Map<number, ChangeMapMark>,
+  line: number,
+  kind: "added" | "deleted",
+) {
+  const mark = marks.get(line) ?? { line };
+  mark[kind] = true;
+  marks.set(line, mark);
+}
+
+function diffChangeMap(lines: EditorDiffLine[]) {
+  const marks = new Map<number, ChangeMapMark>();
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].kind === "add") setMark(marks, i + 1, "added");
+    if (lines[i].kind === "del") setMark(marks, i + 1, "deleted");
+  }
+  return [...marks.values()];
+}
+
+function markLines(
+  marks: Map<number, ChangeMapMark>,
+  state: EditorState,
+  from: number,
+  to: number,
+  kind: "added" | "deleted",
+) {
+  if (from >= to) return;
+  const start = state.doc.lineAt(Math.min(from, state.doc.length)).number;
+  const end = state.doc.lineAt(Math.min(to, state.doc.length)).number;
+  for (let line = start; line <= end; line++) setMark(marks, line, kind);
+}
+
+function fileChangeMap(original: string | undefined, content: string) {
+  if (original === undefined) return [];
+  const before = EditorState.create({ doc: original });
+  const after = EditorState.create({ doc: content });
+  const marks = new Map<number, ChangeMapMark>();
+  for (const chunk of Chunk.build(before.doc, after.doc, {
+    scanLimit: 500,
+    timeout: 20,
+  })) {
+    if (chunk.fromB < chunk.toB) {
+      markLines(marks, after, chunk.fromB, chunk.endB, "added");
+    }
+    if (chunk.fromA < chunk.toA) {
+      if (chunk.fromB < chunk.toB) {
+        markLines(marks, after, chunk.fromB, chunk.endB, "deleted");
+      } else {
+        setMark(
+          marks,
+          after.doc.lineAt(Math.min(chunk.fromB, after.doc.length)).number,
+          "deleted",
+        );
+      }
+    }
+  }
+  return [...marks.values()];
+}
 
 const baseExtensions = (label: string) => [
   EditorView.contentAttributes.of({ "aria-label": label }),
@@ -210,6 +458,7 @@ export function CodeEditor({
   const language = useRef(new Compartment());
   const editing = useRef(new Compartment());
   const merge = useRef(new Compartment());
+  const map = useRef(new Compartment());
   const changeRef = useRef(onChange);
   const saveRef = useRef(onSave);
   const plain = plainFile(path, content.length);
@@ -224,6 +473,7 @@ export function CodeEditor({
         doc: content,
         extensions: [
           ...baseExtensions(`Code for ${path}`),
+          map.current.of(changeMap(fileChangeMap(original, content))),
           lineNumbers(),
           targetField,
           language.current.of([]),
@@ -274,6 +524,15 @@ export function CodeEditor({
     replaceDocument(view.current, content);
     setEditorTarget(view.current, line);
   }, [content, line]);
+
+  useEffect(() => {
+    if (!view.current) return;
+    view.current.dispatch({
+      effects: map.current.reconfigure(
+        changeMap(fileChangeMap(original, content)),
+      ),
+    });
+  }, [content, original]);
 
   useEffect(() => {
     if (!view.current) return;
@@ -332,6 +591,46 @@ class TextMarker extends GutterMarker {
   }
 }
 
+class HunkWidget extends WidgetType {
+  private root?: Root;
+
+  constructor(
+    readonly hunk: number,
+    readonly selected: boolean,
+    readonly onToggle: (hunk: number) => void,
+  ) {
+    super();
+  }
+
+  eq(other: HunkWidget) {
+    return this.hunk === other.hunk && this.selected === other.selected;
+  }
+
+  toDOM() {
+    const host = document.createElement("span");
+    host.className = "cm-hunk-widget";
+    this.root = createRoot(host);
+    this.root.render(
+      <Button
+        outline
+        small
+        tone={this.selected ? "success" : undefined}
+        aria-label={`${this.selected ? "deselect" : "select"} hunk ${this.hunk + 1}`}
+        aria-pressed={this.selected}
+        onMouseDown={(event) => event.stopPropagation()}
+        onClick={() => this.onToggle(this.hunk)}
+      >
+        hunk {this.hunk + 1}
+      </Button>,
+    );
+    return host;
+  }
+
+  destroy() {
+    this.root?.unmount();
+  }
+}
+
 function diffDocument(lines: EditorDiffLine[]) {
   return lines
     .map((line) =>
@@ -346,10 +645,12 @@ function diffDecorationSet(
   state: EditorState,
   lines: EditorDiffLine[],
   selected: Set<number>,
+  onToggle?: (hunk: number) => void,
 ) {
   const builder = new RangeSetBuilder<Decoration>();
   for (let i = 0; i < lines.length && i < state.doc.lines; i++) {
     const line = lines[i];
+    const docLine = state.doc.line(i + 1);
     const classes = [
       line.kind === "add" && "cm-diff-add",
       line.kind === "del" && "cm-diff-del",
@@ -363,9 +664,19 @@ function diffDecorationSet(
       .join(" ");
     if (classes) {
       builder.add(
-        state.doc.line(i + 1).from,
-        state.doc.line(i + 1).from,
+        docLine.from,
+        docLine.from,
         Decoration.line({ class: classes }),
+      );
+    }
+    if (line.kind === "hunk" && line.hunk !== undefined && onToggle) {
+      builder.add(
+        docLine.to,
+        docLine.to,
+        Decoration.widget({
+          widget: new HunkWidget(line.hunk, selected.has(line.hunk), onToggle),
+          side: 1,
+        }),
       );
     }
   }
@@ -376,14 +687,14 @@ export function DiffEditor({
   path,
   lines,
   selectedHunks,
-  focusHunk,
+  onToggleHunk,
   onOpenLine,
   className,
 }: {
   path: string;
   lines: EditorDiffLine[];
   selectedHunks: number[];
-  focusHunk?: number;
+  onToggleHunk?: (hunk: number) => void;
   onOpenLine?: (line: number) => void;
   className?: string;
 }) {
@@ -391,10 +702,16 @@ export function DiffEditor({
   const view = useRef<EditorView>(null);
   const language = useRef(new Compartment());
   const decorations = useRef(new Compartment());
+  const map = useRef(new Compartment());
   const linesRef = useRef(lines);
   const openLineRef = useRef(onOpenLine);
+  const toggleHunkRef = useRef(onToggleHunk);
+  const toggleHunk = useRef((hunk: number) =>
+    toggleHunkRef.current?.(hunk),
+  ).current;
   linesRef.current = lines;
   openLineRef.current = onOpenLine;
+  toggleHunkRef.current = onToggleHunk;
   const content = diffDocument(lines);
   const plain = plainFile(path, content.length);
 
@@ -435,6 +752,7 @@ export function DiffEditor({
       doc: content,
       extensions: [
         ...baseExtensions(`Diff for ${path}`),
+        map.current.of(changeMap(diffChangeMap(lines))),
         EditorState.readOnly.of(true),
         EditorView.editable.of(false),
         numberGutter,
@@ -446,6 +764,7 @@ export function DiffEditor({
               EditorState.create({ doc: content }),
               lines,
               new Set(selectedHunks),
+              onToggleHunk ? toggleHunk : undefined,
             ),
           ),
         ),
@@ -464,11 +783,23 @@ export function DiffEditor({
     view.current.dispatch({
       effects: decorations.current.reconfigure(
         EditorView.decorations.of(
-          diffDecorationSet(view.current.state, lines, new Set(selectedHunks)),
+          diffDecorationSet(
+            view.current.state,
+            lines,
+            new Set(selectedHunks),
+            onToggleHunk ? toggleHunk : undefined,
+          ),
         ),
       ),
     });
-  }, [content, lines, selectedHunks]);
+  }, [content, lines, selectedHunks, onToggleHunk, toggleHunk]);
+
+  useEffect(() => {
+    if (!view.current) return;
+    view.current.dispatch({
+      effects: map.current.reconfigure(changeMap(diffChangeMap(lines))),
+    });
+  }, [content, lines]);
 
   useEffect(() => {
     let current = true;
@@ -480,18 +811,6 @@ export function DiffEditor({
       current = false;
     };
   }, [path, plain]);
-
-  useEffect(() => {
-    if (!view.current || focusHunk === undefined) return;
-    const index = lines.findIndex((line) => line.hunk === focusHunk);
-    if (index < 0 || index >= view.current.state.doc.lines) return;
-    view.current.dispatch({
-      effects: EditorView.scrollIntoView(
-        view.current.state.doc.line(index + 1).from,
-        { y: "center" },
-      ),
-    });
-  }, [focusHunk, lines]);
 
   return <div ref={host} className={className} />;
 }

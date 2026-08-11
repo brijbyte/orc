@@ -141,6 +141,10 @@ export const api = {
     post(`/api/sessions/${id}/git/unstage`, { paths, hunks, hash }),
   gitCommit: (id: string, message: string) =>
     post(`/api/sessions/${id}/git/commit`, { message }),
+  gitSwitch: (id: string, name: string) =>
+    post(`/api/sessions/${id}/git/switch`, { name }),
+  gitCreateBranch: (id: string, name: string) =>
+    post(`/api/sessions/${id}/git/create-branch`, { name }),
   gitDiscard: (id: string, paths: string[], hunks?: number[], hash?: string) =>
     post(`/api/sessions/${id}/git/discard`, {
       paths,

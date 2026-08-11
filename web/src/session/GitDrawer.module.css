@@ -75,11 +75,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.commitPositioner {
+.popoverPositioner {
   z-index: 20;
   max-width: calc(100vw - 1rem);
 }
-.commitPopup {
+.popoverPopup {
   width: min(22rem, var(--available-width));
   padding: 0.75rem;
   background: var(--bg);
@@ -92,15 +92,61 @@
     opacity 120ms var(--ease-out),
     transform 120ms var(--ease-out);
 }
-.commitPopup[data-starting-style],
-.commitPopup[data-ending-style] {
+.popoverPopup[data-starting-style],
+.popoverPopup[data-ending-style] {
   opacity: 0;
   transform: scale(0.98);
 }
-.commitTitle {
+.popoverTitle {
   display: block;
   margin-bottom: 0.5rem;
   font: 0.75rem/1.5 var(--font-mono);
+}
+.branch {
+  display: grid;
+  gap: 0.5rem;
+}
+.branchCreate {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.4rem;
+}
+.branch input {
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  color: var(--fg);
+  font: 0.75rem/1.5 var(--font-mono);
+}
+.branch input:focus {
+  border-color: var(--cyan);
+  outline: none;
+}
+.branchList {
+  display: grid;
+  max-height: min(20rem, 50vh);
+  overflow-y: auto;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--line);
+}
+.branchRow {
+  display: grid;
+  min-height: 2.25rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+.branchRow > span:first-child {
+  overflow: hidden;
+  font: 0.75rem/1.5 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.branchCurrent {
+  color: var(--dim);
+  font: 0.6875rem/1.5 var(--font-ui);
 }
 .commit {
   display: grid;
@@ -229,16 +275,6 @@
   min-height: 0;
   flex: 1;
 }
-.hunkBar {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 0.35rem;
-  overflow-x: auto;
-  padding: 0.4rem 0.75rem;
-  border-bottom: 1px solid var(--line);
-  background: var(--code-bg);
-}
 .message,
 .empty {
   padding: 1rem;
@@ -279,11 +315,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   .drawer,
-  .commitPopup {
+  .popoverPopup {
     transition: none;
   }
-  .commitPopup[data-starting-style],
-  .commitPopup[data-ending-style] {
+  .popoverPopup[data-starting-style],
+  .popoverPopup[data-ending-style] {
     transform: none;
   }
   .spinner {
