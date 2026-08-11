@@ -1,5 +1,5 @@
 import ReconnectingWebSocket from "partysocket/ws";
-import type { NotifyChannel } from "./types";
+import type { NotifyChannel, Settings } from "./types";
 
 export type AttachedFile = { name: string; type: string; data: string };
 
@@ -94,11 +94,11 @@ export const api = {
   login: (password: string) => post("/api/login", { password }),
   logout: () => post("/api/logout"),
   settings: () => get("/api/settings"),
-  settingsSave: (model: string, effort: string) =>
+  settingsSave: (settings: Partial<Settings>) =>
     fetch("/api/settings", {
-      method: "PUT",
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, effort }),
+      body: JSON.stringify(settings),
     }).then(async (response) => {
       if (!response.ok) throw new Error((await response.text()).trim());
     }),

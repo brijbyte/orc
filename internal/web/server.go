@@ -835,30 +835,54 @@ func (s *Server) handleSettings(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, map[string]string{"model": base.Model, "effort": base.Effort})
 }
 
-// handleSettingsSave persists and applies defaults for newly-created sessions.
+// handleSettingsSave patches supplied defaults for newly-created sessions.
 func (s *Server) handleSettingsSave(rw http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Model  string `json:"model"`
-		Effort string `json:"effort"`
+		Model  *string `json:"model"`
+		Effort *string `json:"effort"`
 	}
 	if json.NewDecoder(r.Body).Decode(&in) != nil {
 		http.Error(rw, "bad request", http.StatusBadRequest)
 		return
 	}
-	in.Model = strings.TrimSpace(in.Model)
-	in.Effort = strings.TrimSpace(in.Effort)
-	if in.Model == "" || len(in.Model) > 256 || !validDefaultEffort(s.prov.Models(), in.Model, in.Effort) {
-		http.Error(rw, "invalid model or effort", http.StatusBadRequest)
+	if in.Model == nil && in.Effort == nil {
+		rw.WriteHeader(http.StatusNoContent)
+		return
+	}
+	base := s.baseConfig()
+	model, effort := base.Model, base.Effort
+	if in.Model != nil {
+		model = strings.TrimSpace(*in.Model)
+		if model == "" || len(model) > 256 {
+			http.Error(rw, "invalid model", http.StatusBadRequest)
+			return
+		}
+	}
+	if in.Effort != nil {
+		effort = strings.TrimSpace(*in.Effort)
+	}
+	if !validDefaultEffort(s.prov.Models(), model, effort) {
+		http.Error(rw, "invalid effort", http.StatusBadRequest)
 		return
 	}
 	settings := config.LoadSettings()
-	settings.Model, settings.Effort = in.Model, in.Effort
+	if in.Model != nil {
+		settings.Model = model
+	}
+	if in.Effort != nil {
+		settings.Effort = effort
+	}
 	if err := config.SaveSettings(settings); err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	s.baseMu.Lock()
-	s.base.Model, s.base.Effort = in.Model, in.Effort
+	if in.Model != nil {
+		s.base.Model = model
+	}
+	if in.Effort != nil {
+		s.base.Effort = effort
+	}
 	s.baseMu.Unlock()
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -1103,7 +1127,7 @@ func (s *Server) router() http.Handler {
 			api.Use(s.auth)
 			api.Post("/logout", s.handleLogout)
 			api.Get("/settings", s.handleSettings)
-			api.Put("/settings", s.handleSettingsSave)
+			api.Patch("/settings", s.handleSettingsSave)
 			api.Post("/password", s.handlePassword)
 			api.Get("/sessions", s.handleSessions)
 			api.Post("/sessions", s.handleNew)

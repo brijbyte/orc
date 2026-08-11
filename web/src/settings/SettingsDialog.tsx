@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { Check, Settings, X } from "lucide-react";
-import type { NotifyChannel } from "../lib/types";
+import type { NotifyChannel, Settings as SettingsData } from "../lib/types";
 import { Button } from "../ui/Button";
 import d from "../ui/dialog.module.css";
 import { GeneralSettings } from "./GeneralSettings";
@@ -33,13 +33,28 @@ export function SettingsDialog() {
     setSaveError("");
   }, [open, data]);
 
-  const submit = () => {
+  const defaults: Partial<SettingsData> = {};
+  if (data && model !== data.model) defaults.model = model;
+  if (data && effort !== data.effort) defaults.effort = effort;
+  const defaultsDirty = Object.keys(defaults).length > 0;
+  const channelsDirty = !!data && channels !== data.channels;
+  const dirty = defaultsDirty || channelsDirty;
+
+  const submit = async () => {
+    if (!data || !dirty) return;
     setSaving(true);
     setSaveError("");
-    save({ model, effort }, channels)
-      .then(closeDialog)
-      .catch((err: Error) => setSaveError(err.message || "save failed"))
-      .finally(() => setSaving(false));
+    try {
+      await save(
+        defaultsDirty ? defaults : undefined,
+        channelsDirty ? channels : undefined,
+      );
+      closeDialog();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "save failed");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const error = loadError || saveError;
@@ -86,7 +101,9 @@ export function SettingsDialog() {
             <Button
               outline
               tone="success"
-              disabled={loading || saving || !data || !model || !effort}
+              disabled={
+                loading || saving || !data || !model || !effort || !dirty
+              }
               onClick={submit}
             >
               <Check size={13} strokeWidth={1.8} aria-hidden />

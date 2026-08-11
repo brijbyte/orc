@@ -157,16 +157,19 @@ func TestHandleFileRejectsForgedPath(t *testing.T) {
 	}
 }
 
-func TestSettingsSaveUpdatesPersistedAndServerDefaults(t *testing.T) {
+func TestSettingsSavePatchesPersistedAndServerDefaults(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	s := &Server{prov: &routineProvider{}, base: config.Config{Model: "old", Effort: "low"}}
-	req := httptest.NewRequest(http.MethodPut, "/api/settings", strings.NewReader(`{"model":"next","effort":"high"}`))
+	if err := config.SaveSettings(config.Settings{Model: "persisted", Effort: "low", Pinned: []string{"keep"}}); err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{prov: &routineProvider{}, base: config.Config{Model: "active", Effort: "low"}}
+	req := httptest.NewRequest(http.MethodPatch, "/api/settings", strings.NewReader(`{"effort":"high"}`))
 	rw := httptest.NewRecorder()
 	s.handleSettingsSave(rw, req)
 	got := config.LoadSettings()
 	base := s.baseConfig()
-	if rw.Code != http.StatusNoContent || got.Model != "next" || got.Effort != "high" ||
-		base.Model != "next" || base.Effort != "high" {
+	if rw.Code != http.StatusNoContent || got.Model != "persisted" || got.Effort != "high" ||
+		len(got.Pinned) != 1 || got.Pinned[0] != "keep" || base.Model != "active" || base.Effort != "high" {
 		t.Fatalf("status=%d settings=%#v base=%#v", rw.Code, got, base)
 	}
 }

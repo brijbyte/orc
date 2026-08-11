@@ -24,7 +24,10 @@ type SettingsContextValue = {
   openDialog: () => void;
   closeDialog: () => void;
   setTheme: (theme: ThemePref) => void;
-  save: (settings: Settings, channels: NotifyChannel[]) => Promise<void>;
+  save: (
+    settings?: Partial<Settings>,
+    channels?: NotifyChannel[],
+  ) => Promise<void>;
   changePassword: (current: string, next: string) => Promise<void>;
   testChannel: (channel: NotifyChannel) => Promise<void>;
 };
@@ -79,13 +82,17 @@ export function SettingsProvider({
   }, []);
 
   const save = useCallback(
-    async (settings: Settings, channels: NotifyChannel[]) => {
-      await Promise.all([
-        api.settingsSave(settings.model, settings.effort),
-        api.notifySave(channels),
-      ]);
+    async (settings?: Partial<Settings>, channels?: NotifyChannel[]) => {
+      if (settings) await api.settingsSave(settings);
+      if (channels) await api.notifySave(channels);
       setData((current) =>
-        current ? { ...current, ...settings, channels } : current,
+        current
+          ? {
+              ...current,
+              ...settings,
+              ...(channels ? { channels } : {}),
+            }
+          : current,
       );
     },
     [],
