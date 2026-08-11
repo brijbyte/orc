@@ -53,6 +53,23 @@
 .link:hover:not(:disabled) {
   text-decoration-color: currentColor;
 }
+/* nav: a full-width row in a navigation rail */
+.nav {
+  width: 100%;
+  min-height: 2.5rem;
+  justify-content: flex-start;
+  padding: 0.3rem 0.45rem;
+  color: var(--fg);
+  font-weight: 500;
+  text-align: left;
+}
+.nav:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
+}
+.nav[data-active] {
+  background: color-mix(in srgb, var(--cyan) 22%, var(--panel));
+  color: var(--fg);
+}
 /* small: inline with running text, so it drops the tap-target height */
 .small {
   min-height: 0;

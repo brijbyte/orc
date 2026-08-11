@@ -116,7 +116,7 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   `ui/Button.tsx` is the app's only button — every clickable control routes
   through it. Its props are the whole vocabulary: `outline` (a committed,
   labelled action), `icon` (square `--hit` tap target), `link` (underlined
-  inline affordance), `small` (inline size), `tone`
+  inline affordance), `nav` (full-width navigation row), `small` (inline size), `tone`
   (accent/success/danger, which move the `--btn-color`/`--btn-hover` pair),
   and `tip` (tooltip + aria-label). A caller's `className` may set placement
   only — position, margin, reveal-on-hover — never the button's own look, so

@@ -1,3 +1,7 @@
+.loading {
+  color: var(--dim);
+  font-size: 0.75rem;
+}
 .list {
   display: flex;
   flex-direction: column;
