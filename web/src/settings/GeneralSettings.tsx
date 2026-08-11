@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { Palette } from "lucide-react";
 import type { ThemePref } from "../lib/theme";
 import { SettingsSection } from "./SettingsSection";
 import { useSettings } from "./SettingsContext";
@@ -42,11 +41,7 @@ export function GeneralSettings({
   };
 
   return (
-    <SettingsSection
-      icon={Palette}
-      title="General"
-      description="Choose defaults for new sessions and how orc looks in this browser."
-    >
+    <SettingsSection>
       <label className={s.setting}>
         <span>default model</span>
         <select

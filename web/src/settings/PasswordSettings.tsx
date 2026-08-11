@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { KeyRound } from "lucide-react";
 import { Button } from "../ui/Button";
 import { SettingsSection } from "./SettingsSection";
 import { useSettings } from "./SettingsContext";
@@ -26,11 +25,7 @@ export function PasswordSettings() {
   };
 
   return (
-    <SettingsSection
-      icon={KeyRound}
-      title="Password"
-      description="Change the password used to access this web interface."
-    >
+    <SettingsSection>
       <form className={s.form} onSubmit={submit}>
         <label className={s.setting}>
           <span>current password</span>

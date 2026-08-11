@@ -1,33 +1,6 @@
 .section {
-  display: flex;
   width: min(100%, 43rem);
   margin: 0 auto;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-.hero {
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  text-align: center;
-}
-.icon {
-  margin-bottom: 0.65rem;
-  color: var(--dim);
-}
-.hero h2 {
-  margin: 0;
-  color: var(--fg);
-  font-size: 1.5rem;
-  line-height: 1.2;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-.hero p {
-  max-width: 32rem;
-  margin: 0.35rem 0 0;
-  color: var(--dim);
-  font-size: 0.8125rem;
 }
 .card {
   display: flex;
@@ -41,12 +14,6 @@
 }
 
 @media (max-width: 30rem) {
-  .section {
-    gap: 1rem;
-  }
-  .hero h2 {
-    font-size: 1.25rem;
-  }
   .card {
     padding: 0.75rem;
   }

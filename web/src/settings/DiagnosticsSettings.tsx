@@ -1,4 +1,3 @@
-import { Activity } from "lucide-react";
 import { SettingsSection } from "./SettingsSection";
 import { useSettings } from "./SettingsContext";
 import s from "./DiagnosticsSettings.module.css";
@@ -18,17 +17,11 @@ function formatUptime(total: number) {
     .join(" ");
 }
 
-const section = {
-  icon: Activity,
-  title: "Diagnostics",
-  description: "Version, uptime, and update status for this orc server.",
-};
-
 export function DiagnosticsSettings() {
   const { diagnostics } = useSettings();
   if (!diagnostics)
     return (
-      <SettingsSection {...section}>
+      <SettingsSection>
         <span className={s.loading}>loading diagnostics…</span>
       </SettingsSection>
     );
@@ -37,7 +30,7 @@ export function DiagnosticsSettings() {
   const next = timer.next_at ? new Date(timer.next_at) : null;
 
   return (
-    <SettingsSection {...section}>
+    <SettingsSection>
       <dl className={s.list}>
         <div>
           <dt>version</dt>
