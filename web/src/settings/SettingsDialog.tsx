@@ -5,7 +5,6 @@ import {
   BellRing,
   Check,
   KeyRound,
-  LogIn,
   Palette,
   Search,
   Settings,
@@ -19,6 +18,7 @@ import { DiagnosticsSettings } from "./DiagnosticsSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { NotificationSettings } from "./NotificationSettings";
 import { PasswordSettings } from "./PasswordSettings";
+import { ProviderIcon } from "./ProviderIcon";
 import { ProviderSettings } from "./ProviderSettings";
 import { useSettings } from "./SettingsContext";
 import s from "./SettingsDialog.module.css";
@@ -30,7 +30,7 @@ type NavItem = {
   id: Pane;
   label: string;
   description: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
 };
 
 export function SettingsDialog() {
@@ -99,7 +99,6 @@ export function SettingsDialog() {
       id: "provider",
       label: providerLabel,
       description: "Manage the account orc uses for model requests.",
-      icon: LogIn,
     },
     {
       id: "password",
@@ -167,7 +166,14 @@ export function SettingsDialog() {
                         aria-current={pane === item.id ? "page" : undefined}
                         onClick={() => setPane(item.id)}
                       >
-                        <Icon size={17} strokeWidth={1.8} aria-hidden />
+                        {Icon ? (
+                          <Icon size={17} strokeWidth={1.8} aria-hidden />
+                        ) : (
+                          <ProviderIcon
+                            provider={providerAuth?.provider}
+                            size={17}
+                          />
+                        )}
                         {item.label}
                       </Button>
                     </li>
@@ -182,12 +188,20 @@ export function SettingsDialog() {
 
           <div className={s.main}>
             <header className={s.toolbar}>
-              <ActiveIcon
-                className={s.toolbarIcon}
-                size={22}
-                strokeWidth={1.6}
-                aria-hidden
-              />
+              {ActiveIcon ? (
+                <ActiveIcon
+                  className={s.toolbarIcon}
+                  size={22}
+                  strokeWidth={1.6}
+                  aria-hidden
+                />
+              ) : (
+                <ProviderIcon
+                  className={s.toolbarIcon}
+                  provider={providerAuth?.provider}
+                  size={22}
+                />
+              )}
               <div className={s.toolbarCopy}>
                 <strong>{activeItem.label}</strong>
                 <span>{activeItem.description}</span>
