@@ -17,6 +17,7 @@ import (
 	"github.com/brijbyte/orc/internal/config"
 	"github.com/brijbyte/orc/internal/provider"
 	_ "github.com/brijbyte/orc/internal/provider/codex"
+	"github.com/brijbyte/orc/internal/provider/modelsdev"
 	"github.com/brijbyte/orc/internal/session"
 	"github.com/brijbyte/orc/internal/tools"
 	"github.com/brijbyte/orc/internal/ui"
@@ -304,6 +305,7 @@ func runServe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 		fmt.Fprintf(os.Stderr, "❌ orc: %v\n", err)
 		return 1
 	}
+	modelsdev.StartDailyRefresh()
 	srv.Register(web.NewRuntime(prov, cfg, sess, resumed, opts.doResume))
 
 	url, err := srv.Start(func(s string) { fmt.Println(s) })

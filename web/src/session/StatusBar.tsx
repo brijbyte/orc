@@ -31,10 +31,11 @@ export function StatusBar({
   const [model, effort, ...rest] = status.split(" · ");
   const modelOpts = models.map((m) => ({
     value: m.slug,
+    label: m.name || m.slug,
     title: m.description,
   }));
   if (model && !models.some((m) => m.slug === model))
-    modelOpts.unshift({ value: model, title: "" });
+    modelOpts.unshift({ value: model, label: model, title: "" });
   return (
     <footer className={s.footer}>
       <div>
@@ -48,7 +49,13 @@ export function StatusBar({
             {" · "}
             <Select
               value={effort}
-              options={["low", "medium", "high"].map((value) => ({ value }))}
+              options={(
+                models.find((m) => m.slug === model)?.efforts ?? [
+                  "low",
+                  "medium",
+                  "high",
+                ]
+              ).map((value) => ({ value }))}
               onChange={(v) => api.send(sid, "/effort " + v)}
             />
             {rest.length > 0 && " · " + rest.join(" · ")}

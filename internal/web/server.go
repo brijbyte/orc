@@ -751,9 +751,10 @@ func (s *Server) handleBrowse(rw http.ResponseWriter, r *http.Request, rt *Runti
 
 // handleModels serves the provider's model list.
 func (s *Server) handleModels(rw http.ResponseWriter, r *http.Request) {
-	out := []map[string]string{}
+	out := []map[string]any{}
 	for _, m := range s.prov.Models() {
-		out = append(out, map[string]string{"slug": m.Slug, "description": m.Description})
+		out = append(out, map[string]any{"slug": m.Slug, "name": m.Name,
+			"description": m.Description, "efforts": m.Efforts})
 	}
 	writeJSON(rw, map[string]any{"models": out})
 }

@@ -28,7 +28,9 @@ type Callbacks struct {
 
 type Model struct {
 	Slug          string
+	Name          string // human label; empty falls back to Slug
 	Description   string
+	Efforts       []string // selectable reasoning efforts; empty = default set
 	ContextWindow int64
 }
 

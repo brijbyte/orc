@@ -14,7 +14,12 @@ export type Block = { id: number } & (
     }
 );
 
-export type Model = { slug: string; description: string };
+export type Model = {
+  slug: string;
+  name?: string;
+  description: string;
+  efforts?: string[];
+};
 
 export type ServerAttachment = {
   kind: "server";

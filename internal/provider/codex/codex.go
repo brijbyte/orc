@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/brijbyte/orc/internal/config"
 	"github.com/brijbyte/orc/internal/provider"
+	"github.com/brijbyte/orc/internal/provider/modelsdev"
 )
 
 const (
@@ -256,30 +256,7 @@ func (p *Codex) once(ctx context.Context, body []byte, accessToken,
 	return resp.StatusCode, nil
 }
 
-// Models returns selectable models from the Codex CLI's cache; best effort.
+// Models returns selectable models from models.dev; best effort.
 func (p *Codex) Models() []provider.Model {
-	data, err := os.ReadFile(config.ExpandHome("~/.codex/models_cache.json"))
-	if err != nil {
-		return nil
-	}
-	var cache struct {
-		Models []struct {
-			Slug          string `json:"slug"`
-			Description   string `json:"description"`
-			Visibility    string `json:"visibility"`
-			ContextWindow int64  `json:"context_window"`
-		} `json:"models"`
-	}
-	if json.Unmarshal(data, &cache) != nil {
-		return nil
-	}
-	var out []provider.Model
-	for _, m := range cache.Models {
-		if m.Slug == "" || (m.Visibility != "" && m.Visibility != "list") {
-			continue
-		}
-		out = append(out, provider.Model{Slug: m.Slug, Description: m.Description,
-			ContextWindow: m.ContextWindow})
-	}
-	return out
+	return modelsdev.Models("openai")
 }

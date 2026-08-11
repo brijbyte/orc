@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -20,7 +21,7 @@ type Cmd struct{ Name, Args, Desc string }
 
 var Cmds = []Cmd{
 	{"/model", "[slug]", "set or show the model"},
-	{"/effort", "low|medium|high", "set reasoning effort"},
+	{"/effort", "<level>", "set reasoning effort"},
 	{"/new", "", "start a fresh session"},
 	{"/compact", "", "summarize history into a fresh context"},
 	{"/resume", "[id]", "switch to another session"},
@@ -312,13 +313,23 @@ func (c *Commands) saveDefaults() {
 	config.SaveSettings(config.Settings{Model: c.cfg.Model, Effort: c.cfg.Effort})
 }
 
+// Efforts lists the current model's selectable efforts.
+func (c *Commands) Efforts() []string {
+	for _, m := range c.prov.Models() {
+		if m.Slug == c.cfg.Model && len(m.Efforts) > 0 {
+			return m.Efforts
+		}
+	}
+	return []string{"low", "medium", "high"}
+}
+
 func (c *Commands) cmdEffort(ag *agent.Agent, arg string) {
 	if arg == "" {
 		c.ui.Printf("🧠 effort %s", c.cfg.Effort)
 		return
 	}
-	if arg != "low" && arg != "medium" && arg != "high" {
-		c.ui.Printf("⚠️  effort must be low, medium, or high")
+	if !slices.Contains(c.Efforts(), arg) {
+		c.ui.Printf("⚠️  effort must be one of %s", strings.Join(c.Efforts(), ", "))
 		return
 	}
 	c.cfg.Effort = arg
