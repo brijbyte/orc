@@ -95,6 +95,9 @@ runcmd:
     sh -c 'curl -fsSL --connect-timeout 5 https://github.com/brijbyte/orc/releases/latest/download/install.sh | sh'
   - systemctl daemon-reload
   - systemctl enable --now orc-update.timer
+  # non-interactive ssh has no ~/.local/bin on PATH; a symlink keeps
+  # `ssh orc@<name> orc ...` working (nightly updates replace the target)
+  - ln -sf /home/orc/.local/bin/orc /usr/local/bin/orc
   # HTTPS on the tailnet MagicDNS name, proxying to the loopback service;
   # the cert unit retries in the background without blocking cloud-init
   - tailscale serve --bg http://127.0.0.1:7777
