@@ -40,6 +40,24 @@ export type Settings = {
   effort: string;
 };
 
+export type ProviderAuth = {
+  provider: string;
+  supported: boolean;
+  authenticated: boolean;
+  expires_at?: string;
+};
+
+export type Diagnostics = {
+  version: string;
+  uptime_seconds: number;
+  update_timer: {
+    available: boolean;
+    active?: string;
+    enabled?: string;
+    next_at?: string;
+  };
+};
+
 export type Model = {
   slug: string;
   name?: string;

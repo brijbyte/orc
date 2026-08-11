@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -59,6 +60,7 @@ type Server struct {
 	baseMu          sync.RWMutex
 	initialPassword string
 	passwordCreated bool
+	startedAt       time.Time
 	mu              sync.Mutex
 	openMu          sync.Mutex // serializes open: one runtime per session file
 	runtimes        map[string]*Runtime
@@ -76,6 +78,7 @@ func NewServer(prov provider.Provider, base *config.Config, addr, domain string)
 		Addr: addr, Domain: domain, prov: prov, base: *base,
 		initialPassword: password,
 		passwordCreated: created,
+		startedAt:       time.Now(),
 		runtimes:        map[string]*Runtime{},
 	}
 	s.scheduler = newWakeScheduler(s)
@@ -829,6 +832,121 @@ func (s *Server) handleModels(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, map[string]any{"models": out})
 }
 
+type updateTimerStatus struct {
+	Available bool   `json:"available"`
+	Active    string `json:"active,omitempty"`
+	Enabled   string `json:"enabled,omitempty"`
+	NextAt    string `json:"next_at,omitempty"`
+}
+
+type diagnosticsResponse struct {
+	Version       string            `json:"version"`
+	UptimeSeconds int64             `json:"uptime_seconds"`
+	UpdateTimer   updateTimerStatus `json:"update_timer"`
+}
+
+func (s *Server) handleDiagnostics(rw http.ResponseWriter, r *http.Request) {
+	uptime := int64(0)
+	if !s.startedAt.IsZero() {
+		uptime = max(0, int64(time.Since(s.startedAt).Seconds()))
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	writeJSON(rw, diagnosticsResponse{
+		Version:       config.Version,
+		UptimeSeconds: uptime,
+		UpdateTimer:   readUpdateTimerStatus(ctx),
+	})
+}
+
+func readUpdateTimerStatus(ctx context.Context) updateTimerStatus {
+	cmd := exec.CommandContext(ctx, "systemctl", "show", "orc-update.timer", "--no-pager",
+		"--property=LoadState", "--property=ActiveState", "--property=UnitFileState",
+		"--property=NextElapseUSecRealtime")
+	cmd.Env = append(os.Environ(), "LC_ALL=C", "TZ=UTC")
+	out, err := cmd.Output()
+	if err != nil {
+		return updateTimerStatus{}
+	}
+	return parseUpdateTimerStatus(string(out))
+}
+
+func parseUpdateTimerStatus(out string) updateTimerStatus {
+	fields := map[string]string{}
+	for line := range strings.SplitSeq(out, "\n") {
+		key, value, ok := strings.Cut(line, "=")
+		if ok {
+			fields[key] = value
+		}
+	}
+	status := updateTimerStatus{
+		Available: fields["LoadState"] == "loaded",
+		Active:    fields["ActiveState"],
+		Enabled:   fields["UnitFileState"],
+	}
+	if next, err := time.Parse("Mon 2006-01-02 15:04:05 MST", fields["NextElapseUSecRealtime"]); err == nil {
+		status.NextAt = next.UTC().Format(time.RFC3339)
+	}
+	return status
+}
+
+type providerAuthResponse struct {
+	Provider      string `json:"provider"`
+	Supported     bool   `json:"supported"`
+	Authenticated bool   `json:"authenticated"`
+	ExpiresAt     string `json:"expires_at,omitempty"`
+}
+
+func (s *Server) webAuthenticator() (provider.WebAuthenticator, bool) {
+	auth, ok := s.prov.(provider.WebAuthenticator)
+	return auth, ok
+}
+
+func (s *Server) handleProviderAuth(rw http.ResponseWriter, r *http.Request) {
+	out := providerAuthResponse{Provider: s.prov.Name()}
+	if auth, ok := s.webAuthenticator(); ok {
+		state := auth.WebAuthStatus()
+		out.Supported = true
+		out.Authenticated = state.Authenticated
+		out.ExpiresAt = state.ExpiresAt
+	}
+	writeJSON(rw, out)
+}
+
+func (s *Server) handleProviderLoginStart(rw http.ResponseWriter, r *http.Request) {
+	auth, ok := s.webAuthenticator()
+	if !ok {
+		http.Error(rw, "provider does not support web sign-in", http.StatusNotImplemented)
+		return
+	}
+	authURL, err := auth.BeginWebLogin()
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusBadGateway)
+		return
+	}
+	writeJSON(rw, map[string]string{"url": authURL})
+}
+
+func (s *Server) handleProviderLoginComplete(rw http.ResponseWriter, r *http.Request) {
+	auth, ok := s.webAuthenticator()
+	if !ok {
+		http.Error(rw, "provider does not support web sign-in", http.StatusNotImplemented)
+		return
+	}
+	var in struct {
+		Callback string `json:"callback"`
+	}
+	if json.NewDecoder(r.Body).Decode(&in) != nil || len(in.Callback) > 32<<10 {
+		http.Error(rw, "bad request", http.StatusBadRequest)
+		return
+	}
+	if err := auth.CompleteWebLogin(r.Context(), in.Callback); err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 // handleSettings serves defaults used for newly-created sessions.
 func (s *Server) handleSettings(rw http.ResponseWriter, r *http.Request) {
 	base := s.baseConfig()
@@ -1126,6 +1244,10 @@ func (s *Server) router() http.Handler {
 		api.Group(func(api chi.Router) {
 			api.Use(s.auth)
 			api.Post("/logout", s.handleLogout)
+			api.Get("/diagnostics", s.handleDiagnostics)
+			api.Get("/provider/auth", s.handleProviderAuth)
+			api.Post("/provider/login/start", s.handleProviderLoginStart)
+			api.Post("/provider/login/complete", s.handleProviderLoginComplete)
 			api.Get("/settings", s.handleSettings)
 			api.Patch("/settings", s.handleSettingsSave)
 			api.Post("/password", s.handlePassword)

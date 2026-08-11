@@ -1,0 +1,28 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.75rem;
+}
+.list > div {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  gap: 0.6rem;
+}
+.list dt {
+  color: var(--dim);
+}
+.list dd {
+  margin: 0;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 30rem) {
+  .list > div {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
+}

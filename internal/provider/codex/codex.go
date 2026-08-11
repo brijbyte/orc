@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/brijbyte/orc/internal/config"
@@ -22,7 +23,10 @@ const (
 	originator = "orc"
 )
 
-type Codex struct{}
+type Codex struct {
+	webLoginMu sync.Mutex
+	webLogin   *webLoginAttempt
+}
 
 func init() { provider.Register(&Codex{}) }
 

@@ -4,9 +4,11 @@ import { Check, Settings, X } from "lucide-react";
 import type { NotifyChannel, Settings as SettingsData } from "../lib/types";
 import { Button } from "../ui/Button";
 import d from "../ui/dialog.module.css";
+import { DiagnosticsSettings } from "./DiagnosticsSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { NotificationSettings } from "./NotificationSettings";
 import { PasswordSettings } from "./PasswordSettings";
+import { ProviderSettings } from "./ProviderSettings";
 import { useSettings } from "./SettingsContext";
 import s from "./SettingsDialog.module.css";
 
@@ -84,11 +86,13 @@ export function SettingsDialog() {
                 onModelChange={setModel}
                 onEffortChange={setEffort}
               />
+              <ProviderSettings />
               <PasswordSettings />
               <NotificationSettings
                 channels={channels}
                 onChange={setChannels}
               />
+              <DiagnosticsSettings />
             </>
           )}
 

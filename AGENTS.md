@@ -85,7 +85,12 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   awaits `store.ensure` so the view mounts pre-seeded (no loading flash).
   Post-open sidebar refreshes coalesce through `lib/revalidate.ts`
   (`revalidateSoon`, debounced router.revalidate). The server falls back to index.html for
-  unknown paths; browser authentication uses same-origin cookies.
+  unknown paths; browser authentication uses same-origin cookies. Provider auth
+  uses `/api/provider/auth` and optional `provider.WebAuthenticator`; Codex web
+  login keeps a short-lived PKCE attempt server-side and completes from a
+  callback URL or code pasted into Settings, so remote browsers need no
+  port-1455 tunnel. `/api/diagnostics` exposes version, server uptime, and
+  `orc-update.timer` state read-only.
   `lib/store.ts` holds per-open-tab SSE streams, block state, and scroll
   positions outside the render tree (App `ensure`s every open tab, `drop` on
   tab close); `Sidebar` lists sessions grouped by cwd; `SessionView` mounts

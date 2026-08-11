@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -14,6 +15,7 @@ import (
 const webAuthSection = "web"
 
 var ErrInvalidWebPassword = errors.New("current password is incorrect")
+var authFileMu sync.Mutex
 
 type webAuth struct {
 	PasswordHash string `json:"password_hash"`
@@ -22,6 +24,8 @@ type webAuth struct {
 
 // EnsureWebAuth creates web credentials once. Password is set only when created.
 func EnsureWebAuth() (password string, created bool, err error) {
+	authFileMu.Lock()
+	defer authFileMu.Unlock()
 	root, err := loadAuthRoot()
 	if err != nil {
 		return "", false, err
@@ -68,6 +72,8 @@ func WebSessionKey() (string, error) {
 
 // RotateWebPassword replaces the password hash and cookie signing key.
 func RotateWebPassword() (string, error) {
+	authFileMu.Lock()
+	defer authFileMu.Unlock()
 	root, err := loadAuthRoot()
 	if err != nil {
 		return "", err
@@ -89,6 +95,8 @@ func RotateWebPassword() (string, error) {
 // ChangeWebPassword verifies the current password, then replaces it and
 // invalidates every signed web session.
 func ChangeWebPassword(current, next string) error {
+	authFileMu.Lock()
+	defer authFileMu.Unlock()
 	root, err := loadAuthRoot()
 	if err != nil {
 		return err
@@ -106,6 +114,30 @@ func ChangeWebPassword(current, next string) error {
 		return err
 	}
 	return putWebAuth(root, auth)
+}
+
+// PutAuthSection atomically replaces one provider section while preserving web
+// credentials and other providers.
+func PutAuthSection(name string, section any) error {
+	authFileMu.Lock()
+	defer authFileMu.Unlock()
+	root, err := loadAuthRoot()
+	if err != nil {
+		return err
+	}
+	if _, flat := root["tokens"]; flat {
+		next := map[string]json.RawMessage{}
+		if web := root[webAuthSection]; web != nil {
+			next[webAuthSection] = web
+		}
+		root = next
+	}
+	raw, err := json.Marshal(section)
+	if err != nil {
+		return err
+	}
+	root[name] = raw
+	return writeAuthRoot(root)
 }
 
 func loadWebAuth() (webAuth, error) {
@@ -136,6 +168,10 @@ func newWebAuth(password string) (webAuth, error) {
 func putWebAuth(root map[string]json.RawMessage, auth webAuth) error {
 	raw, _ := json.Marshal(auth)
 	root[webAuthSection] = raw
+	return writeAuthRoot(root)
+}
+
+func writeAuthRoot(root map[string]json.RawMessage) error {
 	data, _ := json.MarshalIndent(root, "", "  ")
 	if err := os.MkdirAll(Home(), 0o700); err != nil {
 		return err
