@@ -3,10 +3,10 @@
 #
 #   deploy/provision.sh [name]
 #
-# Reads HCLOUD_TOKEN and TS_AUTHKEY from the environment, deploy/.env, or
-# ../orchestrator/.env (first hit wins per file). Optional overrides:
-# ORC_VM_TYPE (cx23), ORC_VM_LOCATION (fsn1), ORC_VM_IMAGE (ubuntu-24.04),
-# ORC_SSH_PUBKEY (~/.ssh/id_ed25519.pub).
+# Reads HCLOUD_TOKEN and TS_AUTHKEY from the environment or deploy/.env.
+# Optional overrides: ORC_VM_TYPE (cx23), ORC_VM_LOCATION (fsn1),
+# ORC_VM_IMAGE (ubuntu-24.04), ORC_SSH_PUBKEY (~/.ssh/id_ed25519.pub),
+# ORC_GIT_KEY (deploy/orc_ed25519).
 set -eu
 
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -18,16 +18,15 @@ envval() {
     sed -n "s/^$2=//p" "$1" | head -1 | sed 's/^"//;s/"$//'
 }
 
-for f in "$here/.env" "$here/../../orchestrator/.env"; do
-    : "${HCLOUD_TOKEN:=$(envval "$f" HCLOUD_TOKEN || true)}"
-    : "${TS_AUTHKEY:=$(envval "$f" TS_AUTHKEY || true)}"
-    : "${TS_API_KEY:=$(envval "$f" TS_API_KEY || true)}"
-    : "${GIT_BOT_NAME:=$(envval "$f" GIT_BOT_NAME || true)}"
-    : "${GIT_BOT_EMAIL:=$(envval "$f" GIT_BOT_EMAIL || true)}"
-done
+f="$here/.env"
+: "${HCLOUD_TOKEN:=$(envval "$f" HCLOUD_TOKEN || true)}"
+: "${TS_AUTHKEY:=$(envval "$f" TS_AUTHKEY || true)}"
+: "${TS_API_KEY:=$(envval "$f" TS_API_KEY || true)}"
+: "${GIT_BOT_NAME:=$(envval "$f" GIT_BOT_NAME || true)}"
+: "${GIT_BOT_EMAIL:=$(envval "$f" GIT_BOT_EMAIL || true)}"
 : "${GIT_BOT_NAME:=orc-bot}"
 : "${GIT_BOT_EMAIL:=orc-bot@users.noreply.github.com}"
-gitkey=${ORC_GIT_KEY:-$here/../../orchestrator/keys/orc_ed25519}
+gitkey=${ORC_GIT_KEY:-$here/orc_ed25519}
 [ -n "${HCLOUD_TOKEN:-}" ] || { echo "orc: HCLOUD_TOKEN not set" >&2; exit 1; }
 [ -n "${TS_AUTHKEY:-}" ] || { echo "orc: TS_AUTHKEY not set" >&2; exit 1; }
 

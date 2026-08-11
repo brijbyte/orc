@@ -11,10 +11,9 @@ envval() {
     [ -f "$1" ] || return 1
     sed -n "s/^$2=//p" "$1" | head -1 | sed 's/^"//;s/"$//'
 }
-for f in "$here/.env" "$here/../../orchestrator/.env"; do
-    : "${HCLOUD_TOKEN:=$(envval "$f" HCLOUD_TOKEN || true)}"
-    : "${TS_API_KEY:=$(envval "$f" TS_API_KEY || true)}"
-done
+f="$here/.env"
+: "${HCLOUD_TOKEN:=$(envval "$f" HCLOUD_TOKEN || true)}"
+: "${TS_API_KEY:=$(envval "$f" TS_API_KEY || true)}"
 [ -n "${HCLOUD_TOKEN:-}" ] || { echo "orc: HCLOUD_TOKEN not set" >&2; exit 1; }
 
 api="https://api.hetzner.cloud/v1"

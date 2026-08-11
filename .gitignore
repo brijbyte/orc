@@ -12,3 +12,4 @@ node_modules/
 internal/web/dist/*
 !internal/web/dist/.gitkeep
 *.tsbuildinfo
+deploy/orc_ed25519

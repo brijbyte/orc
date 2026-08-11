@@ -114,8 +114,8 @@ deploy/provision.sh [name]   # create the VM; defaults: cx23, fsn1, ubuntu-24.04
 deploy/destroy.sh [name]     # delete it again (tailnet node cleanup is manual)
 ```
 
-Needs `HCLOUD_TOKEN` and `TS_AUTHKEY` — from the environment, `deploy/.env`
-(gitignored), or `../orchestrator/.env`. Cloud-init joins the tailnet
+Needs `HCLOUD_TOKEN` and `TS_AUTHKEY` — from the environment or `deploy/.env`
+(gitignored; see `deploy/.env.example`). Cloud-init joins the tailnet
 (`tailscale up --ssh`), firewalls everything but `tailscale0`, installs the
 latest orc release as a lingering user service on `127.0.0.1:7777`, and
 publishes it with `tailscale serve` at `https://<name>.<tailnet>.ts.net`.

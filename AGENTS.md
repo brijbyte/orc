@@ -147,8 +147,8 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
 - `tea.Program.Send`/`Println` block until the program loop runs; never call
   them before `Run()` (park state and deliver from `Init`).
 - Return tool errors as model output. Do not abort the agent.
-- `deploy/provision.sh [name]` creates a Hetzner VM (tokens from env,
-  `deploy/.env`, or `../orchestrator/.env`): tailnet-only via cloud-init,
+- `deploy/provision.sh [name]` creates a Hetzner VM (tokens from env or
+  `deploy/.env`): tailnet-only via cloud-init,
   latest release as a user service, `tailscale serve` HTTPS.
   `deploy/destroy.sh` deletes it.
 - Release: push a `vX.Y.Z` tag. CI builds the web UI, cross-compiles, uploads
