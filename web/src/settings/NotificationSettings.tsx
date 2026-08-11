@@ -61,7 +61,6 @@ export function NotificationSettings({
       icon={BellRing}
       title="Notifications"
       description="Let agents reach you when the web interface is closed."
-      tone="red"
     >
       {channels.map((channel, index) => {
         const type = types.find((item) => item.id === channel.type);

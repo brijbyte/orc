@@ -22,7 +22,6 @@ const section = {
   icon: Activity,
   title: "Diagnostics",
   description: "Version, uptime, and update status for this orc server.",
-  tone: "green" as const,
 };
 
 export function DiagnosticsSettings() {

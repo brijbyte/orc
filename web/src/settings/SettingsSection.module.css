@@ -12,33 +12,8 @@
   text-align: center;
 }
 .icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 3.5rem;
-  height: 3.5rem;
   margin-bottom: 0.65rem;
-  border: 1px solid rgb(255 255 255 / 0.25);
-  border-radius: 0.9rem;
-  color: white;
-  box-shadow:
-    inset 0 1px rgb(255 255 255 / 0.3),
-    0 0.35rem 0.9rem rgb(0 0 0 / 0.18);
-}
-.icon[data-tone="blue"] {
-  background: linear-gradient(145deg, #69b7ff, #1878d1);
-}
-.icon[data-tone="purple"] {
-  background: linear-gradient(145deg, #b08cff, #6f4bc6);
-}
-.icon[data-tone="orange"] {
-  background: linear-gradient(145deg, #ffb45f, #d96b21);
-}
-.icon[data-tone="red"] {
-  background: linear-gradient(145deg, #ff7b83, #c83f52);
-}
-.icon[data-tone="green"] {
-  background: linear-gradient(145deg, #71d990, #2b9960);
+  color: var(--dim);
 }
 .hero h2 {
   margin: 0;
@@ -68,10 +43,6 @@
 @media (max-width: 30rem) {
   .section {
     gap: 1rem;
-  }
-  .icon {
-    width: 3rem;
-    height: 3rem;
   }
   .hero h2 {
     font-size: 1.25rem;

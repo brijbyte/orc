@@ -58,7 +58,6 @@ export function ProviderSettings() {
       icon={LogIn}
       title={`${providerName} sign-in`}
       description="Manage the account orc uses for model requests."
-      tone="purple"
     >
       <div className={s.status}>
         <span
