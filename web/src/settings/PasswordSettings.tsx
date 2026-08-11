@@ -56,11 +56,13 @@ export function PasswordSettings() {
           >
             {busy ? "changing…" : "change password"}
           </Button>
-          {state && (
-            <span className={state.startsWith("changed") ? s.ok : s.error}>
-              {state}
-            </span>
-          )}
+          <div className={s.feedback} aria-live="polite">
+            {state && (
+              <span className={state.startsWith("changed") ? s.ok : s.error}>
+                {state}
+              </span>
+            )}
+          </div>
         </div>
       </form>
     </SettingsSection>

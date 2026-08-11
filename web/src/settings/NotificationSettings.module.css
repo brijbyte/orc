@@ -1,10 +1,12 @@
 .channel {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  border: 1px solid var(--line);
-  border-radius: 0.4rem;
-  padding: 0.6rem;
+  gap: 0.65rem;
+  padding-block: 0.15rem 0.85rem;
+}
+.channel + .channel {
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
 }
 .row,
 .adds {
@@ -13,26 +15,27 @@
   flex-wrap: wrap;
   gap: 0.6rem;
 }
+.row {
+  min-height: 2.25rem;
+}
 .toggle {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  color: var(--dim);
-  font-size: 0.75rem;
+  gap: 0.35rem;
+  color: var(--fg);
+  font-size: 0.8125rem;
 }
 .name,
 .channel input[type="text"],
 .channel input[type="password"] {
   min-width: 0;
+  min-height: 2.25rem;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 0.3rem;
-  padding: 0.35rem 0.5rem;
+  border-radius: 0.35rem;
+  padding: 0.4rem 0.55rem;
   color: var(--fg);
   font: 0.8125rem var(--font-mono);
-}
-.channel input:focus-visible {
-  outline: 1px solid var(--cyan);
 }
 .name {
   flex: 1;
@@ -44,27 +47,47 @@
 }
 .field {
   display: grid;
-  grid-template-columns: 7rem minmax(0, 1fr);
+  min-height: 2.75rem;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--fg);
+  font-size: 0.8125rem;
+}
+.testRow {
+  display: grid;
+  min-height: 2rem;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 0.6rem;
-  color: var(--dim);
+}
+.feedback {
+  min-width: 0;
+  min-height: 1.15rem;
   font-size: 0.75rem;
+  line-height: 1.35;
 }
 .ok {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
   color: var(--green);
-  font-size: 0.75rem;
 }
 .error {
   color: var(--red);
-  font-size: 0.75rem;
   overflow-wrap: anywhere;
+}
+.adds {
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
 }
 
 @media (max-width: 30rem) {
   .field {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+  .testRow {
     grid-template-columns: 1fr;
     gap: 0.25rem;
   }

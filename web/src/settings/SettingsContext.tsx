@@ -63,9 +63,6 @@ export function SettingsProvider({
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
-    setData(null);
-    setProviderAuth(null);
-    setDiagnostics(null);
     void api
       .diagnostics()
       .then(setDiagnostics)

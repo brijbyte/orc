@@ -1,26 +1,29 @@
 .setting {
   display: grid;
+  min-height: 3rem;
   grid-template-columns: 8.5rem minmax(0, 1fr);
   align-items: center;
-  gap: 0.6rem;
-  color: var(--dim);
-  font-size: 0.75rem;
+  gap: 0.75rem;
+  color: var(--fg);
+  font-size: 0.8125rem;
+}
+.setting:not(:last-child) {
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
 }
 .setting select {
   min-width: 0;
+  min-height: 2.25rem;
   cursor: pointer;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 0.3rem;
-  padding: 0.35rem 0.5rem;
+  border-radius: 0.35rem;
+  padding: 0.4rem 0.55rem;
   color: var(--fg);
   font: 0.8125rem var(--font-mono);
 }
-.setting select:focus-visible {
-  outline: 1px solid var(--cyan);
-}
 .hint {
-  margin: -0.15rem 0 0;
+  margin: -0.35rem 0 0 9.25rem;
   color: var(--dim);
   font-size: 0.75rem;
 }
@@ -29,5 +32,8 @@
   .setting {
     grid-template-columns: 1fr;
     gap: 0.25rem;
+  }
+  .hint {
+    margin-left: 0;
   }
 }

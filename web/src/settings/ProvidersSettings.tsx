@@ -118,7 +118,7 @@ export function ProvidersSettings() {
                   type="submit"
                   small
                   outline
-                  tone="success"
+                  tone="accent"
                   disabled={busy || !callback.trim()}
                 >
                   <Check size={12} strokeWidth={1.8} aria-hidden />
@@ -132,11 +132,13 @@ export function ProvidersSettings() {
             web sign-in is unavailable for this provider.
           </span>
         )}
-        {message && (
-          <span className={message === "signed in" ? s.ok : s.error}>
-            {message}
-          </span>
-        )}
+        <div className={s.feedback} aria-live="polite">
+          {message && (
+            <span className={message === "signed in" ? s.ok : s.error}>
+              {message}
+            </span>
+          )}
+        </div>
       </section>
     </SettingsSection>
   );

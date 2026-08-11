@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import {
   Activity,
@@ -6,18 +6,23 @@ import {
   Boxes,
   Check,
   KeyRound,
+  LoaderCircle,
   Palette,
-  Search,
   Settings,
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { NotifyChannel, Settings as SettingsData } from "../lib/types";
+import type { Settings as SettingsData } from "../lib/types";
 import { Button } from "../ui/Button";
 import d from "../ui/dialog.module.css";
 import { DiagnosticsSettings } from "./DiagnosticsSettings";
 import { GeneralSettings } from "./GeneralSettings";
-import { NotificationSettings } from "./NotificationSettings";
+import {
+  NotificationSettings,
+  draftChannel,
+  plainChannel,
+  type DraftNotifyChannel,
+} from "./NotificationSettings";
 import { PasswordSettings } from "./PasswordSettings";
 import { ProvidersSettings } from "./ProvidersSettings";
 import { useSettings } from "./SettingsContext";
@@ -33,6 +38,40 @@ type NavItem = {
   icon: LucideIcon;
 };
 
+const items: NavItem[] = [
+  {
+    id: "general",
+    label: "General",
+    description:
+      "Choose defaults for new sessions and how orc looks in this browser.",
+    icon: Palette,
+  },
+  {
+    id: "providers",
+    label: "Providers",
+    description: "Manage model providers and their accounts.",
+    icon: Boxes,
+  },
+  {
+    id: "password",
+    label: "Password",
+    description: "Change the password used to access this web interface.",
+    icon: KeyRound,
+  },
+  {
+    id: "notifications",
+    label: "Notifications",
+    description: "Let agents reach you when the web interface is closed.",
+    icon: BellRing,
+  },
+  {
+    id: "diagnostics",
+    label: "Diagnostics",
+    description: "Version, uptime, and update status for this orc server.",
+    icon: Activity,
+  },
+];
+
 export function SettingsDialog() {
   const {
     open,
@@ -44,27 +83,35 @@ export function SettingsDialog() {
   } = useSettings();
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("");
-  const [channels, setChannels] = useState<NotifyChannel[]>([]);
+  const [channels, setChannels] = useState<DraftNotifyChannel[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [pane, setPane] = useState<Pane>("general");
-  const [filter, setFilter] = useState("");
-
-  useEffect(() => {
-    if (!open || !data) return;
-    setModel(data.model);
-    setEffort(data.effort);
-    setChannels(data.channels);
-    setSaveError("");
-    setFilter("");
-  }, [open, data]);
+  const draftReady = useRef(false);
 
   const defaults: Partial<SettingsData> = {};
   if (data && model !== data.model) defaults.model = model;
   if (data && effort !== data.effort) defaults.effort = effort;
   const defaultsDirty = Object.keys(defaults).length > 0;
-  const channelsDirty = !!data && channels !== data.channels;
+  const channelValues = channels.map(plainChannel);
+  const channelsDirty =
+    !!data &&
+    JSON.stringify(channelValues) !==
+      JSON.stringify(data.channels.map(plainChannel));
   const dirty = defaultsDirty || channelsDirty;
+
+  useEffect(() => {
+    if (!open) {
+      draftReady.current = false;
+      return;
+    }
+    if (!data || (draftReady.current && dirty)) return;
+    setModel(data.model);
+    setEffort(data.effort);
+    setChannels(data.channels.map(draftChannel));
+    setSaveError("");
+    draftReady.current = true;
+  }, [open, data, dirty]);
 
   const submit = async () => {
     if (!data || !dirty) return;
@@ -73,7 +120,7 @@ export function SettingsDialog() {
     try {
       await save(
         defaultsDirty ? defaults : undefined,
-        channelsDirty ? channels : undefined,
+        channelsDirty ? channelValues : undefined,
       );
       closeDialog();
     } catch (err) {
@@ -83,48 +130,8 @@ export function SettingsDialog() {
     }
   };
 
-  const items: NavItem[] = [
-    {
-      id: "general",
-      label: "General",
-      description:
-        "Choose defaults for new sessions and how orc looks in this browser.",
-      icon: Palette,
-    },
-    {
-      id: "providers",
-      label: "Providers",
-      description: "Manage model providers and their accounts.",
-      icon: Boxes,
-    },
-    {
-      id: "password",
-      label: "Password",
-      description: "Change the password used to access this web interface.",
-      icon: KeyRound,
-    },
-    {
-      id: "notifications",
-      label: "Notifications",
-      description: "Let agents reach you when the web interface is closed.",
-      icon: BellRing,
-    },
-    {
-      id: "diagnostics",
-      label: "Diagnostics",
-      description: "Version, uptime, and update status for this orc server.",
-      icon: Activity,
-    },
-  ];
-  const query = filter.trim().toLowerCase();
-  const visibleItems = items.filter(
-    (item) =>
-      item.label.toLowerCase().includes(query) ||
-      item.description.toLowerCase().includes(query),
-  );
   const activeItem = items.find((item) => item.id === pane) ?? items[0];
   const ActiveIcon = activeItem.icon;
-  const error = loadError || saveError;
 
   return (
     <Dialog.Root
@@ -142,18 +149,9 @@ export function SettingsDialog() {
             <Dialog.Description className={s.srOnly}>
               Defaults and preferences for this orc server.
             </Dialog.Description>
-            <label className={s.search}>
-              <Search size={14} strokeWidth={1.8} aria-hidden />
-              <input
-                value={filter}
-                placeholder="Search"
-                aria-label="search settings"
-                onChange={(event) => setFilter(event.target.value)}
-              />
-            </label>
-            <nav aria-label="settings sections">
+            <nav className={s.desktopNav} aria-label="settings sections">
               <ul className={s.navList}>
-                {visibleItems.map((item) => {
+                {items.map((item) => {
                   const Icon = item.icon;
                   return (
                     <li key={item.id}>
@@ -170,10 +168,20 @@ export function SettingsDialog() {
                   );
                 })}
               </ul>
-              {!visibleItems.length && (
-                <p className={s.noResults}>No matching settings</p>
-              )}
             </nav>
+            <label className={s.mobileNav}>
+              <span className={s.srOnly}>Settings section</span>
+              <select
+                value={pane}
+                onChange={(event) => setPane(event.target.value as Pane)}
+              >
+                {items.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </aside>
 
           <div className={s.main}>
@@ -188,6 +196,12 @@ export function SettingsDialog() {
                 <strong>{activeItem.label}</strong>
                 <span>{activeItem.description}</span>
               </div>
+              {loading && data && (
+                <span className={s.refreshing} role="status">
+                  <LoaderCircle size={14} strokeWidth={1.8} aria-hidden />
+                  refreshing
+                </span>
+              )}
               <Dialog.Close
                 render={<Button icon />}
                 aria-label="close settings"
@@ -197,7 +211,14 @@ export function SettingsDialog() {
             </header>
 
             <div className={s.content}>
-              {loading && <span className={s.loading}>loading settings…</span>}
+              {!data && loading && (
+                <span className={s.loading}>loading settings…</span>
+              )}
+              {loadError && (
+                <div className={s.loadError} role="alert">
+                  {loadError}
+                </div>
+              )}
               {open && data && (
                 <>
                   <div hidden={pane !== "general"}>
@@ -227,21 +248,28 @@ export function SettingsDialog() {
               )}
             </div>
 
-            <footer className={`${d.foot} ${s.footer}`}>
-              {error && <span className={s.error}>{error}</span>}
-              <Dialog.Close render={<Button outline />}>Cancel</Dialog.Close>
-              <Button
-                outline
-                tone="success"
-                disabled={
-                  loading || saving || !data || !model || !effort || !dirty
-                }
-                onClick={submit}
-              >
-                <Check size={13} strokeWidth={1.8} aria-hidden />
-                {saving ? "saving…" : "save"}
-              </Button>
-            </footer>
+            {dirty && (
+              <footer className={s.footer}>
+                <div className={s.saveError} aria-live="polite">
+                  {saveError}
+                </div>
+                <div className={s.footerRow}>
+                  <span className={s.unsaved}>Unsaved changes</span>
+                  <Dialog.Close render={<Button outline />}>
+                    Cancel
+                  </Dialog.Close>
+                  <Button
+                    outline
+                    tone="accent"
+                    disabled={loading || saving || !data || !model || !effort}
+                    onClick={submit}
+                  >
+                    <Check size={13} strokeWidth={1.8} aria-hidden />
+                    {saving ? "saving…" : "save"}
+                  </Button>
+                </div>
+              </footer>
+            )}
           </div>
         </Dialog.Popup>
       </Dialog.Portal>

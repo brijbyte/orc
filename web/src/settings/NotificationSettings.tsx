@@ -7,29 +7,50 @@ import { useSettings } from "./SettingsContext";
 import s from "./NotificationSettings.module.css";
 
 type TestState = "idle" | "busy" | "ok" | string;
+export type DraftNotifyChannel = NotifyChannel & { clientId: string };
+
+let nextChannelID = 0;
+
+export function draftChannel(channel: NotifyChannel): DraftNotifyChannel {
+  const randomID = globalThis.crypto?.randomUUID?.();
+  return {
+    ...channel,
+    settings: channel.settings ? { ...channel.settings } : undefined,
+    clientId: randomID ?? `channel-${Date.now()}-${++nextChannelID}`,
+  };
+}
+
+export function plainChannel(channel: NotifyChannel): NotifyChannel {
+  return {
+    type: channel.type,
+    name: channel.name,
+    enabled: channel.enabled,
+    ...(channel.settings ? { settings: channel.settings } : {}),
+  };
+}
 
 export function NotificationSettings({
   channels,
   onChange,
 }: {
-  channels: NotifyChannel[];
-  onChange: React.Dispatch<React.SetStateAction<NotifyChannel[]>>;
+  channels: DraftNotifyChannel[];
+  onChange: React.Dispatch<React.SetStateAction<DraftNotifyChannel[]>>;
 }) {
   const { data, testChannel } = useSettings();
   const types = data?.types ?? [];
-  const [tests, setTests] = useState<Record<number, TestState>>({});
+  const [tests, setTests] = useState<Record<string, TestState>>({});
 
-  const patch = (index: number, change: Partial<NotifyChannel>) =>
+  const patch = (id: string, change: Partial<NotifyChannel>) =>
     onChange((list) =>
-      list.map((channel, i) =>
-        i === index ? { ...channel, ...change } : channel,
+      list.map((channel) =>
+        channel.clientId === id ? { ...channel, ...change } : channel,
       ),
     );
 
-  const setField = (index: number, key: string, value: string) =>
+  const setField = (id: string, key: string, value: string) =>
     onChange((list) =>
-      list.map((channel, i) =>
-        i === index
+      list.map((channel) =>
+        channel.clientId === id
           ? {
               ...channel,
               settings: { ...channel.settings, [key]: value },
@@ -41,35 +62,41 @@ export function NotificationSettings({
   const add = (type: NotifyType) =>
     onChange((list) => [
       ...list,
-      { type: type.id, name: type.label, enabled: true, settings: {} },
+      draftChannel({
+        type: type.id,
+        name: type.label,
+        enabled: true,
+        settings: {},
+      }),
     ]);
 
-  const test = (index: number) => {
-    setTests((states) => ({ ...states, [index]: "busy" }));
-    testChannel(channels[index])
-      .then(() => setTests((states) => ({ ...states, [index]: "ok" })))
+  const test = (channel: DraftNotifyChannel) => {
+    const id = channel.clientId;
+    setTests((states) => ({ ...states, [id]: "busy" }));
+    testChannel(plainChannel(channel))
+      .then(() => setTests((states) => ({ ...states, [id]: "ok" })))
       .catch((err: Error) =>
         setTests((states) => ({
           ...states,
-          [index]: err.message || "failed",
+          [id]: err.message || "failed",
         })),
       );
   };
 
   return (
     <SettingsSection>
-      {channels.map((channel, index) => {
+      {channels.map((channel) => {
         const type = types.find((item) => item.id === channel.type);
-        const state = tests[index] ?? "idle";
+        const state = tests[channel.clientId] ?? "idle";
         return (
-          <div className={s.channel} key={index}>
+          <div className={s.channel} key={channel.clientId}>
             <div className={s.row}>
               <label className={s.toggle}>
                 <input
                   type="checkbox"
                   checked={channel.enabled}
                   onChange={(event) =>
-                    patch(index, { enabled: event.target.checked })
+                    patch(channel.clientId, { enabled: event.target.checked })
                   }
                 />
                 enabled
@@ -78,7 +105,9 @@ export function NotificationSettings({
                 className={s.name}
                 value={channel.name}
                 aria-label="channel name"
-                onChange={(event) => patch(index, { name: event.target.value })}
+                onChange={(event) =>
+                  patch(channel.clientId, { name: event.target.value })
+                }
               />
               <span className={s.type}>{type?.label ?? channel.type}</span>
               <Button
@@ -86,10 +115,12 @@ export function NotificationSettings({
                 tone="danger"
                 tip="remove channel"
                 onClick={() =>
-                  onChange((list) => list.filter((_, i) => i !== index))
+                  onChange((list) =>
+                    list.filter((item) => item.clientId !== channel.clientId),
+                  )
                 }
               >
-                <Trash2 size={12} />
+                <Trash2 size={12} aria-hidden />
               </Button>
             </div>
             {(type?.fields ?? []).map((field) => (
@@ -103,28 +134,30 @@ export function NotificationSettings({
                   value={channel.settings?.[field.key] ?? ""}
                   placeholder={field.placeholder}
                   onChange={(event) =>
-                    setField(index, field.key, event.target.value)
+                    setField(channel.clientId, field.key, event.target.value)
                   }
                 />
               </label>
             ))}
-            <div className={s.row}>
+            <div className={s.testRow}>
               <Button
                 small
                 outline
                 disabled={state === "busy"}
-                onClick={() => test(index)}
+                onClick={() => test(channel)}
               >
                 {state === "busy" ? "testing…" : "send test"}
               </Button>
-              {state === "ok" && (
-                <span className={s.ok}>
-                  <Check size={12} strokeWidth={2} aria-hidden /> delivered
-                </span>
-              )}
-              {state !== "idle" && state !== "busy" && state !== "ok" && (
-                <span className={s.error}>{state}</span>
-              )}
+              <div className={s.feedback} aria-live="polite">
+                {state === "ok" && (
+                  <span className={s.ok}>
+                    <Check size={12} strokeWidth={2} aria-hidden /> delivered
+                  </span>
+                )}
+                {state !== "idle" && state !== "busy" && state !== "ok" && (
+                  <span className={s.error}>{state}</span>
+                )}
+              </div>
             </div>
           </div>
         );
