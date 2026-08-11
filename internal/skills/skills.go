@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"sync"
 )
 
 type skill struct {
@@ -18,17 +17,13 @@ type skill struct {
 	path        string
 }
 
-// loader holds one discovery walk's state; results are cached per cwd.
+// loader holds one discovery walk's state. A loader is rebuilt for each query
+// so skills installed while orc is running become visible immediately.
 type loader struct {
 	index    []skill
 	warnings strings.Builder
 	visited  map[string]bool
 }
-
-var (
-	cacheMu sync.Mutex
-	cache   = map[string]*loader{}
-)
 
 var nameRE = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
@@ -196,21 +191,21 @@ func (l *loader) load(cwd string) {
 	}
 }
 
-// loadFor returns the (cached) skill index for a working directory.
+// loadFor performs a fresh discovery walk for a working directory. Skill
+// installations are external to orc, so caching this result makes skills
+// added during a long-running TUI or web session invisible until restart.
 func loadFor(cwd string) *loader {
 	if cwd == "" {
 		cwd, _ = os.Getwd()
 	}
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-	if l, ok := cache[cwd]; ok {
-		return l
+	if cwd == "" {
+		return &loader{}
+	}
+	if abs, err := filepath.Abs(cwd); err == nil {
+		cwd = abs
 	}
 	l := &loader{}
-	if cwd != "" {
-		l.load(cwd)
-	}
-	cache[cwd] = l
+	l.load(cwd)
 	return l
 }
 
