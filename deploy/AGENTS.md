@@ -3,8 +3,11 @@
 Disposable Hetzner VM, not backed up, rebuilt without warning. Anything worth
 keeping must leave the box — push it, or put it in your reply to the owner.
 
-- No git push credentials are provisioned. Commit locally; if a push is
-  needed, say so in your reply instead of retrying.
+- Git is configured: commits are authored as the bot identity already set
+  in gitconfig (leave `user.*` alone), and `git push` over SSH works.
+  Commit early and push once work is worth keeping — prefer a branch over
+  `main`. There is no `gh`; for a PR, put the compare link in your reply:
+  `https://github.com/<owner>/<repo>/compare/<base>...<branch>?expand=1`.
 - The owner cannot reach localhost here. Expose a dev server with
   `sudo tailscale serve --bg --https=8443 http://127.0.0.1:<port>` and report
   the printed `https://…ts.net:8443` URL; turn it off with
