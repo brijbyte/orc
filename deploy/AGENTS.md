@@ -11,3 +11,14 @@ keeping must leave the box — push it, or put it in your reply to the owner.
   the printed `https://…ts.net:8443` URL; turn it off with
   `sudo tailscale serve --https=8443 off` when done.
 - `rg` (ripgrep) is installed; prefer it for search.
+- For a browser, start one on a free port and connect the global
+  `playwright-core` to it; kill it when done. Do not `launch()`, and do not
+  install browsers.
+
+  ```sh
+  browser serve --port 9222 --stealth &   # pick a free port
+  ```
+
+  ```js
+  const b = await chromium.connectOverCDP("http://127.0.0.1:9222"); // or playwright
+  ```
