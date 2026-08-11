@@ -64,13 +64,10 @@ const SchemaJSON = `[{"type":"function","name":"bash",` +
 	`"query":{"type":"string",` +
 	`"description":"Search by name or description. Omit to list all skills."}}}},` +
 	`{"type":"function","name":"notify",` +
-	`"description":"Reach the user away from the UI. Use when long work ends ` +
-	`or you need a decision to continue. Delivered only when no UI is open, ` +
-	`so never rely on it being seen mid-conversation. Do not use for progress ` +
-	`updates or to repeat what you already said.",` +
+	`"description":"Reach the user while they are away. Sent only then.",` +
 	`"parameters":{"type":"object","properties":{` +
-	`"title":{"type":"string","description":"One short line."},` +
-	`"body":{"type":"string","description":"A sentence or two of detail."},` +
+	`"title":{"type":"string"},` +
+	`"body":{"type":"string"},` +
 	`"urgency":{"type":"string","enum":["info","warn","urgent"]}},` +
 	`"required":["title","body"]}}]`
 

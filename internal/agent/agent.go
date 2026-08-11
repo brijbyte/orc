@@ -13,6 +13,7 @@ import (
 
 	"github.com/brijbyte/orc/internal/config"
 	"github.com/brijbyte/orc/internal/instructions"
+	"github.com/brijbyte/orc/internal/notify"
 	"github.com/brijbyte/orc/internal/provider"
 	"github.com/brijbyte/orc/internal/session"
 	"github.com/brijbyte/orc/internal/tools"
@@ -311,6 +312,15 @@ func (ag *Agent) Retry(ctx context.Context) error {
 	return ag.run(ctx)
 }
 
+// presence tells the model whether anyone is watching, so it can choose
+// between answering and using the notify tool.
+func presence() string {
+	if notify.Watched() {
+		return "\n\nThe user is watching."
+	}
+	return "\n\nThe user is away and cannot see this reply."
+}
+
 func (ag *Agent) begin(ctx context.Context) {
 	if ag.Cfg.Instructions == "" {
 		ag.Cfg.Instructions = instructions.Build(ag.Cfg.Cwd, ag.Cfg.Routine)
@@ -335,7 +345,11 @@ func (ag *Agent) run(ctx context.Context) error {
 			},
 			OnNotice: ag.IO.Notice,
 		}
-		err := ag.Prov.Turn(ctx, ag.History, ag.tools, ag.Cfg, cb)
+		// Presence can flip mid-turn, so stamp it per request on a copy —
+		// the persisted instructions stay free of it.
+		cfg := *ag.Cfg
+		cfg.Instructions += presence()
+		err := ag.Prov.Turn(ctx, ag.History, ag.tools, &cfg, cb)
 		ag.IO.TurnEnd()
 		if err != nil {
 			return err

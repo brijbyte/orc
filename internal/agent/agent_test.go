@@ -3,6 +3,8 @@ package agent
 import (
 	"strings"
 	"testing"
+
+	"github.com/brijbyte/orc/internal/notify"
 )
 
 func TestServerPathAttachmentDoesNotLoadContent(t *testing.T) {
@@ -14,5 +16,18 @@ func TestServerPathAttachmentDoesNotLoadContent(t *testing.T) {
 	}
 	if got := Echo("review", []Attachment{attachment}); got != "review\n📎 "+path {
 		t.Fatalf("Echo() = %q", got)
+	}
+}
+
+func TestPresenceFollowsAttachment(t *testing.T) {
+	away := presence()
+	detach := notify.Attach()
+	watched := presence()
+	detach()
+	if watched == away {
+		t.Fatal("presence did not change when a UI attached")
+	}
+	if presence() != away {
+		t.Fatal("presence did not revert after detach")
 	}
 }
