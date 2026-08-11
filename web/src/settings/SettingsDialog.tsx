@@ -3,6 +3,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import {
   Activity,
   BellRing,
+  Boxes,
   Check,
   KeyRound,
   Palette,
@@ -18,19 +19,18 @@ import { DiagnosticsSettings } from "./DiagnosticsSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { NotificationSettings } from "./NotificationSettings";
 import { PasswordSettings } from "./PasswordSettings";
-import { ProviderIcon } from "./ProviderIcon";
-import { ProviderSettings } from "./ProviderSettings";
+import { ProvidersSettings } from "./ProvidersSettings";
 import { useSettings } from "./SettingsContext";
 import s from "./SettingsDialog.module.css";
 
 type Pane =
-  "general" | "provider" | "password" | "notifications" | "diagnostics";
+  "general" | "providers" | "password" | "notifications" | "diagnostics";
 
 type NavItem = {
   id: Pane;
   label: string;
   description: string;
-  icon?: LucideIcon;
+  icon: LucideIcon;
 };
 
 export function SettingsDialog() {
@@ -40,7 +40,6 @@ export function SettingsDialog() {
     loading,
     error: loadError,
     data,
-    providerAuth,
     save,
   } = useSettings();
   const [model, setModel] = useState("");
@@ -84,9 +83,6 @@ export function SettingsDialog() {
     }
   };
 
-  const providerLabel = providerAuth?.provider
-    ? providerAuth.provider[0].toUpperCase() + providerAuth.provider.slice(1)
-    : "Provider";
   const items: NavItem[] = [
     {
       id: "general",
@@ -96,9 +92,10 @@ export function SettingsDialog() {
       icon: Palette,
     },
     {
-      id: "provider",
-      label: providerLabel,
-      description: "Manage the account orc uses for model requests.",
+      id: "providers",
+      label: "Providers",
+      description: "Manage model providers and their accounts.",
+      icon: Boxes,
     },
     {
       id: "password",
@@ -166,14 +163,7 @@ export function SettingsDialog() {
                         aria-current={pane === item.id ? "page" : undefined}
                         onClick={() => setPane(item.id)}
                       >
-                        {Icon ? (
-                          <Icon size={17} strokeWidth={1.8} aria-hidden />
-                        ) : (
-                          <ProviderIcon
-                            provider={providerAuth?.provider}
-                            size={17}
-                          />
-                        )}
+                        <Icon size={17} strokeWidth={1.8} aria-hidden />
                         {item.label}
                       </Button>
                     </li>
@@ -188,20 +178,12 @@ export function SettingsDialog() {
 
           <div className={s.main}>
             <header className={s.toolbar}>
-              {ActiveIcon ? (
-                <ActiveIcon
-                  className={s.toolbarIcon}
-                  size={22}
-                  strokeWidth={1.6}
-                  aria-hidden
-                />
-              ) : (
-                <ProviderIcon
-                  className={s.toolbarIcon}
-                  provider={providerAuth?.provider}
-                  size={22}
-                />
-              )}
+              <ActiveIcon
+                className={s.toolbarIcon}
+                size={22}
+                strokeWidth={1.6}
+                aria-hidden
+              />
               <div className={s.toolbarCopy}>
                 <strong>{activeItem.label}</strong>
                 <span>{activeItem.description}</span>
@@ -226,8 +208,8 @@ export function SettingsDialog() {
                       onEffortChange={setEffort}
                     />
                   </div>
-                  <div hidden={pane !== "provider"}>
-                    <ProviderSettings />
+                  <div hidden={pane !== "providers"}>
+                    <ProvidersSettings />
                   </div>
                   <div hidden={pane !== "password"}>
                     <PasswordSettings />
