@@ -63,8 +63,8 @@ export default function App() {
     [],
   );
   const outletContext = useMemo<SessionOutletContext>(
-    () => ({ openTerminal, toggleTerminal }),
-    [openTerminal, toggleTerminal],
+    () => ({ session: selected, openTerminal, toggleTerminal }),
+    [selected, openTerminal, toggleTerminal],
   );
 
   // keep the sidebar fresh

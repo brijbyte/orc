@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { PreviewCard } from "@base-ui/react/preview-card";
 import {
+  AlarmClock,
   GitBranch,
   Minimize2,
   SlidersHorizontal,
@@ -19,7 +20,9 @@ export function StatusBar({
   status,
   models,
   compactDisabled,
+  canWake,
   onCompact,
+  onWake,
   onOpenGit,
   onOpenTerminal,
 }: {
@@ -27,16 +30,14 @@ export function StatusBar({
   status: string;
   models: Model[];
   compactDisabled: boolean;
+  canWake: boolean;
   onCompact: () => void;
+  onWake: () => void;
   onOpenGit: () => void;
   onOpenTerminal: () => void;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [model, effort, ...rest] = status.split(" · ");
-  const contextRelevant = rest.some((part) => {
-    const match = part.match(/ctx .*\((\d+)%\)/);
-    return match ? Number(match[1]) >= 50 : false;
-  });
   const modelOpts = models.map((m) => ({
     value: m.slug,
     label: m.name || m.slug,
@@ -103,15 +104,14 @@ export function StatusBar({
           </PreviewCard.Root>
         )}
         <span className={s.actions}>
-          {contextRelevant && (
-            <Button
-              small
-              outline
-              disabled={compactDisabled}
-              onClick={onCompact}
-            >
-              <Minimize2 size={13} strokeWidth={1.8} aria-hidden />
-              compact
+          <Button small outline disabled={compactDisabled} onClick={onCompact}>
+            <Minimize2 size={13} strokeWidth={1.8} aria-hidden />
+            compact
+          </Button>
+          {canWake && (
+            <Button small outline tone="accent" onClick={onWake}>
+              <AlarmClock size={13} strokeWidth={1.8} aria-hidden />
+              wake now
             </Button>
           )}
           <Button small tip="open Git (Ctrl/⌘ G)" onClick={onOpenGit}>

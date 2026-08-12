@@ -11,7 +11,7 @@ import * as store from "../lib/store";
 import { api } from "../lib/api";
 import { revalidateSoon } from "../lib/revalidate";
 import { modShortcut, overlayOpen } from "../lib/shortcuts";
-import type { Block, ComposerAttachment } from "../lib/types";
+import type { Block, ComposerAttachment, SessionRow } from "../lib/types";
 import { useSettings } from "../settings/SettingsContext";
 
 const fileMax = 16 << 20; // per-file cap, matches the server's request cap
@@ -27,6 +27,7 @@ import { GitDrawer } from "./GitDrawer";
 import s from "./SessionView.module.css";
 
 export type SessionOutletContext = {
+  session: SessionRow | null;
   openTerminal: () => void;
   toggleTerminal: () => void;
 };
@@ -59,6 +60,7 @@ export function SessionView({
 }) {
   const { models } = useSettings();
   const { openTerminal, toggleTerminal } = context;
+  const selected = context.session;
   const [files, setFiles] = useState<ComposerAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -207,10 +209,17 @@ export function SessionView({
             status={status}
             models={models}
             compactDisabled={busy || compacting || blocks.length === 0}
+            canWake={!busy && !!selected?.routine && !!selected.wake}
             onCompact={() => {
               setCompacting(true);
               void api.compact(sid).catch(() => setCompacting(false));
             }}
+            onWake={() =>
+              void api
+                .wake(sid)
+                .then(revalidateSoon)
+                .catch(() => {})
+            }
             onOpenGit={() => setGitOpen(true)}
             onOpenTerminal={openTerminal}
           />
