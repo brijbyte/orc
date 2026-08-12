@@ -97,6 +97,10 @@ export function Transcript({
   const bottom = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const [following, setFollowing] = useState(true);
+  const latestUser = [...blocks]
+    .reverse()
+    .find((block) => block.kind === "user" || block.kind === "pending");
+  const latestUserID = useRef(latestUser?.id);
   const anchor = useRef<{ el: HTMLElement; top: number } | null>(null);
 
   useLayoutEffect(() => {
@@ -122,8 +126,15 @@ export function Transcript({
   }, [blocks, loadingOlder, sid]);
 
   useEffect(() => {
+    if (latestUser?.id !== latestUserID.current) {
+      latestUserID.current = latestUser?.id;
+      stick.current = true;
+      setFollowing(true);
+      bottom.current?.scrollIntoView();
+      return;
+    }
     if (stick.current) bottom.current?.scrollIntoView();
-  }, [blocks]);
+  }, [blocks, latestUser?.id]);
 
   const loadOlder = (el: HTMLElement) => {
     if (!hasMore || loadingOlder || anchor.current) return;
