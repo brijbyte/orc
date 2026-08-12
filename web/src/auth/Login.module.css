@@ -19,7 +19,12 @@
   font-weight: 600;
 }
 .form label {
+  color: var(--fg);
+}
+.hint {
+  margin: -0.5rem 0 0;
   color: var(--dim);
+  font-size: var(--meta-size);
 }
 .form input {
   box-sizing: border-box;
@@ -32,20 +37,19 @@
   border-radius: 0.45rem;
   font: inherit;
 }
-.form input:focus {
-  border-color: var(--cyan);
-  outline: none;
+.form input:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
-/* the one filled button in the app: the form's primary action */
 .submit {
-  --btn-color: var(--fg);
   width: 100%;
   min-height: 2.5rem;
   margin-top: 0.25rem;
-  background: var(--panel);
 }
 .error {
+  min-height: 1.3rem;
   color: var(--red);
+  font-size: var(--meta-size);
 }
 .spinner {
   animation: spin 750ms linear infinite;

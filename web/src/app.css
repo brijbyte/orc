@@ -27,12 +27,19 @@
     system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --focus-ring: 2px solid var(--cyan);
+  --focus-offset: 2px;
+  --meta-size: 0.8125rem;
   --hit: 2rem;
 }
 body {
   background: var(--bg);
   color: var(--fg);
   font: 0.875rem/1.5 var(--font-ui);
+}
+:is(a, input, textarea, select, summary):focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 * {
   scrollbar-width: thin;

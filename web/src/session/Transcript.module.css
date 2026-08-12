@@ -1,37 +1,70 @@
-/* the transcript scrolls full-width so the scrollbar sits at the viewport
-   edge; each block centers itself into the 60rem column */
+/* the transcript scrolls independently, edge to edge; each block centers itself */
 .main {
+  position: relative;
   flex: 1;
   overflow-y: auto;
-  /* reserve symmetric scrollbar space so the centered column never
-     shifts when content starts to overflow */
   scrollbar-gutter: stable both-edges;
   padding: 1rem 1rem 0.5rem;
   font: 0.875rem/1.5 var(--font-mono);
 }
 .main > [data-block] {
-  position: relative; /* anchors the per-block copy button */
+  position: relative;
   max-width: 60rem;
   margin: 0 auto 1.1rem;
 }
 .main > [data-block][data-compact-after] {
   margin-bottom: 0.4rem;
 }
+.toolGroup {
+  color: var(--dim);
+}
+.toolGroup > summary {
+  width: fit-content;
+  cursor: pointer;
+  font: 0.75rem/1.5 var(--font-ui);
+}
+.toolGroup > summary:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+.toolGroup > div {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding-left: 0.8rem;
+  border-left: 2px solid var(--line);
+}
+.toolGroup [data-block] {
+  position: relative;
+}
 .loading {
   position: sticky;
   top: 0;
   z-index: 2;
-  width: fit-content;
-  height: 0;
-  margin: 0 auto;
   display: flex;
+  width: fit-content;
+  min-height: 1.75rem;
   align-items: center;
   gap: 0.35rem;
+  margin: 0 auto 0.5rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
   color: var(--dim);
   background: var(--bg);
+  font: 0.75rem/1.4 var(--font-ui);
 }
 .loading svg {
   animation: spin 750ms linear infinite;
+}
+.latest {
+  position: sticky;
+  z-index: 3;
+  bottom: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg);
+  box-shadow: 0 0.3rem 1rem rgb(0 0 0 / 0.2);
 }
 
 @keyframes spin {
@@ -43,11 +76,5 @@
 @media (prefers-reduced-motion: reduce) {
   .loading svg {
     animation: none;
-  }
-}
-
-@media (max-width: 48rem) {
-  .main {
-    padding-top: 4rem;
   }
 }

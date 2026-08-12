@@ -113,8 +113,8 @@ function EchoContent({
   return (
     <>
       {markdown ? <Markdown text={body} /> : body}
-      {attachments.map((line, index) => (
-        <span className={s.attachment} key={index}>
+      {attachments.map((line) => (
+        <span className={s.attachment} key={line}>
           <Paperclip size={12} strokeWidth={1.8} aria-hidden />
           {line.slice(3)}
         </span>
@@ -162,20 +162,30 @@ export function BlockView({
       );
     case "think":
       return (
-        <div className={s.think} {...blockAttrs}>
-          <div className={s.thinkHead}>
+        <details className={s.think} {...blockAttrs}>
+          <summary className={s.thinkHead}>
             <Sparkles size={12} strokeWidth={1.8} aria-hidden />
-            <span>thinking</span>
-          </div>
+            <span>reasoning</span>
+          </summary>
           <div className={s.md}>
             <Markdown text={b.text} />
           </div>
           <CopyButton text={b.text} />
-        </div>
+        </details>
       );
     case "notice":
       return (
-        <div className={s.notice} {...blockAttrs}>
+        <div
+          className={s.notice}
+          data-severity={
+            b.text.startsWith("❌")
+              ? "error"
+              : b.text.startsWith("⚠️")
+                ? "warning"
+                : undefined
+          }
+          {...blockAttrs}
+        >
           <Notice text={b.text} />
           {onRetry && (
             <Button

@@ -23,6 +23,7 @@ export function DirPicker({
   const [parent, setParent] = useState("");
   const [dirs, setDirs] = useState<string[]>([]);
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState<string | null>(null);
   const [routine, setRoutine] = useState("");
   const picked = useRef<{ path: string; routine: string } | null>(null);
@@ -42,6 +43,7 @@ export function DirPicker({
   };
 
   const browse = (p: string) => {
+    setLoading(true);
     api
       .dirs(p)
       .then((d) => {
@@ -51,7 +53,8 @@ export function DirPicker({
         setDirs(d.dirs ?? []);
         setErr("");
       })
-      .catch(() => setErr("cannot read " + p));
+      .catch(() => setErr("cannot read " + p))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => browse(start), [start]);
@@ -97,23 +100,28 @@ export function DirPicker({
             />
           </form>
           {err && <div className={s.err}>{err}</div>}
-          <div className={s.list}>
+          <div className={s.list} aria-busy={loading}>
             {parent && (
               <Button className={s.dir} onClick={() => browse(parent)}>
                 <FolderUp size={14} strokeWidth={1.8} aria-hidden />
                 parent
               </Button>
             )}
-            {dirs.map((d) => (
-              <Button
-                key={d}
-                className={s.dir}
-                onClick={() => browse(path.replace(/\/$/, "") + "/" + d)}
-              >
-                <Folder size={14} strokeWidth={1.8} aria-hidden />
-                {d}
-              </Button>
-            ))}
+            {loading && <div className={s.empty}>Loading folders…</div>}
+            {!loading && !dirs.length && (
+              <div className={s.empty}>No folders</div>
+            )}
+            {!loading &&
+              dirs.map((d) => (
+                <Button
+                  key={d}
+                  className={s.dir}
+                  onClick={() => browse(path.replace(/\/$/, "") + "/" + d)}
+                >
+                  <Folder size={14} strokeWidth={1.8} aria-hidden />
+                  {d}
+                </Button>
+              ))}
           </div>
           <label className={s.routine}>
             routine mission <span>(optional)</span>
@@ -152,6 +160,9 @@ export function DirPicker({
                   spellCheck={false}
                   autoFocus
                 />
+                <Button small onClick={() => setNewName(null)}>
+                  cancel
+                </Button>
               </form>
             )}
             <Dialog.Close render={<Button outline />}>
@@ -160,7 +171,7 @@ export function DirPicker({
             </Dialog.Close>
             <Button
               outline
-              tone="success"
+              tone="accent"
               onClick={() => {
                 picked.current = { path, routine: routine.trim() };
                 onCancel();

@@ -18,6 +18,13 @@ import s from "./ServerPicker.module.css";
 const childPath = (path: string, name: string) =>
   path.replace(/\/$/, "") + "/" + name;
 
+const sizeLabel = (size: number) =>
+  size < 1024
+    ? `${size} B`
+    : size < 1 << 20
+      ? `${Math.round(size / 1024)} KB`
+      : `${(size / (1 << 20)).toFixed(1)} MB`;
+
 export function ServerPicker({
   sid,
   open,
@@ -33,9 +40,11 @@ export function ServerPicker({
   const [input, setInput] = useState("");
   const [selected, setSelected] = useState<ServerAttachment[]>([]);
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
   const pathRef = useRef<HTMLInputElement>(null);
 
   const browse = (path?: string) => {
+    setLoading(true);
     api
       .browse(sid, path)
       .then((next: BrowseResult) => {
@@ -43,7 +52,8 @@ export function ServerPicker({
         setInput(next.path);
         setErr("");
       })
-      .catch(() => setErr("cannot read directory"));
+      .catch(() => setErr("cannot read directory"))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -93,48 +103,56 @@ export function ServerPicker({
             />
           </form>
           {err && <div className={s.err}>{err}</div>}
-          <div className={s.list}>
+          <div className={s.list} aria-busy={loading}>
             {data?.parent && (
               <Button className={s.parent} onClick={() => browse(data.parent)}>
                 <FolderUp size={14} strokeWidth={1.8} aria-hidden />
                 parent
               </Button>
             )}
-            {data?.entries.map((entry) => {
-              const file = attachment(entry);
-              const on = picked(file.path);
-              const Icon = entry.dir ? Folder : File;
-              return (
-                <div
-                  className={s.row}
-                  data-selected={on || undefined}
-                  key={entry.name}
-                >
-                  <Button
-                    icon
-                    tip={on ? `unselect ${entry.name}` : `select ${entry.name}`}
-                    className={s.select}
-                    tone={on ? "accent" : undefined}
-                    onClick={() => toggle(entry)}
+            {loading && <div className={s.empty}>Loading files…</div>}
+            {!loading && data && !data.entries.length && (
+              <div className={s.empty}>No files</div>
+            )}
+            {!loading &&
+              data?.entries.map((entry) => {
+                const file = attachment(entry);
+                const on = picked(file.path);
+                const Icon = entry.dir ? Folder : File;
+                return (
+                  <div
+                    className={s.row}
+                    data-selected={on || undefined}
+                    key={entry.name}
                   >
-                    {on ? (
-                      <CheckSquare2 size={14} strokeWidth={1.8} aria-hidden />
-                    ) : (
-                      <Square size={14} strokeWidth={1.8} aria-hidden />
-                    )}
-                  </Button>
-                  <Button
-                    className={s.entry}
-                    onClick={() =>
-                      entry.dir ? browse(file.path) : toggle(entry)
-                    }
-                  >
-                    <Icon size={14} strokeWidth={1.8} aria-hidden />
-                    <span>{entry.name}</span>
-                  </Button>
-                </div>
-              );
-            })}
+                    <Button
+                      icon
+                      tip={
+                        on ? `unselect ${entry.name}` : `select ${entry.name}`
+                      }
+                      className={s.select}
+                      tone={on ? "accent" : undefined}
+                      onClick={() => toggle(entry)}
+                    >
+                      {on ? (
+                        <CheckSquare2 size={14} strokeWidth={1.8} aria-hidden />
+                      ) : (
+                        <Square size={14} strokeWidth={1.8} aria-hidden />
+                      )}
+                    </Button>
+                    <Button
+                      className={s.entry}
+                      onClick={() =>
+                        entry.dir ? browse(file.path) : toggle(entry)
+                      }
+                    >
+                      <Icon size={14} strokeWidth={1.8} aria-hidden />
+                      <span>{entry.name}</span>
+                      {!entry.dir && <em>{sizeLabel(entry.size)}</em>}
+                    </Button>
+                  </div>
+                );
+              })}
           </div>
           <div className={d.foot}>
             <span className={s.count}>
@@ -148,7 +166,7 @@ export function ServerPicker({
             </Dialog.Close>
             <Button
               outline
-              tone="success"
+              tone="accent"
               disabled={!selected.length}
               onClick={() => {
                 onAttach(selected);

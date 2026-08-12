@@ -146,14 +146,6 @@ export default function App() {
 
   if (!authenticated) return <Login onLogin={revalidate} />;
 
-  if (dead)
-    return (
-      <div className={s.dead}>
-        <ServerOff size={17} strokeWidth={1.8} aria-hidden />
-        cannot reach orc — is it still running?
-      </div>
-    );
-
   const sidebar = (
     <Sidebar
       rows={rows}
@@ -168,6 +160,7 @@ export default function App() {
       onDelete={confirmDelete}
       onPin={onPin}
       onWake={onWake}
+      disabled={dead}
       onNew={() => {
         setSideOpen(false);
         setPicking(true);
@@ -182,17 +175,32 @@ export default function App() {
   return (
     <SettingsProvider models={models}>
       <div className={s.shell}>
-        <Button
-          icon
-          outline
-          tip={sideOpen ? "hide sessions" : "show sessions"}
-          className={s.menu}
-          aria-controls="session-sidebar"
-          aria-expanded={sideOpen}
-          onClick={() => setSideOpen((open) => !open)}
-        >
-          <PanelLeft size={16} strokeWidth={1.8} aria-hidden />
-        </Button>
+        {narrow && (
+          <header className={s.mobileHead}>
+            <Button
+              icon
+              tip={sideOpen ? "hide sessions" : "show sessions"}
+              aria-controls="session-sidebar"
+              aria-expanded={sideOpen}
+              onClick={() => setSideOpen((open) => !open)}
+            >
+              <PanelLeft size={16} strokeWidth={1.8} aria-hidden />
+            </Button>
+            <span>{pageTitle}</span>
+            {dead && (
+              <span className={s.reconnecting} role="status">
+                <ServerOff size={13} strokeWidth={1.8} aria-hidden />{" "}
+                reconnecting
+              </span>
+            )}
+          </header>
+        )}
+        {!narrow && dead && (
+          <div className={s.reconnectBanner} role="status">
+            <ServerOff size={14} strokeWidth={1.8} aria-hidden />
+            reconnecting to orc…
+          </div>
+        )}
         {narrow ? (
           <>
             {sidebar}

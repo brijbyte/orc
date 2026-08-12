@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
-import { LoaderCircle } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ArrowDown, LoaderCircle } from "lucide-react";
+import { Button } from "../ui/Button";
 import * as store from "../lib/store";
 import type { Block } from "../lib/types";
 import { BlockView } from "./BlockView";
@@ -34,6 +35,7 @@ export function Transcript({
   const main = useRef<HTMLElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  const [following, setFollowing] = useState(true);
   const anchor = useRef<{ el: HTMLElement; top: number } | null>(null);
 
   useLayoutEffect(() => {
@@ -41,6 +43,7 @@ export function Transcript({
     if (!el) return;
     const saved = store.getScroll(sid);
     stick.current = saved?.stick ?? true;
+    setFollowing(stick.current);
     if (saved && !saved.stick) el.scrollTop = saved.top;
     else el.scrollTop = el.scrollHeight;
   }, [sid]);
@@ -69,6 +72,28 @@ export function Transcript({
     void store.loadOlder(sid);
   };
 
+  const entries: Array<Block | { group: Block[] }> = [];
+  for (const block of blocks) {
+    const previous = entries.at(-1);
+    if (
+      block.kind === "tool" &&
+      previous &&
+      "group" in previous &&
+      previous.group[0]?.kind === "tool" &&
+      previous.group[0].name === block.name
+    ) {
+      previous.group.push(block);
+    } else if (
+      block.kind === "tool" &&
+      previous &&
+      !("group" in previous) &&
+      previous.kind === "tool" &&
+      previous.name === block.name
+    ) {
+      entries.splice(-1, 1, { group: [previous, block] });
+    } else entries.push(block);
+  }
+
   return (
     <main
       className={s.main}
@@ -76,6 +101,7 @@ export function Transcript({
       onScroll={(e) => {
         const el = e.currentTarget;
         stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+        setFollowing(stick.current);
         store.saveScroll(sid, el.scrollTop, stick.current);
         if (el.scrollTop < 120) loadOlder(el);
       }}
@@ -86,16 +112,56 @@ export function Transcript({
           loading
         </div>
       )}
-      {blocks.map((b, i) => (
-        <BlockView
-          key={b.id}
-          b={b}
-          compactAfter={compactPair(b, blocks[i + 1])}
-          onOpenFile={onOpenFile}
-          onRetry={i === blocks.length - 1 ? onRetry : undefined}
-        />
-      ))}
+      {entries.map((entry, i) => {
+        if ("group" in entry) {
+          const first = entry.group[0];
+          const latest = entry.group.at(-1)!;
+          if (first.kind !== "tool") return null;
+          return (
+            <details className={s.toolGroup} data-block key={entry.group[0].id}>
+              <summary>
+                {entry.group.length} {first.name} calls · latest:{" "}
+                {latest.kind === "tool" ? latest.desc : ""}
+              </summary>
+              <div>
+                {entry.group.map((block, index) => (
+                  <BlockView
+                    key={block.id}
+                    b={block}
+                    compactAfter={index < entry.group.length - 1}
+                    onOpenFile={onOpenFile}
+                  />
+                ))}
+              </div>
+            </details>
+          );
+        }
+        return (
+          <BlockView
+            key={entry.id}
+            b={entry}
+            compactAfter={compactPair(entry, entries[i + 1] as Block)}
+            onOpenFile={onOpenFile}
+            onRetry={i === entries.length - 1 ? onRetry : undefined}
+          />
+        );
+      })}
       <div ref={bottom} />
+      {!following && (
+        <Button
+          small
+          outline
+          tone="accent"
+          className={s.latest}
+          onClick={() => {
+            stick.current = true;
+            setFollowing(true);
+            bottom.current?.scrollIntoView();
+          }}
+        >
+          <ArrowDown size={13} strokeWidth={1.8} aria-hidden /> latest
+        </Button>
+      )}
     </main>
   );
 }

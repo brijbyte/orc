@@ -28,10 +28,11 @@ export function DeleteDialog({
         <AlertDialog.Backdrop className={d.overlay} />
         <AlertDialog.Popup className={`${d.popup} ${d.confirm}`}>
           <AlertDialog.Title className={d.head}>
-            delete session?
+            Delete session?
           </AlertDialog.Title>
           <AlertDialog.Description className={d.desc}>
-            “{sessionTitle(row)}” and its file will be removed.
+            “<span title={sessionTitle(row)}>{sessionTitle(row)}</span>” and its
+            file will be removed.
           </AlertDialog.Description>
           <div className={d.foot}>
             <AlertDialog.Close render={<Button outline />}>

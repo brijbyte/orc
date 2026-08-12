@@ -224,27 +224,30 @@ function ChangeTree({
 function Activity({ entries }: { entries: GitActivity[] }) {
   if (!entries.length) return null;
   return (
-    <section className={s.activity} aria-label="Git activity">
-      <strong>
-        <History size={12} strokeWidth={1.8} aria-hidden /> activity
-      </strong>
-      {entries.slice(0, 5).map((entry, i) => (
-        <div key={`${entry.at}:${i}`} title={entry.paths.join("\n")}>
-          <span>{entry.action}</span>
-          <span>
-            {entry.hunks
-              ? `${entry.hunks} hunk${entry.hunks === 1 ? "" : "s"}`
-              : `${entry.paths.length} file${entry.paths.length === 1 ? "" : "s"}`}
-          </span>
-          <time dateTime={entry.at}>
-            {new Date(entry.at).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </time>
-        </div>
-      ))}
-    </section>
+    <details className={s.activity}>
+      <summary>
+        <History size={12} strokeWidth={1.8} aria-hidden /> activity ·{" "}
+        {entries.length}
+      </summary>
+      <div>
+        {entries.slice(0, 5).map((entry, i) => (
+          <div key={`${entry.at}:${i}`} title={entry.paths.join("\n")}>
+            <span>{entry.action}</span>
+            <span>
+              {entry.hunks
+                ? `${entry.hunks} hunk${entry.hunks === 1 ? "" : "s"}`
+                : `${entry.paths.length} file${entry.paths.length === 1 ? "" : "s"}`}
+            </span>
+            <time dateTime={entry.at}>
+              {new Date(entry.at).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </time>
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -564,13 +567,13 @@ export function GitDrawer({
 
   const recoveryTitle = recoveryRequest
     ? recoveryRequest.kind === "remove"
-      ? "remove untracked file?"
+      ? "Remove untracked file?"
       : recoveryRequest.hunks?.length
-        ? "discard selected hunks?"
+        ? "Discard selected hunks?"
         : recoveryRequest.entry.change.worktree === "D"
-          ? "restore deleted file?"
-          : "discard file?"
-    : "discard changes?";
+          ? "Restore deleted file?"
+          : "Discard file?"
+    : "Discard changes?";
   const recoveryAction = recoveryRequest
     ? recoveryRequest.kind === "remove"
       ? "remove"
@@ -785,15 +788,17 @@ export function GitDrawer({
                   </Popover.Portal>
                 </Popover.Root>
               )}
-              <Button
-                outline
-                small
-                disabled={mutating || !status?.recovery}
-                onClick={() => void undoDiscard()}
-              >
-                <RotateCcw size={13} strokeWidth={1.8} aria-hidden />
-                undo discard
-              </Button>
+              {status?.recovery && (
+                <Button
+                  outline
+                  small
+                  disabled={mutating}
+                  onClick={() => void undoDiscard()}
+                >
+                  <RotateCcw size={13} strokeWidth={1.8} aria-hidden />
+                  undo discard
+                </Button>
+              )}
               <Button
                 icon
                 tip="refresh Git status"
@@ -879,44 +884,48 @@ export function GitDrawer({
                   </div>
                   {canMutate && changes.length > 0 && (
                     <div className={s.selectionBar}>
-                      <span>{selectedIDs.length} selected</span>
-                      <Button
-                        link
-                        small
-                        onClick={() => {
-                          setSelectedIDs(changes.map((entry) => entry.id));
-                          setActiveID(changes.at(-1)?.id ?? "");
-                        }}
-                      >
-                        select all
-                      </Button>
-                      <Button
-                        link
-                        small
-                        disabled={!selectedIDs.length}
-                        onClick={() => setSelectedIDs([])}
-                      >
-                        clear
-                      </Button>
-                      <Button
-                        outline
-                        small
-                        tone="success"
-                        disabled={mutating || !unstagedSelected.length}
-                        onClick={() => void mutate(true, unstagedSelected)}
-                      >
-                        <Check size={13} strokeWidth={1.8} aria-hidden />
-                        stage files
-                      </Button>
-                      <Button
-                        outline
-                        small
-                        disabled={mutating || !stagedSelected.length}
-                        onClick={() => void mutate(false, stagedSelected)}
-                      >
-                        <Undo2 size={13} strokeWidth={1.8} aria-hidden />
-                        unstage files
-                      </Button>
+                      <div className={s.selectionControls}>
+                        <span>{selectedIDs.length} selected</span>
+                        <Button
+                          link
+                          small
+                          onClick={() => {
+                            setSelectedIDs(changes.map((entry) => entry.id));
+                            setActiveID(changes.at(-1)?.id ?? "");
+                          }}
+                        >
+                          select all
+                        </Button>
+                        <Button
+                          link
+                          small
+                          disabled={!selectedIDs.length}
+                          onClick={() => setSelectedIDs([])}
+                        >
+                          clear
+                        </Button>
+                      </div>
+                      <div className={s.mutationControls}>
+                        <Button
+                          outline
+                          small
+                          tone="accent"
+                          disabled={mutating || !unstagedSelected.length}
+                          onClick={() => void mutate(true, unstagedSelected)}
+                        >
+                          <Check size={13} strokeWidth={1.8} aria-hidden />
+                          stage files
+                        </Button>
+                        <Button
+                          outline
+                          small
+                          disabled={mutating || !stagedSelected.length}
+                          onClick={() => void mutate(false, stagedSelected)}
+                        >
+                          <Undo2 size={13} strokeWidth={1.8} aria-hidden />
+                          unstage files
+                        </Button>
+                      </div>
                     </div>
                   )}
                   {changes.length === 0 && (
@@ -967,15 +976,22 @@ export function GitDrawer({
                       {selected.change.file && (
                         <Button outline small onClick={addFile}>
                           <Paperclip size={13} strokeWidth={1.8} aria-hidden />{" "}
-                          file
+                          attach file
                         </Button>
                       )}
                       {diff?.patch && (
                         <Button outline small onClick={addDiff}>
                           <Paperclip size={13} strokeWidth={1.8} aria-hidden />{" "}
-                          diff
+                          attach diff
                         </Button>
                       )}
+                      <span
+                        className={s.diffFeedback}
+                        role="status"
+                        aria-live="polite"
+                      >
+                        {mutationErr || diffErr}
+                      </span>
                       {canMutate && selected.mode === "worktree" && (
                         <Button
                           outline
@@ -1065,11 +1081,6 @@ export function GitDrawer({
                         )}
                     </div>
                   )}
-                  {mutationErr && (
-                    <div className={`${s.message} ${s.error}`}>
-                      {mutationErr}
-                    </div>
-                  )}
                   {selected && !diff && !diffErr && (
                     <div className={s.message}>
                       <LoaderCircle
@@ -1080,9 +1091,6 @@ export function GitDrawer({
                       />
                       loading diff
                     </div>
-                  )}
-                  {diffErr && (
-                    <div className={`${s.message} ${s.error}`}>{diffErr}</div>
                   )}
                   {diff && !diff.patch && (
                     <div className={s.message}>No text diff.</div>
@@ -1147,7 +1155,7 @@ export function GitDrawer({
               </AlertDialog.Close>
               <Button
                 outline
-                tone={recoveryAction === "restore" ? "success" : "danger"}
+                tone={recoveryAction === "restore" ? "accent" : "danger"}
                 disabled={mutating || !recoveryRequest}
                 onClick={() => void runRecoveryRequest()}
               >

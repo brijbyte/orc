@@ -31,7 +31,15 @@ const readB64 = (f: File) =>
   });
 
 function sizeLabel(n: number): string {
-  return n < 1024 ? `${n} B` : `${Math.round(n / 1024)} KB`;
+  if (n < 1024) return `${n} B`;
+  if (n < 1 << 20) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1 << 20)).toFixed(n < 10 << 20 ? 1 : 0)} MB`;
+}
+
+function attachmentID(file: ComposerAttachment): string {
+  return file instanceof File
+    ? `local:${file.name}:${file.size}:${file.lastModified}`
+    : `server:${file.path}`;
 }
 
 // isEditable reports whether typing already goes somewhere: form fields,
@@ -60,6 +68,7 @@ export function InputBar({
   files,
   setFiles,
   addFiles,
+  attachmentError,
   draft,
 }: {
   sid: string;
@@ -68,6 +77,7 @@ export function InputBar({
   files: ComposerAttachment[];
   setFiles: (f: ComposerAttachment[]) => void;
   addFiles: (f: FileList | null) => void;
+  attachmentError?: string;
   draft?: { text: string; request: number };
 }) {
   const [input, setInput] = useState("");
@@ -135,9 +145,9 @@ export function InputBar({
     <form className={s.composer} onSubmit={submit}>
       {files.length > 0 && (
         <div className={s.chips}>
-          {files.map((f, i) => (
+          {files.map((f) => (
             <span
-              key={i}
+              key={attachmentID(f)}
               className={s.chip}
               title={f instanceof File ? f.name : f.path}
             >
@@ -148,7 +158,13 @@ export function InputBar({
                 icon
                 tone="danger"
                 tip="remove attachment"
-                onClick={() => setFiles(files.filter((_, j) => j !== i))}
+                onClick={() =>
+                  setFiles(
+                    files.filter(
+                      (item) => attachmentID(item) !== attachmentID(f),
+                    ),
+                  )
+                }
               >
                 <X size={12} strokeWidth={1.8} aria-hidden />
               </Button>
@@ -156,6 +172,9 @@ export function InputBar({
           ))}
         </div>
       )}
+      <div className={s.attachmentError} aria-live="polite">
+        {attachmentError}
+      </div>
       <div className={s.bar}>
         <span
           className={
@@ -178,52 +197,6 @@ export function InputBar({
         <span className={s.live} role="status" aria-live="polite" aria-atomic>
           {busy ? "Turn in progress" : complete ? "Turn complete" : ""}
         </span>
-        <div className={s.field}>
-          <textarea
-            ref={inputRef}
-            rows={1}
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              autosize();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                submit();
-              } else if (e.key === "Escape" && busy) {
-                api.interrupt(sid);
-              }
-            }}
-            placeholder={
-              busy ? "queue a message… (Esc interrupts)" : "message orc"
-            }
-            autoFocus
-          />
-          <Button
-            outline
-            tone={busy ? "danger" : "accent"}
-            disabled={!busy && !input.trim() && files.length === 0}
-            onClick={() => (busy ? api.interrupt(sid) : submit())}
-          >
-            {busy ? (
-              <Square size={11} fill="currentColor" aria-hidden />
-            ) : (
-              <Send size={13} strokeWidth={1.8} aria-hidden />
-            )}
-            {busy ? "stop" : "send"}
-          </Button>
-        </div>
-        <input
-          ref={pickRef}
-          type="file"
-          multiple
-          hidden
-          onChange={(e) => {
-            addFiles(e.target.files);
-            e.target.value = "";
-          }}
-        />
         <Menu.Root>
           <Menu.Trigger
             render={<Button icon aria-label="attach" title="attach" />}
@@ -251,6 +224,53 @@ export function InputBar({
             </Menu.Positioner>
           </Menu.Portal>
         </Menu.Root>
+        <div className={s.field}>
+          <textarea
+            ref={inputRef}
+            rows={1}
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              autosize();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              } else if (e.key === "Escape" && busy) {
+                api.interrupt(sid);
+              }
+            }}
+            placeholder={
+              busy ? "queue a message… (Esc interrupts)" : "message orc"
+            }
+            autoFocus
+          />
+          <Button
+            outline
+            tone="accent"
+            disabled={!input.trim() && files.length === 0}
+            onClick={() => submit()}
+          >
+            <Send size={13} strokeWidth={1.8} aria-hidden />
+            {busy ? "queue" : "send"}
+          </Button>
+          {busy && (
+            <Button outline tone="danger" onClick={() => api.interrupt(sid)}>
+              <Square size={11} fill="currentColor" aria-hidden /> stop
+            </Button>
+          )}
+        </div>
+        <input
+          ref={pickRef}
+          type="file"
+          multiple
+          hidden
+          onChange={(e) => {
+            addFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
       </div>
       <ServerPicker
         sid={sid}

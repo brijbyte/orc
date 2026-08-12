@@ -10,13 +10,17 @@
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 0.4rem;
-  outline: none;
   font: inherit;
+}
+.path input:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 .err {
   color: var(--red);
 }
 .list {
+  min-height: 2.5rem;
   max-height: min(50vh, 28rem);
   overflow-y: auto;
   border: 1px solid var(--line);
@@ -53,6 +57,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.entry em {
+  margin-left: auto;
+  color: var(--dim);
+  font: 0.75rem/1.4 var(--font-ui);
+  font-style: normal;
+}
+.empty {
+  padding: 0.65rem;
+  color: var(--dim);
+  font-size: var(--meta-size);
 }
 .count {
   margin-right: auto;
