@@ -132,6 +132,15 @@
     "Helvetica Neue",
     sans-serif;
 }
+.groupedDesc {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  margin-bottom: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* block display keeps the ellipsis working on the overflowing path */
 .filePath {
   display: block;

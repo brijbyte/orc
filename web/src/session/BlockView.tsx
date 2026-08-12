@@ -40,6 +40,8 @@ const toolIcons: Record<string, typeof Wrench> = {
   skill: Brain,
 };
 
+export const toolIcon = (name: string) => toolIcons[name] ?? Wrench;
+
 const noticeIcons = [
   ["❌", CircleX],
   ["⚠️", TriangleAlert],
@@ -129,11 +131,13 @@ export function BlockView({
   compactAfter,
   onOpenFile,
   onRetry,
+  grouped = false,
 }: {
   b: Block;
   compactAfter: boolean;
   onOpenFile: (path: string, ref: string) => void;
   onRetry?: () => void;
+  grouped?: boolean;
 }) {
   const blockAttrs = {
     "data-block": "",
@@ -210,27 +214,43 @@ export function BlockView({
         </div>
       );
     case "tool": {
-      const Icon = toolIcons[b.name] ?? Wrench;
+      const Icon = toolIcon(b.name);
       const bash = b.name === "bash";
       return (
         <div className={s.tool} {...blockAttrs}>
-          <div className={s.toolLine}>
-            <Icon size={14} strokeWidth={1.8} aria-hidden />
-            <span className={s.toolName}>{b.name}</span>
-            {b.path && b.file ? (
+          {grouped ? (
+            b.path && b.file ? (
               <Button
                 link
                 tone="accent"
-                className={s.filePath}
+                className={`${s.filePath} ${s.groupedDesc}`}
                 onClick={() => onOpenFile(b.path!, b.file!)}
                 title={b.path}
               >
                 {b.desc}
               </Button>
             ) : (
-              <span>{b.desc}</span>
-            )}
-          </div>
+              b.desc && <div className={s.groupedDesc}>{b.desc}</div>
+            )
+          ) : (
+            <div className={s.toolLine}>
+              <Icon size={14} strokeWidth={1.8} aria-hidden />
+              <span className={s.toolName}>{b.name}</span>
+              {b.path && b.file ? (
+                <Button
+                  link
+                  tone="accent"
+                  className={s.filePath}
+                  onClick={() => onOpenFile(b.path!, b.file!)}
+                  title={b.path}
+                >
+                  {b.desc}
+                </Button>
+              ) : (
+                <span>{b.desc}</span>
+              )}
+            </div>
+          )}
           {b.preview && (
             <Preview
               text={b.preview}

@@ -45,9 +45,11 @@
 }
 .toolTrigger svg {
   flex: none;
+}
+.toolChevron {
   transition: transform 100ms var(--ease-out);
 }
-.toolTrigger[data-panel-open] svg {
+.toolTrigger[data-panel-open] .toolChevron {
   transform: rotate(90deg);
 }
 .toolPanel {

@@ -4,7 +4,7 @@ import { ArrowDown, ChevronRight, LoaderCircle } from "lucide-react";
 import { Button } from "../ui/Button";
 import * as store from "../lib/store";
 import type { Block } from "../lib/types";
-import { BlockView } from "./BlockView";
+import { BlockView, toolIcon } from "./BlockView";
 import s from "./Transcript.module.css";
 
 type Props = {
@@ -118,6 +118,7 @@ export function Transcript({
           const first = entry.group[0];
           const latest = entry.group.at(-1)!;
           if (first.kind !== "tool") return null;
+          const ToolIcon = toolIcon(first.name);
           return (
             <Collapsible.Root
               className={s.toolGroup}
@@ -125,7 +126,13 @@ export function Transcript({
               key={entry.group[0].id}
             >
               <Collapsible.Trigger className={s.toolTrigger}>
-                <ChevronRight size={13} strokeWidth={1.8} aria-hidden />
+                <ChevronRight
+                  className={s.toolChevron}
+                  size={13}
+                  strokeWidth={1.8}
+                  aria-hidden
+                />
+                <ToolIcon size={14} strokeWidth={1.8} aria-hidden />
                 <span>
                   {entry.group.length} {first.name} calls · latest:{" "}
                   {latest.kind === "tool" ? latest.desc : ""}
@@ -138,6 +145,7 @@ export function Transcript({
                     b={block}
                     compactAfter={index < entry.group.length - 1}
                     onOpenFile={onOpenFile}
+                    grouped
                   />
                 ))}
               </Collapsible.Panel>
