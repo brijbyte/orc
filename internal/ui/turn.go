@@ -158,13 +158,15 @@ func displayPath(path string) string {
 // text as an expandable preview instead.
 const DescMax = 100
 
-// ToolDesc summarizes a tool call's arguments (command or path).
+// ToolDesc summarizes a tool call's arguments.
 func ToolDesc(name, argsJSON string) string {
 	var args struct {
-		Cmd    string `json:"cmd"`
-		Path   string `json:"path"`
-		Action string `json:"action"`
-		ID     string `json:"id"`
+		Cmd     string `json:"cmd"`
+		Path    string `json:"path"`
+		Action  string `json:"action"`
+		ID      string `json:"id"`
+		Seconds int    `json:"seconds"`
+		Reason  string `json:"reason"`
 	}
 	json.Unmarshal([]byte(argsJSON), &args)
 	desc := args.Cmd
@@ -173,6 +175,19 @@ func ToolDesc(name, argsJSON string) string {
 	}
 	if desc == "" && name == "process" {
 		desc = strings.TrimSpace(args.Action + " " + args.ID)
+	}
+	if desc == "" && name == "sleep" {
+		seconds := min(max(args.Seconds, 60), 24*60*60)
+		duration := (time.Duration(seconds) * time.Second).String()
+		if seconds%3600 == 0 {
+			duration = fmt.Sprintf("%dh", seconds/3600)
+		} else if seconds%60 == 0 {
+			duration = fmt.Sprintf("%dm", seconds/60)
+		}
+		desc = "for " + duration
+		if args.Reason != "" {
+			desc += " — " + args.Reason
+		}
 	}
 	if r := []rune(desc); len(r) > DescMax {
 		desc = string(r[:DescMax]) + "…"

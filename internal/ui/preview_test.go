@@ -63,6 +63,21 @@ func TestProcessDesc(t *testing.T) {
 	}
 }
 
+func TestSleepDesc(t *testing.T) {
+	for _, test := range []struct {
+		args string
+		want string
+	}{
+		{`{"seconds":300,"reason":"check again"}`, "for 5m — check again"},
+		{`{"seconds":90,"reason":""}`, "for 1m30s"},
+		{`{"seconds":10,"reason":"minimum"}`, "for 1m — minimum"},
+	} {
+		if desc := ToolDesc("sleep", test.args); desc != test.want {
+			t.Errorf("ToolDesc(sleep, %s) = %q, want %q", test.args, desc, test.want)
+		}
+	}
+}
+
 func TestBashCommandPreview(t *testing.T) {
 	long := "echo " + strings.Repeat("x", 120)
 	args, _ := json.Marshal(map[string]string{"cmd": long})
