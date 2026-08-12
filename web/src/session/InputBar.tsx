@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Menu } from "@base-ui/react/menu";
 import {
   Check,
-  ChevronRight,
   Files,
   HardDrive,
   LoaderCircle,
@@ -179,24 +178,6 @@ export function InputBar({
         {attachmentError}
       </div>
       <div className={s.bar}>
-        <span
-          className={
-            busy
-              ? `${s.prompt} ${s.busy}`
-              : complete
-                ? `${s.prompt} ${s.complete}`
-                : s.prompt
-          }
-          aria-hidden
-        >
-          {busy ? (
-            <LoaderCircle size={13} strokeWidth={1.8} />
-          ) : complete ? (
-            <Check size={13} strokeWidth={2} />
-          ) : (
-            <ChevronRight size={13} strokeWidth={2} />
-          )}
-        </span>
         <span className={s.live} role="status" aria-live="polite" aria-atomic>
           {busy ? "Turn in progress" : complete ? "Turn complete" : ""}
         </span>
@@ -249,6 +230,16 @@ export function InputBar({
             }
             autoFocus
           />
+          {busy && (
+            <span className={s.busy} aria-hidden>
+              <LoaderCircle size={13} strokeWidth={1.8} />
+            </span>
+          )}
+          {!busy && complete && (
+            <span className={s.complete} aria-hidden>
+              <Check size={13} strokeWidth={2} />
+            </span>
+          )}
           <Button
             outline
             tone="accent"

@@ -57,25 +57,6 @@
   max-width: 60rem;
   margin: 0 auto;
 }
-.prompt {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 1.25ch;
-  height: 2rem;
-  color: var(--cyan);
-  font: bold 0.875rem/1.5 var(--font-mono);
-}
-.prompt.busy {
-  color: var(--dim);
-}
-.prompt.complete {
-  color: var(--green);
-}
-.prompt.busy svg {
-  animation: spin 750ms linear infinite;
-}
 .field {
   display: flex;
   align-items: flex-start;
@@ -109,6 +90,24 @@
 }
 .composer textarea[data-overflow] {
   overflow-y: auto;
+}
+.busy,
+.complete {
+  display: inline-flex;
+  width: 1.5rem;
+  height: var(--hit);
+  flex: none;
+  align-items: center;
+  justify-content: center;
+}
+.busy {
+  color: var(--dim);
+}
+.busy svg {
+  animation: spin 750ms linear infinite;
+}
+.complete {
+  color: var(--green);
 }
 .menuPositioner {
   z-index: 20;
@@ -153,16 +152,13 @@
   .composer {
     padding-inline: 0.6rem;
   }
-  .prompt {
-    display: none;
-  }
   .field {
     flex-wrap: wrap;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .prompt.busy svg {
+  .busy svg {
     animation: none;
   }
 }
