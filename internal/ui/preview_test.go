@@ -56,6 +56,13 @@ func stripDiffPaint(s string) string {
 
 // Long bash commands clamp in the one-liner and expand via the preview;
 // short ones get neither.
+func TestProcessDesc(t *testing.T) {
+	args := `{"action":"logs","id":"job-1","offset":10}`
+	if desc := ToolDesc("process", args); desc != "logs job-1" {
+		t.Errorf("process desc = %q", desc)
+	}
+}
+
 func TestBashCommandPreview(t *testing.T) {
 	long := "echo " + strings.Repeat("x", 120)
 	args, _ := json.Marshal(map[string]string{"cmd": long})

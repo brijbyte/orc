@@ -161,13 +161,18 @@ const DescMax = 100
 // ToolDesc summarizes a tool call's arguments (command or path).
 func ToolDesc(name, argsJSON string) string {
 	var args struct {
-		Cmd  string `json:"cmd"`
-		Path string `json:"path"`
+		Cmd    string `json:"cmd"`
+		Path   string `json:"path"`
+		Action string `json:"action"`
+		ID     string `json:"id"`
 	}
 	json.Unmarshal([]byte(argsJSON), &args)
 	desc := args.Cmd
 	if desc == "" && args.Path != "" {
 		desc = displayPath(args.Path)
+	}
+	if desc == "" && name == "process" {
+		desc = strings.TrimSpace(args.Action + " " + args.ID)
 	}
 	if r := []rune(desc); len(r) > DescMax {
 		desc = string(r[:DescMax]) + "…"
