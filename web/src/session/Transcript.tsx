@@ -28,14 +28,16 @@ function ToolGroup({
   onOpenFile: Props["onOpenFile"];
 }) {
   const [open, setOpen] = useState(active);
+  const [previousActive, setPreviousActive] = useState(active);
   const first = blocks[0];
   const latest = blocks.at(-1)!;
   const ToolIcon = toolIcon(first.name);
 
-  // The newest group stays open for live progress. A later group closes it.
-  useEffect(() => {
+  // A later group closes the previous one before this render is committed.
+  if (active !== previousActive) {
+    setPreviousActive(active);
     if (!active) setOpen(false);
-  }, [active]);
+  }
 
   return (
     <Collapsible.Root
