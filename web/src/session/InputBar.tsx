@@ -240,15 +240,17 @@ export function InputBar({
               <Check size={13} strokeWidth={2} />
             </span>
           )}
-          <Button
-            outline
-            tone="accent"
-            disabled={!input.trim() && files.length === 0}
-            onClick={() => submit()}
-          >
-            <Send size={13} strokeWidth={1.8} aria-hidden />
-            {busy ? "queue" : "send"}
-          </Button>
+          {(!busy || input.trim()) && (
+            <Button
+              outline
+              tone="accent"
+              disabled={!input.trim() && files.length === 0}
+              onClick={() => submit()}
+            >
+              <Send size={13} strokeWidth={1.8} aria-hidden />
+              {busy ? "queue" : "send"}
+            </Button>
+          )}
           {busy && (
             <Button outline tone="danger" onClick={() => api.interrupt(sid)}>
               <Square size={11} fill="currentColor" aria-hidden /> stop
