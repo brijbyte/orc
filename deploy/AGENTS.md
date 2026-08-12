@@ -11,6 +11,9 @@ keeping must leave the box — push it, or put it in your reply to the owner.
   the printed `https://…ts.net:8443` URL; turn it off with
   `sudo tailscale serve --https=8443 off` when done.
 - `rg` (ripgrep) is installed; prefer it for search.
+- To update or restart orc, run
+  `sudo systemctl restart --no-block orc-update.service` and return. Never wait
+  for that unit or run `orc service install --graceful` from an agent turn.
 - For a browser, start one on a free port and connect the global
   `playwright-core` to it; kill it when done. Do not `launch()`, and do not
   install browsers.
