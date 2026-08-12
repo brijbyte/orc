@@ -53,7 +53,7 @@ func NewRuntime(prov provider.Provider, cfg *config.Config, sess *session.Sessio
 	}
 	if interrupted {
 		if interruptedTools {
-			w.Notice("⚠️ orc: turn interrupted during tool execution; review the workspace before continuing")
+			w.Notice("❌ orc: turn interrupted during tool execution; tools were not rerun — review the workspace, then try again")
 		} else {
 			w.Notice("❌ orc: turn interrupted by service restart — try again")
 		}
