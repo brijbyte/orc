@@ -81,7 +81,10 @@ function Row({
     useCallback((fn: () => void) => store.subscribe(sid, fn), [sid]),
     useCallback(() => store.snapshot(sid), [sid]),
   );
-  const busy = streamed.busy || row.busy;
+  // Closing a tab removes it from openIds before the sessions response
+  // refreshes, so don't briefly retain the stale server-side live indicator.
+  const live = open && row.live;
+  const busy = live && (streamed.busy || row.busy);
   return (
     <div
       className={s.row + (active ? " " + s.active : "")}
@@ -99,9 +102,9 @@ function Row({
       >
         <span
           className={s.dot}
-          data-live={row.live || undefined}
+          data-live={live || undefined}
           role="img"
-          aria-label={busy ? "busy" : row.live ? "live" : "stopped"}
+          aria-label={busy ? "busy" : live ? "live" : "stopped"}
         >
           {busy ? (
             <LoaderCircle
@@ -113,7 +116,7 @@ function Row({
           ) : (
             <Circle
               size={8}
-              fill={row.live ? "currentColor" : "none"}
+              fill={live ? "currentColor" : "none"}
               aria-hidden
             />
           )}
