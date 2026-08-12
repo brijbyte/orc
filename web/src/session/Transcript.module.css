@@ -18,7 +18,9 @@
   margin-bottom: 0.4rem;
 }
 .toolGroup {
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   color: var(--dim);
 }
@@ -50,16 +52,21 @@
 }
 .toolPanel {
   display: grid;
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
   gap: 0.4rem;
   margin-top: 0.5rem;
   padding-left: 0.8rem;
+  overflow: hidden;
   border-left: 2px solid var(--line);
 }
 .toolGroup [data-block] {
   position: relative;
+  width: 100%;
   min-width: 0;
   max-width: 100%;
+  overflow: hidden;
 }
 .loading {
   position: sticky;

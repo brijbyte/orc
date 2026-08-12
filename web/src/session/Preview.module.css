@@ -1,4 +1,6 @@
 .preview {
+  box-sizing: border-box;
+  display: block;
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -9,6 +11,10 @@
   padding: 0.5rem 0.6rem;
   border-radius: 6px;
   font: 0.8125rem/1.55 var(--font-mono);
+}
+.preview > div {
+  width: max-content;
+  min-width: 100%;
 }
 .add,
 .del {
