@@ -110,6 +110,7 @@
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 0;
 }
 .dot {
   display: flex;
@@ -139,7 +140,7 @@
   padding-left: 1.1rem;
 }
 .foot[data-pinned] {
-  padding-right: var(--hit);
+  padding-right: calc(var(--hit) * 2 + 0.1rem);
 }
 .age {
   flex: 1;
@@ -156,6 +157,7 @@
 }
 .acts {
   position: absolute;
+  z-index: 1;
   right: 0.15rem;
   bottom: 0;
   display: flex;
@@ -163,15 +165,18 @@
 }
 .act,
 .more {
+  position: relative;
+  z-index: 1;
+}
+.act {
   opacity: 0;
 }
 .act:focus-visible,
-.act.on,
-.more:focus-visible {
+.act.on {
   opacity: 1;
 }
 .more {
-  display: none;
+  opacity: 1;
 }
 .menuPositioner {
   z-index: 20;
@@ -206,16 +211,14 @@
 }
 
 @media (hover: none), (pointer: coarse) {
-  .act {
+  .act:not(.on) {
     display: none;
   }
-  .more {
-    display: inline-flex;
-    opacity: 1;
-  }
-  .foot,
-  .foot[data-pinned] {
+  .foot {
     padding-right: var(--hit);
+  }
+  .foot[data-pinned] {
+    padding-right: calc(var(--hit) * 2 + 0.1rem);
   }
 }
 

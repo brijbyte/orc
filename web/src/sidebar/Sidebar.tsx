@@ -128,51 +128,23 @@ function Row({
           ) : null}
         </span>
         <span className={s.acts}>
-          {row.routine && row.wake && (
+          {row.pinned && (
             <Button
               icon
               tone="accent"
-              tip="wake now"
-              className={s.act}
-              onClick={onWake}
+              tip="unpin"
+              className={`${s.act} ${s.on}`}
+              onClick={onPin}
             >
-              <AlarmClock size={12} />
+              <Pin size={12} aria-hidden />
             </Button>
           )}
-          <Button
-            icon
-            tone={row.pinned ? "accent" : undefined}
-            tip={row.pinned ? "unpin" : "pin to the top"}
-            className={`${s.act} ${s.pin}${row.pinned ? ` ${s.on}` : ""}`}
-            onClick={onPin}
-          >
-            <Pin size={12} />
-          </Button>
-          {open && row.live && (
-            <Button
-              icon
-              tip="close (stop) this session"
-              className={s.act}
-              onClick={onStop}
-            >
-              <X size={12} />
-            </Button>
-          )}
-          <Button
-            icon
-            tone="danger"
-            tip="delete this session"
-            className={s.act}
-            onClick={onDelete}
-          >
-            <Trash2 size={12} />
-          </Button>
           <Menu.Root>
             <Menu.Trigger
               render={
                 <Button
                   icon
-                  tip="session actions"
+                  title="session actions"
                   className={s.more}
                   aria-label="session actions"
                 />
