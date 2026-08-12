@@ -219,6 +219,7 @@ export function BlockView({
     case "tool": {
       const Icon = toolIcon(b.name);
       const bash = b.name === "bash";
+      const preview = b.preview || (grouped && bash ? b.desc : "");
       return (
         <div className={s.tool} {...blockAttrs}>
           {grouped ? (
@@ -255,9 +256,9 @@ export function BlockView({
               )}
             </div>
           )}
-          {b.preview && (
+          {preview && (
             <Preview
-              text={b.preview}
+              text={preview}
               path={bash ? "command.sh" : b.path}
               gutter={!bash}
               max={bash ? 5 : b.name === "edit" ? 10 : 20}
