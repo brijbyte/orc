@@ -60,9 +60,7 @@
   height: var(--collapsible-panel-height);
   gap: 0.4rem;
   margin-top: 0.5rem;
-  padding-left: 0.8rem;
   overflow: hidden;
-  border-left: 2px solid var(--line);
   opacity: 1;
   transition:
     height 200ms var(--ease-out),

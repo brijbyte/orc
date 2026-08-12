@@ -55,7 +55,8 @@ function ToolGroup({
         />
         <ToolIcon size={14} strokeWidth={1.8} aria-hidden />
         <span>
-          {blocks.length} {first.name} calls · latest: {latest.desc}
+          {blocks.length} {first.name} calls
+          {latest.desc ? ` · latest: ${latest.desc}` : ""}
         </span>
       </Collapsible.Trigger>
       <Collapsible.Panel className={s.toolPanel}>
