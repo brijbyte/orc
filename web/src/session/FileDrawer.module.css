@@ -244,7 +244,7 @@
     width: 100vw;
   }
   .head {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 0.5rem;
     padding-left: 0.75rem;
   }
@@ -256,10 +256,15 @@
   .viewGroup {
     grid-column: 1;
     grid-row: 2;
+    width: fit-content;
+  }
+  .tabs {
+    width: fit-content;
   }
   .actions {
     grid-column: 2;
     grid-row: 2;
+    justify-self: end;
   }
   .close {
     grid-column: 3;

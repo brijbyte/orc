@@ -23,6 +23,9 @@ type View = "code" | "preview";
 type DiscardAction = "close" | "reload";
 
 const mdComponents: Components = {
+  a: ({ node: _, ...props }) => (
+    <a {...props} target="_blank" rel="noopener noreferrer" />
+  ),
   table: ({ node: _, ...props }) => (
     <div className={s.tableWrap}>
       <table {...props} />

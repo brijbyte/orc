@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { PreviewCard } from "@base-ui/react/preview-card";
 import {
   GitBranch,
@@ -30,6 +31,7 @@ export function StatusBar({
   onOpenGit: () => void;
   onOpenTerminal: () => void;
 }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [model, effort, ...rest] = status.split(" · ");
   const contextRelevant = rest.some((part) => {
     const match = part.match(/ctx .*\((\d+)%\)/);
@@ -69,14 +71,17 @@ export function StatusBar({
       <div className={s.inner}>
         {status && <span className={s.stat}>{settings}</span>}
         {status && (
-          <PreviewCard.Root>
+          <PreviewCard.Root open={mobileOpen} onOpenChange={setMobileOpen}>
             <PreviewCard.Trigger
+              delay={0}
               render={
                 <Button
                   small
                   outline
                   className={s.mobileStat}
                   aria-label="session settings and context"
+                  aria-expanded={mobileOpen}
+                  onClick={() => setMobileOpen(true)}
                 />
               }
             >

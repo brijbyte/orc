@@ -142,10 +142,18 @@ export function SettingsDialog() {
         <Dialog.Backdrop className={d.overlay} />
         <Dialog.Popup className={`${d.popup} ${s.popup}`}>
           <aside className={s.sidebar}>
-            <Dialog.Title className={s.title}>
-              <Settings size={17} strokeWidth={1.8} aria-hidden />
-              Settings
-            </Dialog.Title>
+            <header className={s.titleRow}>
+              <Dialog.Title className={s.title}>
+                <Settings size={17} strokeWidth={1.8} aria-hidden />
+                Settings
+              </Dialog.Title>
+              <Dialog.Close
+                render={<Button icon className={s.close} />}
+                aria-label="close settings"
+              >
+                <X size={16} strokeWidth={1.8} aria-hidden />
+              </Dialog.Close>
+            </header>
             <Dialog.Description className={s.srOnly}>
               Defaults and preferences for this orc server.
             </Dialog.Description>
@@ -202,12 +210,6 @@ export function SettingsDialog() {
                   refreshing
                 </span>
               )}
-              <Dialog.Close
-                render={<Button icon />}
-                aria-label="close settings"
-              >
-                <X size={16} strokeWidth={1.8} aria-hidden />
-              </Dialog.Close>
             </header>
 
             <div className={s.content}>
