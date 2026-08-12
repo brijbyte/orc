@@ -70,6 +70,9 @@ function Notice({ text }: { text: string }) {
 
 // wide tables scroll in their own container instead of widening the column
 const mdComponents: Components = {
+  a: ({ node: _, ...props }) => (
+    <a {...props} target="_blank" rel="noopener noreferrer" />
+  ),
   table: ({ node: _, ...props }) => (
     <div className={s.tblwrap}>
       <table {...props} />
