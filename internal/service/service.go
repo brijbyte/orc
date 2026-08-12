@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/brijbyte/orc/internal/config"
 )
@@ -24,6 +26,7 @@ type Options struct {
 	Addr       string
 	Domain     string
 	Cwd        string
+	Graceful   bool // wait for active turns before replacing a running service
 }
 
 type Status struct {
@@ -38,6 +41,11 @@ func LogPath() string { return config.Path("service.log") }
 func Install(opts Options) error {
 	if err := validate(opts); err != nil {
 		return err
+	}
+	if opts.Graceful && GetStatus().Running {
+		if err := WaitIdle(30 * time.Minute); err != nil {
+			return err
+		}
 	}
 	if err := os.MkdirAll(config.Home(), 0o700); err != nil {
 		return err
@@ -132,6 +140,46 @@ func Uninstall() error {
 	}
 	os.Remove(URLPath())
 	return nil
+}
+
+// WaitIdle polls the local service's token-protected drain endpoint. New turns
+// are rejected once draining begins; an idle server exits itself for upgrade.
+func WaitIdle(timeout time.Duration) error {
+	data, err := os.ReadFile(URLPath())
+	if err != nil {
+		return nil // not running or not ready
+	}
+	token, err := config.EnsureDrainToken()
+	if err != nil {
+		return err
+	}
+	url := strings.TrimRight(strings.TrimSpace(string(data)), "/") + "/api/drain"
+	client := &http.Client{Timeout: 5 * time.Second}
+	deadline := time.Now().Add(timeout)
+	for {
+		req, _ := http.NewRequest(http.MethodPost, url, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil // service exited after becoming idle
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusNoContent {
+			return nil
+		}
+		if resp.StatusCode == http.StatusNotFound {
+			return nil // upgrading a version from before graceful drain support
+		}
+		if resp.StatusCode != http.StatusAccepted {
+			return fmt.Errorf("service drain: HTTP %d", resp.StatusCode)
+		}
+		if time.Now().After(deadline) {
+			// Proceed with install/restart. systemd sends SIGTERM, and the server's
+			// durable turn marker makes the interrupted model request retryable.
+			return nil
+		}
+		time.Sleep(time.Second)
+	}
 }
 
 func GetStatus() Status {

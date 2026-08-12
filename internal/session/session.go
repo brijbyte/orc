@@ -17,15 +17,18 @@ import (
 )
 
 type Session struct {
-	Path    string
-	Items   int
-	Ctx     int64
-	Model   string // from resumed _meta; empty otherwise
-	Effort  string
-	Root    string // first session id in a compaction chain
-	Routine string
-	Wake    string
-	f       *os.File
+	Path             string
+	Items            int
+	Ctx              int64
+	Model            string // from resumed _meta; empty otherwise
+	Effort           string
+	Root             string // first session id in a compaction chain
+	Routine          string
+	Wake             string
+	Interrupted      bool // a model/tool round was in flight when the process stopped
+	InterruptedTools bool
+	preserveTurn     bool
+	f                *os.File
 }
 
 type Info struct {
@@ -50,6 +53,7 @@ type meta struct {
 	Cwd     string  `json:"cwd,omitempty"`
 	T       string  `json:"t,omitempty"`
 	Ctx     int64   `json:"ctx,omitempty"`
+	Turn    string  `json:"turn,omitempty"` // model/tool/end; durable crash recovery marker
 	Routine *string `json:"routine,omitempty"`
 	Wake    *string `json:"wake,omitempty"`
 }
@@ -135,6 +139,36 @@ func (s *Session) SetCtx(tokens int64) {
 func (s *Session) SetCfg(cfg *config.Config) {
 	s.writeMeta(meta{Model: cfg.Model, Effort: cfg.Effort})
 }
+
+// TurnBegin/TurnEnd bracket each provider/tool round on disk. An unmatched
+// begin means the process disappeared while a safe model retry was pending.
+func (s *Session) TurnBegin() {
+	s.Interrupted = true
+	s.preserveTurn = false
+	s.writeMeta(meta{Turn: "begin"})
+}
+
+func (s *Session) ToolsBegin() {
+	s.Interrupted = true
+	s.InterruptedTools = true
+	s.writeMeta(meta{Turn: "tool"})
+}
+
+func (s *Session) TurnEnd() {
+	if s.preserveTurn {
+		return
+	}
+	s.Interrupted = false
+	s.InterruptedTools = false
+	s.writeMeta(meta{Turn: "end"})
+}
+
+// TurnFailed clears the marker for an ordinary provider failure. PreserveTurn
+// leaves it in place when shutdown canceled the round, so resume can recover.
+func (s *Session) TurnFailed() { s.TurnEnd() }
+
+func (s *Session) PreserveTurn()          { s.preserveTurn = true }
+func (s *Session) ClearTurnPreservation() { s.preserveTurn = false }
 
 func (s *Session) SetWake(wake string) {
 	s.Wake = wake
@@ -384,6 +418,14 @@ func Resume(ref string, cfg *config.Config) (*Session, []json.RawMessage, error)
 			}
 			if m.Effort != "" {
 				s.Effort = m.Effort
+			}
+			switch m.Turn {
+			case "begin", "model":
+				s.Interrupted, s.InterruptedTools = true, false
+			case "tool":
+				s.Interrupted, s.InterruptedTools = true, true
+			case "end":
+				s.Interrupted, s.InterruptedTools = false, false
 			}
 			if m.Root != "" {
 				s.Root = m.Root

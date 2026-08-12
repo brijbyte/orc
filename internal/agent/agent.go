@@ -51,7 +51,8 @@ type Agent struct {
 	Prov    provider.Provider
 	IO      IO
 
-	tools json.RawMessage
+	tools       json.RawMessage
+	interrupted bool
 }
 
 // item is the subset of a history item the agent inspects.
@@ -65,13 +66,38 @@ type item struct {
 
 func New(cfg *config.Config, prov provider.Provider, sess *session.Session,
 	resumed []json.RawMessage, io IO) *Agent {
-	return &Agent{
+	ag := &Agent{
 		History: resumed,
 		Cfg:     cfg,
 		Sess:    sess,
 		Prov:    prov,
 		IO:      io,
 		tools:   tools.Schema(cfg.Routine != ""),
+	}
+	if sess.InterruptedTools {
+		ag.completeInterruptedCalls()
+	}
+	ag.interrupted = sess.Interrupted
+	return ag
+}
+
+func (ag *Agent) Interrupted() bool { return ag.interrupted }
+
+// completeInterruptedCalls makes a crashed tool round valid Responses input
+// without executing tools again. The user may then explicitly retry the model.
+func (ag *Agent) completeInterruptedCalls() {
+	outputs := map[string]bool{}
+	for _, raw := range ag.History {
+		it := parseItem(raw)
+		if it.Type == "function_call_output" {
+			outputs[it.CallID] = true
+		}
+	}
+	for _, raw := range append([]json.RawMessage{}, ag.History...) {
+		it := parseItem(raw)
+		if it.Type == "function_call" && !outputs[it.CallID] {
+			ag.commit(callOutput(it.CallID, "[interrupted by service restart; not executed]"))
+		}
 	}
 }
 
@@ -332,7 +358,9 @@ func (ag *Agent) begin(ctx context.Context) {
 func (ag *Agent) run(ctx context.Context) error {
 	for {
 		var pending []json.RawMessage
+		ag.Sess.TurnBegin()
 		if err := ag.IO.TurnBegin(); err != nil {
+			ag.Sess.TurnEnd()
 			return err
 		}
 		cb := &provider.Callbacks{
@@ -352,6 +380,7 @@ func (ag *Agent) run(ctx context.Context) error {
 		err := ag.Prov.Turn(ctx, ag.History, ag.tools, &cfg, cb)
 		ag.IO.TurnEnd()
 		if err != nil {
+			ag.Sess.TurnFailed()
 			return err
 		}
 
@@ -364,8 +393,10 @@ func (ag *Agent) run(ctx context.Context) error {
 			}
 		}
 		if len(calls) == 0 {
+			ag.Sess.TurnEnd()
 			return nil
 		}
+		ag.Sess.ToolsBegin() // calls are durable; tool execution is never auto-retried
 
 		interrupted, endTurn := false, false
 		for _, call := range calls {
@@ -380,8 +411,10 @@ func (ag *Agent) run(ctx context.Context) error {
 			}
 		}
 		if interrupted {
+			ag.Sess.TurnEnd()
 			return provider.ErrInterrupted
 		}
+		ag.Sess.TurnEnd()
 		if endTurn {
 			ag.tools = tools.Schema(ag.Cfg.Routine != "")
 			return nil

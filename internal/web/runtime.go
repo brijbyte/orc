@@ -43,12 +43,22 @@ type Runtime struct {
 // NewRuntime wires a session into a web IO and starts its driver loop.
 func NewRuntime(prov provider.Provider, cfg *config.Config, sess *session.Session,
 	resumed []json.RawMessage, replay bool) *Runtime {
+	interrupted, interruptedTools := sess.Interrupted, sess.InterruptedTools
 	w := NewIO(cfg)
 	cmds := commands.New(prov, cfg, w)
 	w.SetCommands(cmds)
 	ag := agent.New(cfg, prov, sess, resumed, w)
 	if replay {
 		ag.Replay() // seed the event log so browsers render the history
+	}
+	if interrupted {
+		if interruptedTools {
+			w.Notice("⚠️ orc: turn interrupted during tool execution; review the workspace before continuing")
+		} else {
+			w.Notice("❌ orc: turn interrupted by service restart — try again")
+		}
+		sess.ClearTurnPreservation()
+		sess.TurnEnd()
 	}
 	if sess.Ctx > 0 {
 		cmds.CtxUsed(sess.Ctx)
@@ -236,6 +246,9 @@ func (rt *Runtime) StopRoutine() {
 // Close interrupts any running turn, ends the loop, and waits for it.
 func (rt *Runtime) Close() {
 	rt.closeTerminals()
+	if rt.IO.Busy() {
+		rt.Ag.Sess.PreserveTurn()
+	}
 	rt.IO.Interrupt()
 	rt.IO.Close()
 	<-rt.done

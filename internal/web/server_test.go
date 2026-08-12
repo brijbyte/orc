@@ -83,6 +83,42 @@ func TestProviderWebAuthHandlers(t *testing.T) {
 	}
 }
 
+func TestDrainWaitsForBusyRuntime(t *testing.T) {
+	s := &Server{runtimes: map[string]*Runtime{}, drainToken: "secret", drainReady: make(chan struct{})}
+	rt := &Runtime{IO: NewIO(nil)}
+	rt.IO.SetBusy(true)
+	s.runtimes["test"] = rt
+
+	req := httptest.NewRequest(http.MethodPost, "/api/drain", nil)
+	req.Header.Set("Authorization", "Bearer secret")
+	rw := httptest.NewRecorder()
+	s.handleDrain(rw, req)
+	if rw.Code != http.StatusAccepted || !s.isDraining() {
+		t.Fatalf("drain = %d, draining %v", rw.Code, s.isDraining())
+	}
+	select {
+	case <-s.DrainReady():
+		t.Fatal("busy drain became ready")
+	default:
+	}
+	rt.IO.SetBusy(false)
+	s.checkDrainReady()
+	select {
+	case <-s.DrainReady():
+	default:
+		t.Fatal("idle drain did not become ready")
+	}
+}
+
+func TestDrainRejectsMissingToken(t *testing.T) {
+	s := &Server{drainToken: "secret", drainReady: make(chan struct{})}
+	rw := httptest.NewRecorder()
+	s.handleDrain(rw, httptest.NewRequest(http.MethodPost, "/api/drain", nil))
+	if rw.Code != http.StatusUnauthorized || s.isDraining() {
+		t.Fatalf("drain = %d, draining %v", rw.Code, s.isDraining())
+	}
+}
+
 func TestHandleCatchupReturnsEventsAfterCursor(t *testing.T) {
 	rt := &Runtime{IO: NewIO(nil)}
 	rt.IO.hub.emit("user", nil)

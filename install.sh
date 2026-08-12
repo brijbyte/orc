@@ -71,7 +71,7 @@ case ":$PATH:" in
 esac
 
 if [ "${ORC_SERVICE:-0}" = 1 ]; then
-    set -- service install --cwd "$HOME" --serve "${ORC_SERVICE_ADDR:-127.0.0.1:7777}"
+    set -- service install --graceful --cwd "$HOME" --serve "${ORC_SERVICE_ADDR:-127.0.0.1:7777}"
     if [ -n "${ORC_SERVICE_DOMAIN:-}" ]; then
         set -- "$@" --domain "$ORC_SERVICE_DOMAIN"
     fi
