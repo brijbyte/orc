@@ -57,11 +57,21 @@
   width: 100%;
   min-width: 0;
   max-width: 100%;
+  height: var(--collapsible-panel-height);
   gap: 0.4rem;
   margin-top: 0.5rem;
   padding-left: 0.8rem;
   overflow: hidden;
   border-left: 2px solid var(--line);
+  opacity: 1;
+  transition:
+    height 200ms var(--ease-out),
+    opacity 200ms var(--ease-out);
+}
+.toolPanel[data-starting-style],
+.toolPanel[data-ending-style] {
+  height: 0;
+  opacity: 0;
 }
 .toolGroup [data-block] {
   position: relative;
@@ -107,6 +117,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .toolChevron,
+  .toolPanel {
+    transition-duration: 0ms;
+  }
   .loading svg {
     animation: none;
   }
