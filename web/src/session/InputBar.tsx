@@ -110,7 +110,10 @@ export function InputBar({
     const el = inputRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = el.scrollHeight + "px";
+    const height = el.scrollHeight;
+    const max = Number.parseFloat(getComputedStyle(el).maxHeight);
+    el.toggleAttribute("data-overflow", height > max);
+    el.style.height = height + "px";
   };
 
   useEffect(() => {
@@ -197,34 +200,34 @@ export function InputBar({
         <span className={s.live} role="status" aria-live="polite" aria-atomic>
           {busy ? "Turn in progress" : complete ? "Turn complete" : ""}
         </span>
-        <Menu.Root>
-          <Menu.Trigger
-            render={<Button icon aria-label="attach" title="attach" />}
-          >
-            <Paperclip size={14} strokeWidth={1.8} aria-hidden />
-          </Menu.Trigger>
-          <Menu.Portal>
-            <Menu.Positioner className={s.menuPositioner} sideOffset={5}>
-              <Menu.Popup className={s.menu}>
-                <Menu.Item
-                  render={<Button className={s.menuItem} />}
-                  onClick={() => pickRef.current?.click()}
-                >
-                  <Files size={14} strokeWidth={1.8} aria-hidden />
-                  from local
-                </Menu.Item>
-                <Menu.Item
-                  render={<Button className={s.menuItem} />}
-                  onClick={() => setServerPicker(true)}
-                >
-                  <HardDrive size={14} strokeWidth={1.8} aria-hidden />
-                  from server
-                </Menu.Item>
-              </Menu.Popup>
-            </Menu.Positioner>
-          </Menu.Portal>
-        </Menu.Root>
         <div className={s.field}>
+          <Menu.Root>
+            <Menu.Trigger
+              render={<Button icon aria-label="attach" title="attach" />}
+            >
+              <Paperclip size={14} strokeWidth={1.8} aria-hidden />
+            </Menu.Trigger>
+            <Menu.Portal>
+              <Menu.Positioner className={s.menuPositioner} sideOffset={5}>
+                <Menu.Popup className={s.menu}>
+                  <Menu.Item
+                    render={<Button className={s.menuItem} />}
+                    onClick={() => pickRef.current?.click()}
+                  >
+                    <Files size={14} strokeWidth={1.8} aria-hidden />
+                    from local
+                  </Menu.Item>
+                  <Menu.Item
+                    render={<Button className={s.menuItem} />}
+                    onClick={() => setServerPicker(true)}
+                  >
+                    <HardDrive size={14} strokeWidth={1.8} aria-hidden />
+                    from server
+                  </Menu.Item>
+                </Menu.Popup>
+              </Menu.Positioner>
+            </Menu.Portal>
+          </Menu.Root>
           <textarea
             ref={inputRef}
             rows={1}
