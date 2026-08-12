@@ -244,6 +244,37 @@ func TestHandleFileRejectsForgedPath(t *testing.T) {
 	}
 }
 
+func TestHandleNewUsesSelectedModelAndEffort(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	dir := t.TempDir()
+	s := &Server{
+		prov:     &routineProvider{},
+		base:     config.Config{Cwd: dir, Model: "default", Effort: "medium"},
+		runtimes: map[string]*Runtime{},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/sessions", strings.NewReader(
+		`{"model":"selected","effort":"high"}`))
+	rw := httptest.NewRecorder()
+	s.handleNew(rw, req)
+	if rw.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rw.Code, rw.Body.String())
+	}
+	var out struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(rw.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	rt := s.runtime(out.ID)
+	if rt == nil {
+		t.Fatal("new runtime not registered")
+	}
+	defer rt.Close()
+	if rt.Cfg.Model != "selected" || rt.Cfg.Effort != "high" {
+		t.Fatalf("config=%#v", rt.Cfg)
+	}
+}
+
 func TestSettingsSavePatchesPersistedAndServerDefaults(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	if err := config.SaveSettings(config.Settings{Model: "persisted", Effort: "low", Pinned: []string{"keep"}}); err != nil {

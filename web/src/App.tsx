@@ -36,6 +36,8 @@ export default function App() {
     rows,
     cwd: serverCwd,
     home,
+    model,
+    effort,
     models,
   } = useLoaderData<RootData>();
   const { sid = "" } = useParams();
@@ -136,10 +138,15 @@ export default function App() {
     api.wake(row.id).finally(revalidate);
   };
 
-  const onNew = (cwd: string, routine: string) => {
+  const onNew = (
+    cwd: string,
+    routine: string,
+    selectedModel: string,
+    selectedEffort: string,
+  ) => {
     setPicking(false);
     api
-      .create(cwd, routine)
+      .create(cwd, routine, selectedModel, selectedEffort)
       .then((d) => go(`/s/${d.id}`))
       .catch(() => {});
   };
@@ -258,6 +265,9 @@ export default function App() {
         <DirPicker
           open={picking}
           start={serverCwd}
+          models={models}
+          defaultModel={model}
+          defaultEffort={effort}
           onPick={onNew}
           onCancel={() => setPicking(false)}
         />

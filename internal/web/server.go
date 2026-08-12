@@ -364,7 +364,9 @@ func (s *Server) handleSessions(rw http.ResponseWriter, r *http.Request) {
 		out = append(out, sr)
 	}
 	home, _ := os.UserHomeDir()
-	writeJSON(rw, map[string]any{"cwd": s.baseConfig().Cwd, "home": home, "sessions": out})
+	base := s.baseConfig()
+	writeJSON(rw, map[string]any{"cwd": base.Cwd, "home": home, "model": base.Model,
+		"effort": base.Effort, "sessions": out})
 }
 
 // handleNew starts a fresh session, optionally in another directory.
@@ -372,12 +374,31 @@ func (s *Server) handleNew(rw http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Cwd     string `json:"cwd"`
 		Routine string `json:"routine"`
+		Model   string `json:"model"`
+		Effort  string `json:"effort"`
 	}
-	json.NewDecoder(r.Body).Decode(&in)
+	if json.NewDecoder(r.Body).Decode(&in) != nil {
+		http.Error(rw, "bad request", http.StatusBadRequest)
+		return
+	}
 	cfg := s.baseConfig()
 	cfg.SessionID = uuid.NewString()
 	cfg.Instructions = ""
 	cfg.Routine = strings.TrimSpace(in.Routine)
+	if in.Model != "" {
+		cfg.Model = strings.TrimSpace(in.Model)
+	}
+	if in.Effort != "" {
+		cfg.Effort = strings.TrimSpace(in.Effort)
+	}
+	if cfg.Model == "" || len(cfg.Model) > 256 {
+		http.Error(rw, "invalid model", http.StatusBadRequest)
+		return
+	}
+	if !validDefaultEffort(s.prov.Models(), cfg.Model, cfg.Effort) {
+		http.Error(rw, "invalid effort", http.StatusBadRequest)
+		return
+	}
 	if len(cfg.Routine) > 32768 {
 		http.Error(rw, "routine is too long", http.StatusBadRequest)
 		return

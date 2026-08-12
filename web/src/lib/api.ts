@@ -122,11 +122,8 @@ export const api = {
       if (!response.ok) throw new Error((await response.text()).trim());
     }),
   sessions: () => get("/api/sessions"),
-  create: (cwd?: string, routine?: string) =>
-    post("/api/sessions", {
-      ...(cwd ? { cwd } : {}),
-      ...(routine ? { routine } : {}),
-    }),
+  create: (cwd: string, routine: string, model: string, effort: string) =>
+    post("/api/sessions", { cwd, routine, model, effort }),
   open: (id: string) => post(`/api/sessions/${id}/open`),
   stop: (id: string) => fetch(`/api/sessions/${id}`, { method: "DELETE" }),
   remove: (id: string) =>

@@ -7,6 +7,8 @@ export type RootData = {
   rows: SessionRow[];
   cwd: string;
   home: string;
+  model: string;
+  effort: string;
   models: Model[];
 };
 
@@ -33,6 +35,8 @@ export async function rootLoader(): Promise<RootData> {
       rows: s.sessions ?? [],
       cwd: s.cwd ?? "",
       home: s.home ?? "",
+      model: s.model ?? "",
+      effort: s.effort ?? "",
       models: m.models ?? [],
     });
   } catch (error) {
@@ -45,6 +49,8 @@ export async function rootLoader(): Promise<RootData> {
       rows: [],
       cwd: "",
       home: "",
+      model: "",
+      effort: "",
       models: [],
     };
   }
