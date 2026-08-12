@@ -108,7 +108,7 @@
   z-index: 3;
   bottom: 0.5rem;
   left: 50%;
-  transform: translateX(-50%);
+  translate: -50% 0;
   background: var(--bg);
   box-shadow: 0 0.3rem 1rem rgb(0 0 0 / 0.2);
 }

@@ -208,7 +208,11 @@ export function Transcript({
           onClick={() => {
             stick.current = true;
             setFollowing(true);
-            bottom.current?.scrollIntoView();
+            bottom.current?.scrollIntoView({
+              behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+                ? "auto"
+                : "smooth",
+            });
           }}
         >
           <ArrowDown size={13} strokeWidth={1.8} aria-hidden /> latest
