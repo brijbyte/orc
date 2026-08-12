@@ -45,7 +45,7 @@ func notifyServer(hits *atomic.Int64, code int) *httptest.Server {
 
 func runNotify(t *testing.T, a args) string {
 	t.Helper()
-	return toolNotify(context.Background(), a)
+	return toolNotify(context.Background(), a, false)
 }
 
 func TestNotifySendsWhenNoUIAttached(t *testing.T) {
@@ -82,6 +82,43 @@ func TestNotifySuppressedWhileUIAttached(t *testing.T) {
 	detach()
 	if out := runNotify(t, args{"title": "t", "body": "b"}); out != "sent" {
 		t.Fatalf("after detach got %q, want sent", out)
+	}
+}
+
+func TestRoutineNotifySendsWhileUIAttached(t *testing.T) {
+	var hits atomic.Int64
+	srv := notifyServer(&hits, http.StatusOK)
+	defer srv.Close()
+	notifyHome(t, srv)
+
+	detach := notify.Attach()
+	defer detach()
+	out, end := RunWithRoutine(context.Background(), "", "notify",
+		`{"title":"review requested","body":"repo pull request","url":"https://github.com/acme/repo/pull/1"}`,
+		&RoutineCallbacks{})
+	if out != "sent" || end {
+		t.Fatalf("got %q, end %v; want sent, false", out, end)
+	}
+	if hits.Load() != 1 {
+		t.Fatalf("channel got %d messages while watched, want 1", hits.Load())
+	}
+}
+
+func TestNotifyPassesURLToChannel(t *testing.T) {
+	var click string
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		click = r.Header.Get("Click")
+		rw.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	notifyHome(t, srv)
+
+	url := "https://github.com/acme/repo/issues/1"
+	if out := runNotify(t, args{"title": "attention", "body": "mentioned", "url": url}); out != "sent" {
+		t.Fatalf("got %q, want sent", out)
+	}
+	if click != url {
+		t.Fatalf("Click header = %q, want %q", click, url)
 	}
 }
 
