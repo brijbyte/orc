@@ -3,7 +3,6 @@
   padding: 0.6rem 1rem;
   background: var(--material);
   backdrop-filter: blur(0.5rem);
-  -webkit-backdrop-filter: blur(0.5rem);
   font-family: var(--font-ui);
 }
 .chips {
@@ -11,7 +10,7 @@
   flex-wrap: wrap;
   gap: 0.4rem;
   max-width: 60rem;
-  margin: 0 auto 0.5rem;
+  margin: 0 auto 0.35rem;
 }
 .chip {
   display: inline-flex;
@@ -28,6 +27,17 @@
   font-style: normal;
   color: var(--dim);
 }
+.attachmentError {
+  min-height: 1rem;
+  max-width: 60rem;
+  margin: 0 auto 0.2rem;
+  color: var(--red);
+  font: 0.75rem/1.3 var(--font-ui);
+}
+.attachmentError:empty {
+  min-height: 0;
+  margin-bottom: 0;
+}
 .bar {
   display: flex;
   gap: 0.5rem;
@@ -41,7 +51,7 @@
   justify-content: center;
   flex: none;
   width: 1.25ch;
-  height: 1.5em;
+  height: 2rem;
   color: var(--cyan);
   font: bold 0.875rem/1.5 var(--font-mono);
 }
@@ -51,26 +61,31 @@
 .prompt.complete {
   color: var(--green);
 }
-.prompt svg {
-  display: block;
-}
 .prompt.busy svg {
   animation: spin 750ms linear infinite;
-  will-change: transform;
 }
 .field {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
+  gap: 0.4rem;
   flex: 1;
   min-width: 0;
-  min-height: var(--hit);
+  min-height: 2.25rem;
+  padding: 0.2rem 0.25rem 0.2rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--panel) 60%, var(--bg));
+}
+.field:focus-within {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 .composer textarea {
   display: block;
   flex: 1;
   min-width: 0;
   width: 100%;
+  padding: 0.2rem 0;
   background: none;
   border: none;
   outline: none;
@@ -119,10 +134,21 @@
   }
 }
 
+@media (max-width: 36rem) {
+  .composer {
+    padding-inline: 0.6rem;
+  }
+  .prompt {
+    display: none;
+  }
+  .field {
+    flex-wrap: wrap;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .prompt.busy svg {
     animation: none;
-    will-change: auto;
   }
 }
 
@@ -130,6 +156,5 @@
   .composer {
     background: var(--bg);
     backdrop-filter: none;
-    -webkit-backdrop-filter: none;
   }
 }

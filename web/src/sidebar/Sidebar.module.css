@@ -21,24 +21,48 @@
 .new {
   flex: 1;
 }
+.search {
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.65rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  color: var(--dim);
+}
+.search:focus-within {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+.search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fg);
+  font: var(--meta-size)/1.4 var(--font-ui);
+}
 .group {
   margin-bottom: 0.6rem;
 }
 .head {
-  color: var(--dim);
-  font-size: 0.6875rem;
-  padding: 0.2em 0.3em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  direction: rtl;
-  text-align: left;
-}
-.head[data-pinned] {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 0.35rem;
+  padding: 0.2em 0.3em;
+  color: var(--dim);
+  font-size: 0.75rem;
+}
+.head span {
   direction: ltr;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .head svg {
   flex: none;
@@ -56,12 +80,13 @@
 .row + .row {
   margin-top: 0.25rem;
 }
+.row[data-disabled] {
+  cursor: default;
+  opacity: 0.55;
+}
 .row:hover,
 .row.active {
   background: var(--panel);
-}
-.row.active {
-  color: var(--cyan);
 }
 .open {
   flex: 1;
@@ -76,6 +101,10 @@
   padding: 0;
   cursor: pointer;
   text-align: left;
+}
+.open:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 .open::after {
   content: "";
@@ -105,16 +134,18 @@
 }
 .foot {
   display: flex;
+  min-height: 1.25rem;
   align-items: center;
   padding-left: 1.1rem;
-  padding-right: calc(var(--hit) * 4 + 0.2rem);
-  min-height: 1.2em;
+}
+.foot[data-pinned] {
+  padding-right: var(--hit);
 }
 .age {
   flex: 1;
   min-width: 0;
   color: var(--dim);
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -130,14 +161,34 @@
   display: flex;
   gap: 0.1rem;
 }
-/* row actions stay hidden until the row is hovered; a pin that is already on
-   stays visible, since it reports state */
-.act {
+.act,
+.more {
   opacity: 0;
 }
 .act:focus-visible,
-.act.on {
+.act.on,
+.more:focus-visible {
   opacity: 1;
+}
+.more {
+  display: none;
+}
+.menuPositioner {
+  z-index: 20;
+}
+.actionMenu {
+  min-width: 10rem;
+  padding: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--bg);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.25);
+  font: var(--meta-size)/1.4 var(--font-ui);
+}
+.noResults {
+  padding: 0.65rem 0.3rem;
+  color: var(--dim);
+  font: var(--meta-size)/1.4 var(--font-ui);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -156,7 +207,15 @@
 
 @media (hover: none), (pointer: coarse) {
   .act {
+    display: none;
+  }
+  .more {
+    display: inline-flex;
     opacity: 1;
+  }
+  .foot,
+  .foot[data-pinned] {
+    padding-right: var(--hit);
   }
 }
 
@@ -183,7 +242,6 @@
     background: var(--material);
     box-shadow: 0.75rem 0 2rem rgb(0 0 0 / 0.18);
     backdrop-filter: blur(0.65rem);
-    -webkit-backdrop-filter: blur(0.65rem);
     opacity: 0;
     transform: translateX(-100%);
     pointer-events: none;
@@ -199,16 +257,7 @@
   .dismiss {
     display: grid;
     place-items: center;
-    width: var(--hit);
-    height: var(--hit);
-    padding: 0;
     margin: 0 0 0.45rem auto;
-    color: var(--dim);
-    border: 0;
-    background: none;
-  }
-  .dismiss:hover {
-    color: var(--fg);
   }
 }
 
@@ -229,7 +278,6 @@
   .side.sheet {
     background: var(--bg);
     backdrop-filter: none;
-    -webkit-backdrop-filter: none;
   }
 }
 

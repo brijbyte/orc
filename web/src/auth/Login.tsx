@@ -28,17 +28,27 @@ export function Login({ onLogin }: { onLogin: () => void }) {
         </div>
         <h1>orc</h1>
         <label htmlFor="password">web password</label>
+        <p className={s.hint}>
+          Use the password printed when this server started.
+        </p>
         <input
           id="password"
           type="password"
           autoComplete="current-password"
           autoFocus
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          aria-invalid={error || undefined}
+          aria-describedby="password-error"
+          onChange={(event) => {
+            setPassword(event.target.value);
+            setError(false);
+          }}
         />
-        {error && <div className={s.error}>incorrect password</div>}
+        <div id="password-error" className={s.error} aria-live="polite">
+          {error ? "incorrect password" : ""}
+        </div>
         <Button
-          outline
+          primary
           type="submit"
           className={s.submit}
           disabled={busy || !password}

@@ -64,7 +64,7 @@ class HunkWidget extends WidgetType {
       <Button
         outline
         small
-        tone={this.selected ? "success" : undefined}
+        tone={this.selected ? "accent" : undefined}
         aria-label={`${this.selected ? "deselect" : "select"} hunk ${this.hunk + 1}`}
         aria-pressed={this.selected}
         onMouseDown={(event) => event.stopPropagation()}

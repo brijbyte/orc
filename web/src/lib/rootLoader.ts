@@ -10,6 +10,9 @@ export type RootData = {
   models: Model[];
 };
 
+// Preserve the last shell snapshot through transient server failures.
+let lastKnown: RootData | null = null;
+
 // models are static per server run: fetch once, not on every revalidation
 let modelsOnce: Promise<{ models: Model[] }> | null = null;
 const loadModels = () =>
@@ -24,18 +27,21 @@ export async function rootLoader(): Promise<RootData> {
   try {
     const s = await api.sessions();
     const m = await loadModels();
-    return {
+    return (lastKnown = {
       authenticated: true,
       dead: false,
       rows: s.sessions ?? [],
       cwd: s.cwd ?? "",
       home: s.home ?? "",
       models: m.models ?? [],
-    };
+    });
   } catch (error) {
+    const unauthorized = error instanceof APIError && error.status === 401;
+    if (!unauthorized && lastKnown)
+      return { ...lastKnown, authenticated: true, dead: true };
     return {
-      authenticated: !(error instanceof APIError && error.status === 401),
-      dead: !(error instanceof APIError && error.status === 401),
+      authenticated: !unauthorized,
+      dead: !unauthorized,
       rows: [],
       cwd: "",
       home: "",

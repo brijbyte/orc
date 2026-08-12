@@ -25,6 +25,10 @@ export function StatusBar({
   onOpenTerminal: () => void;
 }) {
   const [model, effort, ...rest] = status.split(" · ");
+  const contextRelevant = rest.some((part) => {
+    const match = part.match(/ctx .*\((\d+)%\)/);
+    return match ? Number(match[1]) >= 50 : false;
+  });
   const modelOpts = models.map((m) => ({
     value: m.slug,
     label: m.name || m.slug,
@@ -34,7 +38,7 @@ export function StatusBar({
     modelOpts.unshift({ value: model, label: model, title: "" });
   return (
     <footer className={s.footer}>
-      <div>
+      <div className={s.inner}>
         {status && (
           <span className={s.stat}>
             <Select
@@ -57,22 +61,25 @@ export function StatusBar({
             {rest.length > 0 && " · " + rest.join(" · ")}
           </span>
         )}
-        <Button
-          small
-          outline
-          className={s.compact}
-          disabled={compactDisabled}
-          onClick={onCompact}
-        >
-          <Minimize2 size={13} strokeWidth={1.8} aria-hidden />
-          compact
-        </Button>
-        <Button small tip="open Git (Ctrl/⌘ G)" onClick={onOpenGit}>
-          <GitBranch size={13} strokeWidth={1.8} aria-hidden /> Git
-        </Button>
-        <Button small tip="open terminal (Ctrl/⌘ `)" onClick={onOpenTerminal}>
-          <SquareTerminal size={13} strokeWidth={1.8} aria-hidden /> terminal
-        </Button>
+        <span className={s.actions}>
+          {contextRelevant && (
+            <Button
+              small
+              outline
+              disabled={compactDisabled}
+              onClick={onCompact}
+            >
+              <Minimize2 size={13} strokeWidth={1.8} aria-hidden />
+              compact
+            </Button>
+          )}
+          <Button small tip="open Git (Ctrl/⌘ G)" onClick={onOpenGit}>
+            <GitBranch size={13} strokeWidth={1.8} aria-hidden /> Git
+          </Button>
+          <Button small tip="open terminal (Ctrl/⌘ `)" onClick={onOpenTerminal}>
+            <SquareTerminal size={13} strokeWidth={1.8} aria-hidden /> terminal
+          </Button>
+        </span>
       </div>
     </footer>
   );

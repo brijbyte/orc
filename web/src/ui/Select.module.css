@@ -18,8 +18,8 @@
   color: var(--fg);
 }
 .trigger:focus-visible {
-  outline: 2px solid var(--cyan);
-  outline-offset: 2px;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 .selPop {
   background: var(--bg);

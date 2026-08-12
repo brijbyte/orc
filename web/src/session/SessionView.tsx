@@ -60,6 +60,7 @@ export function SessionView({
   const { models } = useSettings();
   const { openTerminal, toggleTerminal } = context;
   const [files, setFiles] = useState<ComposerAttachment[]>([]);
+  const [attachmentError, setAttachmentError] = useState("");
   const [dragging, setDragging] = useState(false);
   const [complete, setComplete] = useState(false);
   const [compacting, setCompacting] = useState(false);
@@ -113,7 +114,9 @@ export function SessionView({
   const addFiles = (list: FileList | null) => {
     if (!list) return;
     const ok = [...list].filter((file) => file.size <= fileMax);
-    if (ok.length < list.length) alert("files over 16 MB were skipped");
+    setAttachmentError(
+      ok.length < list.length ? "Files over 16 MB were skipped." : "",
+    );
     setFiles((current) => {
       const keys = new Set(
         current
@@ -196,6 +199,7 @@ export function SessionView({
             files={files}
             setFiles={setFiles}
             addFiles={addFiles}
+            attachmentError={attachmentError}
             draft={draft}
           />
           <StatusBar

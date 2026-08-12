@@ -120,9 +120,9 @@
   color: var(--fg);
   font: 0.75rem/1.5 var(--font-mono);
 }
-.branch input:focus {
-  border-color: var(--cyan);
-  outline: none;
+.branch input:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 .branchList {
   display: grid;
@@ -163,9 +163,9 @@
   color: var(--fg);
   font: 0.75rem/1.5 var(--font-mono);
 }
-.commit textarea:focus {
-  border-color: var(--cyan);
-  outline: none;
+.commit textarea:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 .commit > div {
   display: flex;
@@ -180,19 +180,20 @@
 }
 .selectionBar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 0.35rem 0.6rem;
+  gap: 0.4rem;
   padding: 0.45rem 0.65rem;
   border-bottom: 1px solid var(--line);
   color: var(--dim);
-  font: 0.6875rem/1.5 var(--font-ui);
+  font: 0.75rem/1.5 var(--font-ui);
 }
-.selectionBar > :nth-child(4) {
-  grid-column: 2;
+.selectionControls,
+.mutationControls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
-.selectionBar > :nth-child(5) {
-  grid-column: 3;
+.mutationControls {
+  justify-content: flex-end;
 }
 .tree {
   min-height: 0;
@@ -221,22 +222,28 @@
 }
 .activity {
   flex-shrink: 0;
-  max-height: 9rem;
-  overflow: auto;
-  padding: 0.55rem 0.75rem;
   border-top: 1px solid var(--line);
   color: var(--dim);
-  font: 0.6875rem/1.5 var(--font-ui);
+  font: 0.75rem/1.5 var(--font-ui);
 }
-.activity strong {
+.activity summary {
   display: flex;
   align-items: center;
   gap: 0.3rem;
-  margin-bottom: 0.25rem;
+  padding: 0.55rem 0.75rem;
+  cursor: pointer;
   color: var(--fg);
-  font-weight: 500;
+}
+.activity summary:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-offset));
 }
 .activity > div {
+  max-height: 8rem;
+  overflow: auto;
+  padding: 0 0.75rem 0.55rem;
+}
+.activity > div > div {
   display: grid;
   grid-template-columns: 3.8rem 1fr auto;
   gap: 0.5rem;
@@ -262,6 +269,13 @@
   background: var(--material);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(0.5rem);
+}
+.diffFeedback {
+  min-width: 7rem;
+  color: var(--red);
+  font: 0.75rem/1.4 var(--font-ui);
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 .diffHead strong {
   min-width: 0;
@@ -305,7 +319,8 @@
   }
   .body {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(10rem, 38%) 1fr;
+    grid-template-rows: minmax(10rem, 42%) 1fr;
+    resize: vertical;
   }
   .side {
     border-right: 0;

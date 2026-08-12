@@ -157,16 +157,24 @@ export function TerminalPanel({
     <section className={s.panel} aria-label="terminal">
       <header className={s.head}>
         <span className={s.title}>terminal</span>
-        <span className={s.state} data-status={connection}>
-          {connection}
+        <span
+          className={s.state}
+          data-status={connection}
+          role="status"
+          aria-live="polite"
+        >
+          {connection === "closed" ? "connection closed" : connection}
         </span>
         <Button
-          icon
+          icon={connection !== "closed"}
           small
-          tip="restart terminal"
+          outline={connection === "closed"}
+          tip={connection === "closed" ? undefined : "restart terminal"}
+          disabled={connection === "connecting"}
           onClick={() => setGeneration((value) => value + 1)}
         >
           <RotateCw size={13} strokeWidth={1.8} aria-hidden />
+          {connection === "closed" && " reconnect"}
         </Button>
         <Button icon small tip="close terminal" onClick={onClose}>
           <X size={14} strokeWidth={1.8} aria-hidden />

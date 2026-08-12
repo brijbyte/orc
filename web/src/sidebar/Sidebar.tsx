@@ -1,11 +1,14 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
+import { Menu } from "@base-ui/react/menu";
 import { Link } from "react-router";
 import {
   AlarmClock,
   Circle,
   LoaderCircle,
+  MoreHorizontal,
   Pin,
   Plus,
+  Search,
   Settings,
   Trash2,
   X,
@@ -58,6 +61,7 @@ function Row({
   onPin,
   onWake,
   onOpen,
+  disabled,
 }: {
   row: SessionRow;
   active: boolean;
@@ -68,6 +72,7 @@ function Row({
   onPin: () => void;
   onWake: () => void;
   onOpen: () => void;
+  disabled: boolean;
 }) {
   const sid = row.rid ?? row.id;
   // open tabs stream: their busy state is live, not 5s-poll delayed
@@ -77,12 +82,19 @@ function Row({
   );
   const busy = streamed.busy || row.busy;
   return (
-    <div className={s.row + (active ? " " + s.active : "")}>
+    <div
+      className={s.row + (active ? " " + s.active : "")}
+      data-disabled={disabled || undefined}
+    >
       <Link
         className={s.open}
         to={`/s/${sid}`}
         title={`${row.id.slice(0, 8)} · started ${row.when}`}
-        onClick={onOpen}
+        onClick={(event) => {
+          if (disabled) event.preventDefault();
+          else onOpen();
+        }}
+        aria-disabled={disabled || undefined}
       >
         <span
           className={s.dot}
@@ -107,7 +119,7 @@ function Row({
         </span>
         <span className={s.title}>{row.title || row.id.slice(0, 8)}</span>
       </Link>
-      <div className={s.foot}>
+      <div className={s.foot} data-pinned={row.pinned || undefined}>
         <span className={s.age} title={showDir ? row.cwd : undefined}>
           {ago(row.used)}
           {showDir ? ` · ${tailDir(row.cwd)}` : ""}
@@ -131,7 +143,7 @@ function Row({
             icon
             tone={row.pinned ? "accent" : undefined}
             tip={row.pinned ? "unpin" : "pin to the top"}
-            className={s.act + (row.pinned ? " " + s.on : "")}
+            className={`${s.act} ${s.pin}${row.pinned ? ` ${s.on}` : ""}`}
             onClick={onPin}
           >
             <Pin size={12} />
@@ -155,6 +167,46 @@ function Row({
           >
             <Trash2 size={12} />
           </Button>
+          <Menu.Root>
+            <Menu.Trigger
+              render={
+                <Button
+                  icon
+                  tip="session actions"
+                  className={s.more}
+                  aria-label="session actions"
+                />
+              }
+            >
+              <MoreHorizontal size={14} aria-hidden />
+            </Menu.Trigger>
+            <Menu.Portal>
+              <Menu.Positioner className={s.menuPositioner} sideOffset={4}>
+                <Menu.Popup className={s.actionMenu}>
+                  {row.routine && row.wake && (
+                    <Menu.Item render={<Button nav />} onClick={onWake}>
+                      <AlarmClock size={13} aria-hidden /> wake now
+                    </Menu.Item>
+                  )}
+                  <Menu.Item render={<Button nav />} onClick={onPin}>
+                    <Pin size={13} aria-hidden />
+                    {row.pinned ? "unpin" : "pin"}
+                  </Menu.Item>
+                  {open && row.live && (
+                    <Menu.Item render={<Button nav />} onClick={onStop}>
+                      <X size={13} aria-hidden /> stop
+                    </Menu.Item>
+                  )}
+                  <Menu.Item
+                    render={<Button nav tone="danger" />}
+                    onClick={onDelete}
+                  >
+                    <Trash2 size={13} aria-hidden /> delete
+                  </Menu.Item>
+                </Menu.Popup>
+              </Menu.Positioner>
+            </Menu.Portal>
+          </Menu.Root>
         </span>
       </div>
     </div>
@@ -178,6 +230,7 @@ export function Sidebar({
   onPin,
   onWake,
   onNew,
+  disabled = false,
 }: {
   rows: SessionRow[];
   serverCwd: string;
@@ -192,11 +245,20 @@ export function Sidebar({
   onPin: (row: SessionRow) => void;
   onWake: (row: SessionRow) => void;
   onNew: () => void;
+  disabled?: boolean;
 }) {
   const { openDialog } = useSettings();
-  const pinned = rows.filter((r) => r.pinned);
+  const [query, setQuery] = useState("");
+  const filtered = query.trim()
+    ? rows.filter((row) =>
+        `${row.title} ${row.cwd} ${row.id}`
+          .toLowerCase()
+          .includes(query.trim().toLowerCase()),
+      )
+    : rows;
+  const pinned = filtered.filter((r) => r.pinned);
   const groups = new Map<string, SessionRow[]>();
-  for (const r of rows) {
+  for (const r of filtered) {
     if (r.pinned) continue;
     const g = groups.get(r.cwd);
     if (g) g.push(r);
@@ -221,7 +283,7 @@ export function Sidebar({
         data-pinned={pinnedGroup || undefined}
       >
         {pinnedGroup && <Pin size={11} strokeWidth={1.8} aria-hidden />}
-        <bdi>{showDir ? label : prettyDir(label, home)}</bdi>
+        <span>{showDir ? label : prettyDir(label, home)}</span>
       </div>
       {list.map((r) => (
         <Row
@@ -235,6 +297,7 @@ export function Sidebar({
           onPin={() => onPin(r)}
           onWake={() => onWake(r)}
           onOpen={onDismiss}
+          disabled={disabled}
         />
       ))}
     </div>
@@ -264,7 +327,13 @@ export function Sidebar({
           <X size={16} strokeWidth={1.8} aria-hidden />
         </Button>
         <div className={s.top}>
-          <Button outline tone="success" className={s.new} onClick={onNew}>
+          <Button
+            outline
+            tone="accent"
+            className={s.new}
+            disabled={disabled}
+            onClick={onNew}
+          >
             <Plus size={13} strokeWidth={1.8} aria-hidden />
             new session
           </Button>
@@ -272,8 +341,23 @@ export function Sidebar({
             <Settings size={14} strokeWidth={1.8} aria-hidden />
           </Button>
         </div>
+        {rows.length > 12 && (
+          <label className={s.search}>
+            <Search size={13} strokeWidth={1.8} aria-hidden />
+            <input
+              type="search"
+              value={query}
+              placeholder="Filter sessions"
+              aria-label="filter sessions"
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </label>
+        )}
         {!!pinned.length && group("pinned", pinned, true, true)}
         {[...groups.entries()].map(([cwd, list]) => group(cwd, list))}
+        {query && !filtered.length && (
+          <div className={s.noResults}>No matching sessions</div>
+        )}
       </nav>
     </>
   );

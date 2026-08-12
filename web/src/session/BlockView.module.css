@@ -1,9 +1,10 @@
 .user {
   display: flex;
   gap: 0.5rem;
-  color: var(--cyan);
+  color: var(--fg);
 }
 .user > svg {
+  color: var(--cyan);
   flex: none;
   margin-top: 0.2rem;
 }
@@ -39,16 +40,25 @@
    section titles carry the structure, so the body needs no italics. */
 .think {
   color: var(--dim);
-  border-left: 2px dashed var(--line);
-  padding-left: 0.8rem;
 }
 .thinkHead {
   display: flex;
+  width: fit-content;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.6875rem;
-  letter-spacing: 0.04em;
-  margin-bottom: 0.35rem;
+  cursor: pointer;
+  font: 0.75rem/1.5 var(--font-ui);
+}
+.thinkHead:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+.think[open] .thinkHead {
+  margin-bottom: 0.4rem;
+}
+.think .md {
+  padding-left: 0.8rem;
+  border-left: 2px dashed var(--line);
 }
 .think .md :is(p, ul, ol) {
   margin-bottom: 0.35rem;
@@ -71,6 +81,12 @@
 .noticeIcon {
   margin-right: 0.4rem;
   vertical-align: -0.15rem;
+}
+.notice[data-severity="error"] {
+  color: var(--red);
+}
+.notice[data-severity="warning"] {
+  color: color-mix(in srgb, #e5c07b 80%, var(--fg));
 }
 .retry {
   margin-left: 0.6rem;

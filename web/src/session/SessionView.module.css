@@ -3,7 +3,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  height: 100%;
   position: relative;
 }
 .app[data-dragging] {

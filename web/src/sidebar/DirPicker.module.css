@@ -10,7 +10,12 @@
   color: var(--fg);
   font: inherit;
   padding: 0.25em 0.5em;
-  outline: none;
+}
+.path input:focus-visible,
+.routine textarea:focus-visible,
+.mkform input:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 .err {
   color: var(--red);
@@ -33,9 +38,9 @@
   color: var(--fg);
   font: inherit;
   padding: 0.5em;
-  outline: none;
 }
 .list {
+  min-height: 2.5rem;
   max-height: 40vh;
   overflow-y: auto;
   border: 1px solid var(--line);
@@ -55,6 +60,16 @@
 .dir:hover {
   background: var(--panel);
 }
+.empty {
+  padding: 0.65rem;
+  color: var(--dim);
+  font-size: var(--meta-size);
+}
+.mkform {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
 .mkform input {
   min-height: var(--hit);
   background: var(--panel);
@@ -63,7 +78,6 @@
   color: var(--fg);
   font: inherit;
   padding: 0.2em 0.5em;
-  outline: none;
   width: 12rem;
   max-width: 100%;
 }

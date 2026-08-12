@@ -14,6 +14,7 @@ export function Button({
   icon,
   link,
   nav,
+  primary,
   small,
   tone,
   className,
@@ -24,6 +25,7 @@ export function Button({
   icon?: boolean;
   link?: boolean;
   nav?: boolean;
+  primary?: boolean;
   small?: boolean;
   tone?: "accent" | "success" | "danger";
 }) {
@@ -33,6 +35,7 @@ export function Button({
     icon && s.icon,
     link && s.link,
     nav && s.nav,
+    primary && s.primary,
     small && s.small,
     tone && s[tone],
     className,
