@@ -5,6 +5,7 @@ package_update: true
 package_upgrade: true
 packages:
   - git
+  - gh
   - curl
   - jq
   - ripgrep
