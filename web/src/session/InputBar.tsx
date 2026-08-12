@@ -151,8 +151,8 @@ export function InputBar({
               className={s.chip}
               title={f instanceof File ? f.name : f.path}
             >
-              <Paperclip size={12} strokeWidth={1.8} aria-hidden />
-              {f.name}
+              <Paperclip size={11} strokeWidth={1.8} aria-hidden />
+              <span className={s.chipName}>{f.name}</span>
               {(f instanceof File || !f.dir) && <em>{sizeLabel(f.size)}</em>}
               <Button
                 icon

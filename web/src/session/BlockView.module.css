@@ -93,12 +93,23 @@
   vertical-align: baseline;
 }
 .tool {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   color: var(--dim);
 }
 .toolLine {
   display: flex;
+  min-width: 0;
+  max-width: 100%;
   gap: 0.45rem;
   align-items: center;
+}
+.toolLine > :last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .toolLine svg {
   flex-shrink: 0;

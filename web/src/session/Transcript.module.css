@@ -9,6 +9,8 @@
 }
 .main > [data-block] {
   position: relative;
+  width: min(100%, 60rem);
+  min-width: 0;
   max-width: 60rem;
   margin: 0 auto 1.1rem;
 }
@@ -16,6 +18,8 @@
   margin-bottom: 0.4rem;
 }
 .toolGroup {
+  min-width: 0;
+  overflow: hidden;
   color: var(--dim);
 }
 .toolGroup > summary {
@@ -29,6 +33,7 @@
 }
 .toolGroup > div {
   display: grid;
+  min-width: 0;
   gap: 0.4rem;
   margin-top: 0.5rem;
   padding-left: 0.8rem;
@@ -36,6 +41,8 @@
 }
 .toolGroup [data-block] {
   position: relative;
+  min-width: 0;
+  max-width: 100%;
 }
 .loading {
   position: sticky;
