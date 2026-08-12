@@ -1,0 +1,41 @@
+.diagram,
+.loading,
+.error {
+  display: block;
+}
+.diagram {
+  width: 100%;
+  overflow-x: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--code-bg);
+  color: var(--fg);
+  text-align: center;
+}
+.diagram :global(svg) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+.loading {
+  padding: 0.75rem;
+  color: var(--dim);
+  font: var(--meta-size)/1.5 var(--font-ui);
+}
+.error {
+  padding: 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--red) 50%, var(--line));
+  border-radius: 0.4rem;
+  color: var(--red);
+  font: var(--meta-size)/1.5 var(--font-ui);
+}
+.error code {
+  display: block;
+  margin-top: 0.4rem;
+  overflow-x: auto;
+  color: var(--code-fg);
+  font-family: var(--font-mono);
+  white-space: pre;
+}

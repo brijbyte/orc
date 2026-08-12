@@ -10,6 +10,7 @@ import { Button } from "../ui/Button";
 import { PreviewText } from "../ui/PreviewText";
 import d from "../ui/dialog.module.css";
 import { CodeEditor } from "../component/editor/CodeEditor";
+import { markdownComponents } from "./MarkdownContent";
 import s from "./FileDrawer.module.css";
 
 type FileData = {
@@ -23,9 +24,7 @@ type View = "code" | "preview";
 type DiscardAction = "close" | "reload";
 
 const mdComponents: Components = {
-  a: ({ node: _, ...props }) => (
-    <a {...props} target="_blank" rel="noopener noreferrer" />
-  ),
+  ...markdownComponents,
   table: ({ node: _, ...props }) => (
     <div className={s.tableWrap}>
       <table {...props} />
