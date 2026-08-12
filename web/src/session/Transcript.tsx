@@ -16,6 +16,61 @@ type Props = {
   onRetry?: () => void; // offered on the last block only
 };
 
+type ToolBlock = Extract<Block, { kind: "tool" }>;
+
+function ToolGroup({
+  blocks,
+  active,
+  onOpenFile,
+}: {
+  blocks: ToolBlock[];
+  active: boolean;
+  onOpenFile: Props["onOpenFile"];
+}) {
+  const [open, setOpen] = useState(active);
+  const first = blocks[0];
+  const latest = blocks.at(-1)!;
+  const ToolIcon = toolIcon(first.name);
+
+  // The newest group stays open for live progress. A later group closes it.
+  useEffect(() => {
+    if (!active) setOpen(false);
+  }, [active]);
+
+  return (
+    <Collapsible.Root
+      className={s.toolGroup}
+      data-block
+      open={open}
+      onOpenChange={setOpen}
+    >
+      <Collapsible.Trigger className={s.toolTrigger}>
+        <ChevronRight
+          className={s.toolChevron}
+          size={13}
+          strokeWidth={1.8}
+          aria-hidden
+        />
+        <ToolIcon size={14} strokeWidth={1.8} aria-hidden />
+        <span>
+          {blocks.length} {first.name} calls · latest: {latest.desc}
+        </span>
+      </Collapsible.Trigger>
+      <Collapsible.Panel className={s.toolPanel}>
+        {blocks.map((block, index) => (
+          <BlockView
+            key={block.id}
+            b={block}
+            compactAfter={index < blocks.length - 1}
+            onOpenFile={onOpenFile}
+            grouped
+          />
+        ))}
+      </Collapsible.Panel>
+    </Collapsible.Root>
+  );
+}
+
 function compactPair(a: Block, b?: Block) {
   return (
     (a.kind === "think" && b?.kind === "think") ||
@@ -115,41 +170,17 @@ export function Transcript({
       )}
       {entries.map((entry, i) => {
         if ("group" in entry) {
-          const first = entry.group[0];
-          const latest = entry.group.at(-1)!;
-          if (first.kind !== "tool") return null;
-          const ToolIcon = toolIcon(first.name);
+          const group = entry.group.filter(
+            (block): block is ToolBlock => block.kind === "tool",
+          );
+          if (!group.length) return null;
           return (
-            <Collapsible.Root
-              className={s.toolGroup}
-              data-block
-              key={entry.group[0].id}
-            >
-              <Collapsible.Trigger className={s.toolTrigger}>
-                <ChevronRight
-                  className={s.toolChevron}
-                  size={13}
-                  strokeWidth={1.8}
-                  aria-hidden
-                />
-                <ToolIcon size={14} strokeWidth={1.8} aria-hidden />
-                <span>
-                  {entry.group.length} {first.name} calls · latest:{" "}
-                  {latest.kind === "tool" ? latest.desc : ""}
-                </span>
-              </Collapsible.Trigger>
-              <Collapsible.Panel className={s.toolPanel}>
-                {entry.group.map((block, index) => (
-                  <BlockView
-                    key={block.id}
-                    b={block}
-                    compactAfter={index < entry.group.length - 1}
-                    onOpenFile={onOpenFile}
-                    grouped
-                  />
-                ))}
-              </Collapsible.Panel>
-            </Collapsible.Root>
+            <ToolGroup
+              key={group[0].id}
+              blocks={group}
+              active={i === entries.length - 1}
+              onOpenFile={onOpenFile}
+            />
           );
         }
         return (
