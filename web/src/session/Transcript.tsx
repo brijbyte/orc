@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowDown, LoaderCircle } from "lucide-react";
+import { Collapsible } from "@base-ui/react/collapsible";
+import { ArrowDown, ChevronRight, LoaderCircle } from "lucide-react";
 import { Button } from "../ui/Button";
 import * as store from "../lib/store";
 import type { Block } from "../lib/types";
@@ -118,12 +119,19 @@ export function Transcript({
           const latest = entry.group.at(-1)!;
           if (first.kind !== "tool") return null;
           return (
-            <details className={s.toolGroup} data-block key={entry.group[0].id}>
-              <summary>
-                {entry.group.length} {first.name} calls · latest:{" "}
-                {latest.kind === "tool" ? latest.desc : ""}
-              </summary>
-              <div>
+            <Collapsible.Root
+              className={s.toolGroup}
+              data-block
+              key={entry.group[0].id}
+            >
+              <Collapsible.Trigger className={s.toolTrigger}>
+                <ChevronRight size={13} strokeWidth={1.8} aria-hidden />
+                <span>
+                  {entry.group.length} {first.name} calls · latest:{" "}
+                  {latest.kind === "tool" ? latest.desc : ""}
+                </span>
+              </Collapsible.Trigger>
+              <Collapsible.Panel className={s.toolPanel}>
                 {entry.group.map((block, index) => (
                   <BlockView
                     key={block.id}
@@ -132,8 +140,8 @@ export function Transcript({
                     onOpenFile={onOpenFile}
                   />
                 ))}
-              </div>
-            </details>
+              </Collapsible.Panel>
+            </Collapsible.Root>
           );
         }
         return (

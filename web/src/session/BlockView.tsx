@@ -1,4 +1,5 @@
 import ReactMarkdown, { type Components } from "react-markdown";
+import { Collapsible } from "@base-ui/react/collapsible";
 import remarkGfm from "remark-gfm";
 import {
   BookOpen,
@@ -162,16 +163,22 @@ export function BlockView({
       );
     case "think":
       return (
-        <details className={s.think} {...blockAttrs}>
-          <summary className={s.thinkHead}>
+        <Collapsible.Root className={s.think} {...blockAttrs}>
+          <Collapsible.Trigger className={s.thinkHead}>
+            <ChevronRight
+              className={s.thinkChevron}
+              size={13}
+              strokeWidth={1.8}
+              aria-hidden
+            />
             <Sparkles size={12} strokeWidth={1.8} aria-hidden />
             <span>reasoning</span>
-          </summary>
-          <div className={s.md}>
+          </Collapsible.Trigger>
+          <Collapsible.Panel className={`${s.thinkPanel} ${s.md}`}>
             <Markdown text={b.text} />
-          </div>
+          </Collapsible.Panel>
           <CopyButton text={b.text} />
-        </details>
+        </Collapsible.Root>
       );
     case "notice":
       return (

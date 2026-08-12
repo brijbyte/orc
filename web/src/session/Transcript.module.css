@@ -22,16 +22,33 @@
   overflow: hidden;
   color: var(--dim);
 }
-.toolGroup > summary {
-  width: fit-content;
+.toolTrigger {
+  display: flex;
+  width: min(100%, fit-content);
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
   cursor: pointer;
   font: 0.75rem/1.5 var(--font-ui);
 }
-.toolGroup > summary:focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-offset);
+.toolTrigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.toolGroup > div {
+.toolTrigger svg {
+  flex: none;
+  transition: transform 100ms var(--ease-out);
+}
+.toolTrigger[data-panel-open] svg {
+  transform: rotate(90deg);
+}
+.toolPanel {
   display: grid;
   min-width: 0;
   gap: 0.4rem;

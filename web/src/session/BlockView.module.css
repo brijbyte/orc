@@ -45,18 +45,22 @@
   display: flex;
   width: fit-content;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.3rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
   cursor: pointer;
   font: 0.75rem/1.5 var(--font-ui);
 }
-.thinkHead:focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-offset);
+.thinkChevron {
+  transition: transform 100ms var(--ease-out);
 }
-.think[open] .thinkHead {
-  margin-bottom: 0.4rem;
+.thinkHead[data-panel-open] .thinkChevron {
+  transform: rotate(90deg);
 }
-.think .md {
+.thinkPanel {
+  margin-top: 0.4rem;
   padding-left: 0.8rem;
   border-left: 2px dashed var(--line);
 }
