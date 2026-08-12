@@ -42,6 +42,7 @@ import s from "./GitDrawer.module.css";
 const WORKTREE = "@worktree";
 
 type ChangeMode = "worktree" | "staged" | "compare";
+type MobileView = "files" | "diff";
 type TreeChange = {
   id: string;
   mode: ChangeMode;
@@ -286,6 +287,7 @@ export function GitDrawer({
   const [err, setErr] = useState("");
   const [diffErr, setDiffErr] = useState("");
   const [mutationErr, setMutationErr] = useState("");
+  const [mobileView, setMobileView] = useState<MobileView>("files");
   const close = useRef<HTMLButtonElement>(null);
   const branchInput = useRef<HTMLInputElement>(null);
   const commitInput = useRef<HTMLTextAreaElement>(null);
@@ -363,6 +365,10 @@ export function GitDrawer({
   }, [sid, open, selected, source, refresh, request]);
 
   useEffect(() => setSelectedHunks([]), [diff?.hash, source, activeID]);
+
+  useEffect(() => {
+    if (open) setMobileView("files");
+  }, [open]);
 
   const lines = useMemo(() => (diff ? parseDiff(diff) : []), [diff]);
   const hunkCount = lines.filter((line) => line.kind === "hunk").length;
@@ -599,7 +605,8 @@ export function GitDrawer({
           <Dialog.Popup className={s.drawer} initialFocus={close}>
             <header className={s.head}>
               <Dialog.Title className={s.title}>
-                <BranchIcon size={16} strokeWidth={1.8} aria-hidden /> Git
+                <BranchIcon size={16} strokeWidth={1.8} aria-hidden />
+                <span>Git</span>
               </Dialog.Title>
               {status?.repo && (
                 <Popover.Root
@@ -613,7 +620,9 @@ export function GitDrawer({
                     render={<Button outline small disabled={mutating} />}
                   >
                     <BranchIcon size={13} strokeWidth={1.8} aria-hidden />
-                    branches
+                    <span className={s.branchLabel}>
+                      {status.detached ? "detached" : status.branch}
+                    </span>
                   </Popover.Trigger>
                   <Popover.Portal>
                     <Popover.Positioner
@@ -693,111 +702,9 @@ export function GitDrawer({
                 <Select
                   value={source}
                   options={comparisonOptions}
+                  className={s.sourceSelect}
                   onChange={setSource}
                 />
-              )}
-              {status?.repo && canMutate && (
-                <Popover.Root
-                  open={commitOpen}
-                  onOpenChange={(next) => {
-                    setCommitOpen(next);
-                    if (next) setCommitErr("");
-                  }}
-                >
-                  <Popover.Trigger
-                    render={
-                      <Button
-                        outline
-                        small
-                        tone="accent"
-                        disabled={mutating || !stagedChanges.length}
-                      />
-                    }
-                  >
-                    <GitCommitHorizontal
-                      size={13}
-                      strokeWidth={1.8}
-                      aria-hidden
-                    />
-                    commit
-                  </Popover.Trigger>
-                  <Popover.Portal>
-                    <Popover.Positioner
-                      className={s.popoverPositioner}
-                      sideOffset={6}
-                      align="end"
-                    >
-                      <Popover.Popup
-                        className={s.popoverPopup}
-                        initialFocus={commitInput}
-                      >
-                        <Popover.Title className={s.popoverTitle}>
-                          commit staged changes
-                        </Popover.Title>
-                        <form
-                          className={s.commit}
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            void commit();
-                          }}
-                        >
-                          <textarea
-                            ref={commitInput}
-                            aria-label="commit message"
-                            placeholder="Commit message"
-                            maxLength={65536}
-                            value={commitMessage}
-                            onChange={(event) => {
-                              setCommitMessage(event.target.value);
-                              setCommitErr("");
-                            }}
-                            onKeyDown={(event) => {
-                              if (
-                                (event.metaKey || event.ctrlKey) &&
-                                event.key === "Enter"
-                              )
-                                event.currentTarget.form?.requestSubmit();
-                            }}
-                          />
-                          <div>
-                            <span>
-                              {stagedChanges.length} staged file
-                              {stagedChanges.length === 1 ? "" : "s"}
-                            </span>
-                            <Button
-                              type="submit"
-                              outline
-                              small
-                              tone="accent"
-                              disabled={mutating || !commitMessage.trim()}
-                            >
-                              <GitCommitHorizontal
-                                size={13}
-                                strokeWidth={1.8}
-                                aria-hidden
-                              />
-                              commit
-                            </Button>
-                          </div>
-                          {commitErr && (
-                            <span className={s.error}>{commitErr}</span>
-                          )}
-                        </form>
-                      </Popover.Popup>
-                    </Popover.Positioner>
-                  </Popover.Portal>
-                </Popover.Root>
-              )}
-              {status?.recovery && (
-                <Button
-                  outline
-                  small
-                  disabled={mutating}
-                  onClick={() => void undoDiscard()}
-                >
-                  <RotateCcw size={13} strokeWidth={1.8} aria-hidden />
-                  undo discard
-                </Button>
               )}
               <Button
                 icon
@@ -834,7 +741,47 @@ export function GitDrawer({
             )}
             {status?.repo && (
               <div className={s.body}>
-                <aside className={s.side}>
+                <div
+                  className={s.mobileTabs}
+                  role="tablist"
+                  aria-label="Git workspace"
+                >
+                  {(["files", "diff"] as MobileView[]).map((view) => (
+                    <Button
+                      small
+                      id={`git-tab-${view}`}
+                      role="tab"
+                      aria-selected={mobileView === view}
+                      aria-controls={`git-${view}-panel`}
+                      tabIndex={mobileView === view ? 0 : -1}
+                      data-active={mobileView === view || undefined}
+                      onClick={() => setMobileView(view)}
+                      onKeyDown={(event) => {
+                        if (
+                          event.key !== "ArrowLeft" &&
+                          event.key !== "ArrowRight"
+                        )
+                          return;
+                        event.preventDefault();
+                        const next = view === "files" ? "diff" : "files";
+                        setMobileView(next);
+                        requestAnimationFrame(() =>
+                          document.getElementById(`git-tab-${next}`)?.focus(),
+                        );
+                      }}
+                      key={view}
+                    >
+                      {view === "files" ? "Files" : "Diff"}
+                    </Button>
+                  ))}
+                </div>
+                <aside
+                  id="git-files-panel"
+                  className={s.side}
+                  role="tabpanel"
+                  aria-labelledby="git-tab-files"
+                  data-mobile-active={mobileView === "files" || undefined}
+                >
                   <div className={s.summary}>
                     <strong>
                       {status.detached ? "detached HEAD" : status.branch}
@@ -882,9 +829,126 @@ export function GitDrawer({
                       <span>{changes.length} changed</span>
                     )}
                   </div>
+                  {(canMutate || status.recovery) && (
+                    <div
+                      className={s.contextToolbar}
+                      role="toolbar"
+                      aria-label="repository actions"
+                    >
+                      {status?.repo && canMutate && (
+                        <Popover.Root
+                          open={commitOpen}
+                          onOpenChange={(next) => {
+                            setCommitOpen(next);
+                            if (next) setCommitErr("");
+                          }}
+                        >
+                          <Popover.Trigger
+                            render={
+                              <Button
+                                outline
+                                small
+                                tone="accent"
+                                disabled={mutating || !stagedChanges.length}
+                              />
+                            }
+                          >
+                            <GitCommitHorizontal
+                              size={13}
+                              strokeWidth={1.8}
+                              aria-hidden
+                            />
+                            commit
+                          </Popover.Trigger>
+                          <Popover.Portal>
+                            <Popover.Positioner
+                              className={s.popoverPositioner}
+                              sideOffset={6}
+                              align="end"
+                            >
+                              <Popover.Popup
+                                className={s.popoverPopup}
+                                initialFocus={commitInput}
+                              >
+                                <Popover.Title className={s.popoverTitle}>
+                                  commit staged changes
+                                </Popover.Title>
+                                <form
+                                  className={s.commit}
+                                  onSubmit={(event) => {
+                                    event.preventDefault();
+                                    void commit();
+                                  }}
+                                >
+                                  <textarea
+                                    ref={commitInput}
+                                    aria-label="commit message"
+                                    placeholder="Commit message"
+                                    maxLength={65536}
+                                    value={commitMessage}
+                                    onChange={(event) => {
+                                      setCommitMessage(event.target.value);
+                                      setCommitErr("");
+                                    }}
+                                    onKeyDown={(event) => {
+                                      if (
+                                        (event.metaKey || event.ctrlKey) &&
+                                        event.key === "Enter"
+                                      )
+                                        event.currentTarget.form?.requestSubmit();
+                                    }}
+                                  />
+                                  <div>
+                                    <span>
+                                      {stagedChanges.length} staged file
+                                      {stagedChanges.length === 1 ? "" : "s"}
+                                    </span>
+                                    <Button
+                                      type="submit"
+                                      outline
+                                      small
+                                      tone="accent"
+                                      disabled={
+                                        mutating || !commitMessage.trim()
+                                      }
+                                    >
+                                      <GitCommitHorizontal
+                                        size={13}
+                                        strokeWidth={1.8}
+                                        aria-hidden
+                                      />
+                                      commit
+                                    </Button>
+                                  </div>
+                                  {commitErr && (
+                                    <span className={s.error}>{commitErr}</span>
+                                  )}
+                                </form>
+                              </Popover.Popup>
+                            </Popover.Positioner>
+                          </Popover.Portal>
+                        </Popover.Root>
+                      )}
+                      {status?.recovery && (
+                        <Button
+                          outline
+                          small
+                          disabled={mutating}
+                          onClick={() => void undoDiscard()}
+                        >
+                          <RotateCcw size={13} strokeWidth={1.8} aria-hidden />
+                          undo discard
+                        </Button>
+                      )}
+                    </div>
+                  )}
                   {canMutate && changes.length > 0 && (
                     <div className={s.selectionBar}>
-                      <div className={s.selectionControls}>
+                      <div
+                        className={s.selectionControls}
+                        role="group"
+                        aria-label="file selection"
+                      >
                         <span>{selectedIDs.length} selected</span>
                         <Button
                           link
@@ -905,7 +969,11 @@ export function GitDrawer({
                           clear
                         </Button>
                       </div>
-                      <div className={s.mutationControls}>
+                      <div
+                        className={s.mutationControls}
+                        role="group"
+                        aria-label="selected file actions"
+                      >
                         <Button
                           outline
                           small
@@ -948,57 +1016,84 @@ export function GitDrawer({
                   )}
                   <Activity entries={status.activity ?? []} />
                 </aside>
-                <main className={s.diff}>
-                  {selected && (
-                    <div className={s.diffHead}>
-                      <strong title={selected.change.path}>
-                        {selected.change.path}
-                      </strong>
-                      {selected.change.file && (
-                        <Button
-                          outline
-                          small
-                          onClick={() =>
-                            onOpenFile(
-                              selected.change.path,
-                              selected.change.file!,
-                            )
-                          }
-                        >
-                          <ExternalLink
-                            size={13}
-                            strokeWidth={1.8}
-                            aria-hidden
-                          />
-                          open
-                        </Button>
+                <main
+                  id="git-diff-panel"
+                  className={s.diff}
+                  role="tabpanel"
+                  aria-labelledby="git-tab-diff"
+                  data-mobile-active={mobileView === "diff" || undefined}
+                >
+                  <div
+                    className={s.diffHead}
+                    role="toolbar"
+                    aria-label="diff workspace"
+                  >
+                    <div className={s.diffIdentity}>
+                      {selected ? (
+                        <strong title={selected.change.path}>
+                          {selected.change.path}
+                        </strong>
+                      ) : (
+                        <strong>Diff</strong>
                       )}
-                      {selected.change.file && (
-                        <Button outline small onClick={addFile}>
-                          <Paperclip size={13} strokeWidth={1.8} aria-hidden />{" "}
-                          attach file
-                        </Button>
-                      )}
-                      {diff?.patch && (
-                        <Button outline small onClick={addDiff}>
-                          <Paperclip size={13} strokeWidth={1.8} aria-hidden />{" "}
-                          attach diff
-                        </Button>
-                      )}
-                      <span
-                        className={s.diffFeedback}
-                        role="status"
-                        aria-live="polite"
+                      <div
+                        className={s.diffContextControls}
+                        role="group"
+                        aria-label="diff actions"
                       >
-                        {mutationErr || diffErr}
-                      </span>
-                      {canMutate && selected.mode === "worktree" && (
+                        {selected?.change.file && (
+                          <Button
+                            outline
+                            small
+                            onClick={() =>
+                              onOpenFile(
+                                selected!.change.path,
+                                selected!.change.file!,
+                              )
+                            }
+                          >
+                            <ExternalLink
+                              size={13}
+                              strokeWidth={1.8}
+                              aria-hidden
+                            />
+                            open
+                          </Button>
+                        )}
+                        {selected?.change.file && (
+                          <Button outline small onClick={addFile}>
+                            <Paperclip
+                              size={13}
+                              strokeWidth={1.8}
+                              aria-hidden
+                            />{" "}
+                            attach file
+                          </Button>
+                        )}
+                        {diff?.patch && (
+                          <Button outline small onClick={addDiff}>
+                            <Paperclip
+                              size={13}
+                              strokeWidth={1.8}
+                              aria-hidden
+                            />{" "}
+                            attach diff
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <div
+                      className={s.diffMutationControls}
+                      role="group"
+                      aria-label="selected diff actions"
+                    >
+                      {canMutate && selected?.mode === "worktree" && (
                         <Button
                           outline
                           small
                           tone={
                             selected.change.worktree === "D"
-                              ? "success"
+                              ? "accent"
                               : "danger"
                           }
                           disabled={mutating}
@@ -1029,6 +1124,7 @@ export function GitDrawer({
                         </Button>
                       )}
                       {canMutate &&
+                        selected &&
                         selected.mode !== "compare" &&
                         selectedHunks.length > 0 && (
                           <Button
@@ -1036,7 +1132,7 @@ export function GitDrawer({
                             small
                             tone={
                               selected.mode === "worktree"
-                                ? "success"
+                                ? "accent"
                                 : undefined
                             }
                             disabled={mutating}
@@ -1058,6 +1154,7 @@ export function GitDrawer({
                           </Button>
                         )}
                       {canMutate &&
+                        selected &&
                         selected.mode === "worktree" &&
                         selected.change.index !== "?" &&
                         selectedHunks.length > 0 && (
@@ -1080,7 +1177,16 @@ export function GitDrawer({
                           </Button>
                         )}
                     </div>
-                  )}
+                    <span
+                      className={s.diffFeedback}
+                      role="status"
+                      aria-live="polite"
+                      aria-atomic="true"
+                      title={mutationErr || diffErr}
+                    >
+                      {mutationErr || diffErr}
+                    </span>
+                  </div>
                   {selected && !diff && !diffErr && (
                     <div className={s.message}>
                       <LoaderCircle

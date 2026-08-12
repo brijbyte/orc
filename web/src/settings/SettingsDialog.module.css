@@ -144,7 +144,7 @@
 .unsaved {
   margin-right: auto;
   color: var(--fg);
-  font-size: 0.8125rem;
+  font-size: var(--meta-size);
   font-weight: 550;
 }
 .saveError {
@@ -190,11 +190,11 @@
     border-radius: 0.4rem;
     background: var(--panel);
     color: var(--fg);
-    font: 0.8125rem var(--font-ui);
+    font: var(--meta-size) var(--font-ui);
   }
   .mobileNav select:focus-visible {
-    outline: 2px solid var(--cyan);
-    outline-offset: 2px;
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-offset);
   }
   .content {
     padding: 1rem;

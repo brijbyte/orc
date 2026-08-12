@@ -51,7 +51,7 @@
   background: none;
   color: inherit;
   cursor: pointer;
-  font: 0.75rem/1.5 var(--font-ui);
+  font: var(--meta-size)/1.5 var(--font-ui);
 }
 .thinkChevron {
   transition: transform 100ms var(--ease-out);

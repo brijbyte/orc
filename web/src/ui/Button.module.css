@@ -84,17 +84,24 @@
 .primary:hover:not(:disabled) {
   border-color: var(--cyan);
 }
+/* tab: a segmented view control framed by its tab list */
+.tab {
+  padding-inline: 0.55rem;
+  border-radius: 0.3rem;
+}
+.tab[data-active] {
+  background: var(--bg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+  color: var(--fg);
+}
 /* small: inline with running text, so it drops the tap-target height */
 .small {
   min-height: 0;
   padding: 0.15rem 0.6rem;
-  font: 0.75rem/1.5 var(--font-ui);
+  font: var(--meta-size)/1.5 var(--font-ui);
 }
 .accent {
   --btn-color: var(--cyan);
-}
-.success {
-  --btn-color: var(--green);
 }
 .danger {
   --btn-color: var(--red);

@@ -26,7 +26,7 @@
   border: 1px solid var(--line);
   border-radius: 0.4rem;
   padding: 0.25rem;
-  font: 0.75rem/1.5 var(--font-ui);
+  font: var(--meta-size)/1.5 var(--font-ui);
   max-height: min(var(--available-height), 19rem);
   overflow-y: auto;
   transform-origin: var(--transform-origin);
@@ -71,7 +71,7 @@
   border: 1px solid var(--line);
   border-radius: 0.4rem;
   padding: 0.4rem 0.6rem;
-  font: 0.75rem/1.5 var(--font-ui);
+  font: 0.6875rem/1.5 var(--font-ui);
   color: var(--fg);
   transform-origin: var(--transform-origin);
   transition:

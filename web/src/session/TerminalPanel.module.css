@@ -14,7 +14,7 @@
   padding: 0.3rem 0.55rem 0.3rem 0.8rem;
   border-bottom: 1px solid var(--line);
   background: var(--bg);
-  font: 0.75rem/1.4 var(--font-ui);
+  font: var(--meta-size)/1.4 var(--font-ui);
 }
 .title {
   color: var(--fg);

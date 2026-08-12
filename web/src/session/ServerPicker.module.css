@@ -61,7 +61,7 @@
 .entry em {
   margin-left: auto;
   color: var(--dim);
-  font: 0.75rem/1.4 var(--font-ui);
+  font: var(--meta-size)/1.4 var(--font-ui);
   font-style: normal;
 }
 .empty {
