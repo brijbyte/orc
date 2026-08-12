@@ -51,6 +51,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.close {
+  flex: none;
+  margin-left: auto;
+}
 .mobileTabs {
   display: none;
 }
@@ -372,6 +376,9 @@
   }
   .title {
     flex: 0 0 auto;
+  }
+  .close {
+    order: 10;
   }
   .branchLabel,
   .sourceSelect {

@@ -244,17 +244,14 @@
     width: 100vw;
   }
   .head {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     gap: 0.5rem;
     padding-left: 0.75rem;
   }
   .title {
-    grid-column: 1;
+    grid-column: 1 / -1;
     grid-row: 1;
-  }
-  .close {
-    grid-column: 2;
-    grid-row: 1;
+    max-width: calc(100vw - 1.5rem);
   }
   .viewGroup {
     grid-column: 1;
@@ -262,6 +259,10 @@
   }
   .actions {
     grid-column: 2;
+    grid-row: 2;
+  }
+  .close {
+    grid-column: 3;
     grid-row: 2;
   }
   .actionLabel {

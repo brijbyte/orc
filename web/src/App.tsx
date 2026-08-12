@@ -163,6 +163,7 @@ export default function App() {
       sheet={narrow}
       open={sideOpen}
       onDismiss={() => setSideOpen(false)}
+      onOpenChange={setSideOpen}
       onStop={onStop}
       onDelete={confirmDelete}
       onPin={onPin}

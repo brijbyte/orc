@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import { Code2, Eye, LoaderCircle, RefreshCw, Save, X } from "lucide-react";
 import { api, APIError } from "../lib/api";
 import { Button } from "../ui/Button";
+import { PreviewText } from "../ui/PreviewText";
 import d from "../ui/dialog.module.css";
 import { CodeEditor } from "../component/editor/CodeEditor";
 import s from "./FileDrawer.module.css";
@@ -195,8 +196,8 @@ export function FileDrawer({
               className={s.tabsRoot}
             >
               <header className={s.head}>
-                <Dialog.Title className={s.title} title={displayPath}>
-                  {displayPath}
+                <Dialog.Title className={s.title}>
+                  <PreviewText text={displayPath} />
                 </Dialog.Title>
                 <div className={s.viewGroup}>
                   {markdown && (
