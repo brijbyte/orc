@@ -1,6 +1,20 @@
 .popup {
+  top: 5dvh;
+  transform: translateX(-50%);
   font-family: var(--font-mono);
 }
+.popup[data-starting-style],
+.popup[data-ending-style] {
+  transform: translateX(-50%) scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popup[data-starting-style],
+  .popup[data-ending-style] {
+    transform: translateX(-50%);
+  }
+}
+
 .form {
   display: flex;
   flex-direction: column;
