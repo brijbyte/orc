@@ -22,6 +22,7 @@ import {
   Sparkles,
   SquareTerminal,
   TriangleAlert,
+  UserRound,
   Wrench,
 } from "lucide-react";
 import type { Block } from "../lib/types";
@@ -148,7 +149,7 @@ export function BlockView({
     case "user":
       return (
         <div className={s.user} {...blockAttrs}>
-          <ChevronRight size={14} strokeWidth={2} aria-hidden />
+          <UserRound size={14} strokeWidth={1.8} aria-hidden />
           <div className={s.md}>
             <EchoContent text={b.text} markdown />
           </div>
@@ -158,7 +159,7 @@ export function BlockView({
     case "pending":
       return (
         <div className={s.pending} {...blockAttrs}>
-          <ChevronRight size={14} strokeWidth={2} aria-hidden />
+          <UserRound size={14} strokeWidth={1.8} aria-hidden />
           <span className={s.pendingText}>
             <EchoContent text={b.text} />
           </span>
