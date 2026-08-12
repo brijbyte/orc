@@ -178,8 +178,10 @@ export function BlockView({
             <Sparkles size={12} strokeWidth={1.8} aria-hidden />
             <span>reasoning</span>
           </Collapsible.Trigger>
-          <Collapsible.Panel className={`${s.thinkPanel} ${s.md}`}>
-            <Markdown text={b.text} />
+          <Collapsible.Panel className={s.thinkPanel}>
+            <div className={`${s.thinkPanelContent} ${s.md}`}>
+              <Markdown text={b.text} />
+            </div>
           </Collapsible.Panel>
           <CopyButton text={b.text} />
         </Collapsible.Root>

@@ -61,18 +61,22 @@
 }
 .thinkPanel {
   height: var(--collapsible-panel-height);
-  margin-top: 0.4rem;
-  padding-left: 0.8rem;
   overflow: hidden;
-  border-left: 2px dashed var(--line);
-  opacity: 1;
-  transition:
-    height 200ms var(--ease-out),
-    opacity 200ms var(--ease-out);
+  transition: height 200ms var(--ease-out);
 }
 .thinkPanel[data-starting-style],
 .thinkPanel[data-ending-style] {
   height: 0;
+}
+.thinkPanelContent {
+  margin-top: 0.4rem;
+  padding-left: 0.8rem;
+  border-left: 2px dashed var(--line);
+  opacity: 1;
+  transition: opacity 160ms var(--ease-out);
+}
+.thinkPanel[data-starting-style] .thinkPanelContent,
+.thinkPanel[data-ending-style] .thinkPanelContent {
   opacity: 0;
 }
 .think .md :is(p, ul, ol) {
@@ -236,7 +240,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .thinkChevron,
-  .thinkPanel {
+  .thinkPanel,
+  .thinkPanelContent {
     transition-duration: 0ms;
   }
 }

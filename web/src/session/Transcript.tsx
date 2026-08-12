@@ -60,15 +60,17 @@ function ToolGroup({
         </span>
       </Collapsible.Trigger>
       <Collapsible.Panel className={s.toolPanel}>
-        {blocks.map((block, index) => (
-          <BlockView
-            key={block.id}
-            b={block}
-            compactAfter={index < blocks.length - 1}
-            onOpenFile={onOpenFile}
-            grouped
-          />
-        ))}
+        <div className={s.toolPanelContent}>
+          {blocks.map((block, index) => (
+            <BlockView
+              key={block.id}
+              b={block}
+              compactAfter={index < blocks.length - 1}
+              onOpenFile={onOpenFile}
+              grouped
+            />
+          ))}
+        </div>
       </Collapsible.Panel>
     </Collapsible.Root>
   );
