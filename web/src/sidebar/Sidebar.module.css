@@ -10,13 +10,19 @@
   z-index: 7;
 }
 .backdrop,
-.dismiss {
+.dismiss,
+.swipeArea,
+.viewport {
   display: none;
 }
 .top {
   display: flex;
   gap: 0.4rem;
   margin-bottom: 0.6rem;
+}
+.dismiss {
+  flex: none;
+  order: 3;
 }
 .new {
   flex: 1;
@@ -223,44 +229,57 @@
 }
 
 @media (max-width: 48rem) {
+  .swipeArea {
+    position: fixed;
+    z-index: 5;
+    inset: 3rem auto 0 0;
+    display: block;
+    width: 1.25rem;
+  }
   .backdrop {
     position: fixed;
     inset: 0;
     z-index: 6;
     display: block;
     background: rgb(0 0 0 / 0.32);
-    opacity: 0;
-    pointer-events: none;
+    opacity: calc(1 - var(--drawer-swipe-progress));
     transition: opacity 180ms var(--ease-out);
   }
-  .backdrop[data-open] {
-    opacity: 1;
-    pointer-events: auto;
+  .backdrop[data-starting-style],
+  .backdrop[data-ending-style] {
+    opacity: 0;
+  }
+  .viewport {
+    position: fixed;
+    inset: 0;
+    z-index: 7;
+    display: flex;
+    justify-content: flex-start;
+    pointer-events: none;
   }
   .side.sheet {
-    position: fixed;
-    inset: 0 auto 0 0;
     width: min(20rem, calc(100vw - 3rem));
+    height: 100%;
     border-right-color: color-mix(in srgb, var(--line) 80%, transparent);
     background: var(--material);
     box-shadow: 0.75rem 0 2rem rgb(0 0 0 / 0.18);
     backdrop-filter: blur(0.65rem);
-    opacity: 0;
-    transform: translateX(-100%);
-    pointer-events: none;
-    transition:
-      opacity 180ms var(--ease-out),
-      transform 180ms var(--ease-out);
-  }
-  .side.sheet[data-open] {
-    opacity: 1;
-    transform: translateX(0);
     pointer-events: auto;
+    touch-action: auto;
+    transform: translateX(var(--drawer-swipe-movement-x));
+    transition: transform 180ms var(--ease-out);
+  }
+  .side.sheet[data-starting-style],
+  .side.sheet[data-ending-style] {
+    transform: translateX(-100%);
+  }
+  .side.sheet[data-swiping],
+  .backdrop[data-swiping] {
+    user-select: none;
+    transition-duration: 0ms;
   }
   .dismiss {
-    display: grid;
-    place-items: center;
-    margin: 0 0 0.45rem auto;
+    display: inline-grid;
   }
 }
 
@@ -273,7 +292,7 @@
   }
   .backdrop,
   .side.sheet {
-    transition-property: opacity;
+    transition: none;
   }
 }
 

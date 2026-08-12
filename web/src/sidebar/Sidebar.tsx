@@ -1,4 +1,5 @@
 import { useCallback, useState, useSyncExternalStore } from "react";
+import { Drawer } from "@base-ui/react/drawer";
 import { Menu } from "@base-ui/react/menu";
 import { Link } from "react-router";
 import {
@@ -197,6 +198,7 @@ export function Sidebar({
   sheet,
   open,
   onDismiss,
+  onOpenChange,
   onStop,
   onDelete,
   onPin,
@@ -212,6 +214,7 @@ export function Sidebar({
   sheet: boolean;
   open: boolean;
   onDismiss: () => void;
+  onOpenChange: (open: boolean) => void;
   onStop: (row: SessionRow) => void;
   onDelete: (row: SessionRow) => void;
   onPin: (row: SessionRow) => void;
@@ -275,62 +278,72 @@ export function Sidebar({
     </div>
   );
 
-  return (
+  const content = (
     <>
-      <div
-        className={s.backdrop}
-        data-open={(sheet && open) || undefined}
-        onClick={onDismiss}
-        aria-hidden
-      />
-      <nav
-        id="session-sidebar"
-        aria-label="sessions"
-        className={`${s.side}${sheet ? ` ${s.sheet}` : ""}`}
-        data-open={!sheet || open || undefined}
-        inert={sheet && !open}
-      >
-        <Button
-          icon
-          tip="close sidebar"
-          className={s.dismiss}
-          onClick={onDismiss}
-        >
-          <X size={16} strokeWidth={1.8} aria-hidden />
-        </Button>
-        <div className={s.top}>
-          <Button
-            outline
-            tone="accent"
-            className={s.new}
-            disabled={disabled}
-            onClick={onNew}
+      <div className={s.top}>
+        {sheet && (
+          <Drawer.Close
+            render={<Button icon tip="close sidebar" className={s.dismiss} />}
           >
-            <Plus size={13} strokeWidth={1.8} aria-hidden />
-            new session
-          </Button>
-          <Button icon outline tip="settings" onClick={openDialog}>
-            <Settings size={14} strokeWidth={1.8} aria-hidden />
-          </Button>
-        </div>
-        {rows.length > 12 && (
-          <label className={s.search}>
-            <Search size={13} strokeWidth={1.8} aria-hidden />
-            <input
-              type="search"
-              value={query}
-              placeholder="Filter sessions"
-              aria-label="filter sessions"
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </label>
+            <X size={16} strokeWidth={1.8} aria-hidden />
+          </Drawer.Close>
         )}
-        {!!pinned.length && group("pinned", pinned, true, true)}
-        {[...groups.entries()].map(([cwd, list]) => group(cwd, list))}
-        {query && !filtered.length && (
-          <div className={s.noResults}>No matching sessions</div>
-        )}
-      </nav>
+        <Button
+          outline
+          tone="accent"
+          className={s.new}
+          disabled={disabled}
+          onClick={onNew}
+        >
+          <Plus size={13} strokeWidth={1.8} aria-hidden />
+          new session
+        </Button>
+        <Button icon outline tip="settings" onClick={openDialog}>
+          <Settings size={14} strokeWidth={1.8} aria-hidden />
+        </Button>
+      </div>
+      {rows.length > 12 && (
+        <label className={s.search}>
+          <Search size={13} strokeWidth={1.8} aria-hidden />
+          <input
+            type="search"
+            value={query}
+            placeholder="Filter sessions"
+            aria-label="filter sessions"
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+      )}
+      {!!pinned.length && group("pinned", pinned, true, true)}
+      {[...groups.entries()].map(([cwd, list]) => group(cwd, list))}
+      {query && !filtered.length && (
+        <div className={s.noResults}>No matching sessions</div>
+      )}
     </>
+  );
+
+  if (!sheet)
+    return (
+      <nav id="session-sidebar" aria-label="sessions" className={s.side}>
+        {content}
+      </nav>
+    );
+
+  return (
+    <Drawer.Root open={open} onOpenChange={onOpenChange} swipeDirection="left">
+      <Drawer.SwipeArea className={s.swipeArea} swipeDirection="right" />
+      <Drawer.Portal>
+        <Drawer.Backdrop className={s.backdrop} />
+        <Drawer.Viewport className={s.viewport}>
+          <Drawer.Popup
+            id="session-sidebar"
+            aria-label="sessions"
+            className={`${s.side} ${s.sheet}`}
+          >
+            {content}
+          </Drawer.Popup>
+        </Drawer.Viewport>
+      </Drawer.Portal>
+    </Drawer.Root>
   );
 }

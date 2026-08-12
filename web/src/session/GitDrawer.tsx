@@ -716,7 +716,7 @@ export function GitDrawer({
               </Button>
               <Dialog.Close
                 ref={close}
-                render={<Button icon />}
+                render={<Button icon className={s.close} />}
                 aria-label="close Git"
               >
                 <X size={17} strokeWidth={1.8} aria-hidden />

@@ -30,6 +30,9 @@
 
 @media (hover: none), (pointer: coarse) {
   .copy {
+    position: static;
+    float: right;
+    margin: 0 0 0.2rem 0.4rem;
     opacity: 1;
   }
 }

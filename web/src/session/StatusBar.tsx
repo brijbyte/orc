@@ -1,4 +1,10 @@
-import { GitBranch, Minimize2, SquareTerminal } from "lucide-react";
+import { PreviewCard } from "@base-ui/react/preview-card";
+import {
+  GitBranch,
+  Minimize2,
+  SlidersHorizontal,
+  SquareTerminal,
+} from "lucide-react";
 import { api } from "../lib/api";
 import type { Model } from "../lib/types";
 import { Button } from "../ui/Button";
@@ -36,30 +42,60 @@ export function StatusBar({
   }));
   if (model && !models.some((m) => m.slug === model))
     modelOpts.unshift({ value: model, label: model, title: "" });
+  const settings = (
+    <>
+      <Select
+        value={model}
+        options={modelOpts}
+        onChange={(v) => api.send(sid, "/model " + v)}
+      />
+      {" · "}
+      <Select
+        value={effort}
+        options={(
+          models.find((m) => m.slug === model)?.efforts ?? [
+            "low",
+            "medium",
+            "high",
+          ]
+        ).map((value) => ({ value }))}
+        onChange={(v) => api.send(sid, "/effort " + v)}
+      />
+      {rest.length > 0 && " · " + rest.join(" · ")}
+    </>
+  );
   return (
     <footer className={s.footer}>
       <div className={s.inner}>
+        {status && <span className={s.stat}>{settings}</span>}
         {status && (
-          <span className={s.stat}>
-            <Select
-              value={model}
-              options={modelOpts}
-              onChange={(v) => api.send(sid, "/model " + v)}
-            />
-            {" · "}
-            <Select
-              value={effort}
-              options={(
-                models.find((m) => m.slug === model)?.efforts ?? [
-                  "low",
-                  "medium",
-                  "high",
-                ]
-              ).map((value) => ({ value }))}
-              onChange={(v) => api.send(sid, "/effort " + v)}
-            />
-            {rest.length > 0 && " · " + rest.join(" · ")}
-          </span>
+          <PreviewCard.Root>
+            <PreviewCard.Trigger
+              render={
+                <Button
+                  small
+                  outline
+                  className={s.mobileStat}
+                  aria-label="session settings and context"
+                />
+              }
+            >
+              <SlidersHorizontal size={13} strokeWidth={1.8} aria-hidden />
+              session
+            </PreviewCard.Trigger>
+            <PreviewCard.Portal>
+              <PreviewCard.Positioner
+                className={s.statPositioner}
+                side="top"
+                align="start"
+                sideOffset={6}
+              >
+                <PreviewCard.Popup className={s.statPopup}>
+                  {settings}
+                </PreviewCard.Popup>
+              </PreviewCard.Positioner>
+            </PreviewCard.Portal>
+          </PreviewCard.Root>
         )}
         <span className={s.actions}>
           {contextRelevant && (
