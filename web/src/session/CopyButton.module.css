@@ -15,7 +15,7 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  [data-block]:hover .copy {
+  [data-block]:hover > .copy {
     opacity: 1;
   }
   .copy {

@@ -219,7 +219,8 @@ export function BlockView({
       return (
         <div className={s.tool} {...blockAttrs}>
           {grouped ? (
-            b.path && b.file ? (
+            !bash &&
+            (b.path && b.file ? (
               <Button
                 link
                 tone="accent"
@@ -231,7 +232,7 @@ export function BlockView({
               </Button>
             ) : (
               b.desc && <div className={s.groupedDesc}>{b.desc}</div>
-            )
+            ))
           ) : (
             <div className={s.toolLine}>
               <Icon size={14} strokeWidth={1.8} aria-hidden />
