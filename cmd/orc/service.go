@@ -37,6 +37,7 @@ func newServiceCommand() *cobra.Command {
 func newServiceInstallCommand() *cobra.Command {
 	var addr, domain, cwd string
 	var port int
+	var graceful bool
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Install and start the service for this user",
@@ -67,6 +68,7 @@ func newServiceInstallCommand() *cobra.Command {
 				Addr:       addr,
 				Domain:     domain,
 				Cwd:        cwd,
+				Graceful:   graceful,
 			}); err != nil {
 				return err
 			}
@@ -79,6 +81,7 @@ func newServiceInstallCommand() *cobra.Command {
 	cmd.Flags().IntVar(&port, "port", 7777, "web UI port (env PORT; default 7777)")
 	cmd.Flags().StringVar(&domain, "domain", "", "public domain with TLS on port 443")
 	cmd.Flags().StringVar(&cwd, "cwd", ".", "default working directory")
+	cmd.Flags().BoolVar(&graceful, "graceful", false, "wait for active turns before restarting")
 	return cmd
 }
 

@@ -216,6 +216,12 @@ func runOneShot(cfg *config.Config, prov provider.Provider, sess *session.Sessio
 	cmds := commands.New(prov, cfg, plain)
 	plain.Cmds = cmds
 	ag := agent.New(cfg, prov, sess, resumed, plain)
+	if ag.Interrupted() {
+		fmt.Fprintln(os.Stderr, "❌ orc: previous turn was interrupted — retry with --resume")
+		sess.ClearTurnPreservation()
+		sess.TurnEnd()
+		return 1
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	err := ag.Turn(ctx, prompt, nil)
@@ -236,6 +242,11 @@ func runPipe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 	plain.Cmds = cmds
 	ag := agent.New(cfg, prov, sess, resumed, plain)
 	ui.Banner(cfg, didResume, true)
+	if ag.Interrupted() {
+		fmt.Println("❌ orc: previous turn was interrupted — enter /retry")
+		sess.ClearTurnPreservation()
+		sess.TurnEnd()
+	}
 	if !prov.Authenticated() {
 		ui.PrintLoginHint(prov.Name())
 	}
@@ -330,10 +341,14 @@ func runServe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 		ui.PrintLoginHint(prov.Name())
 	}
 
-	// Ctrl-C and service-manager stops close every runtime.
+	// Ctrl-C/service-manager stops interrupt immediately. A graceful updater
+	// asks the server to drain, then it exits once all active turns finish.
 	sig, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	<-sig.Done()
+	select {
+	case <-sig.Done():
+	case <-srv.DrainReady():
+	}
 	srv.Shutdown()
 	return 0
 }
@@ -352,6 +367,11 @@ func runTUI(cfg *config.Config, prov provider.Provider, sess *session.Session,
 	}
 	if didResume {
 		ag.Replay()
+	}
+	if ag.Interrupted() {
+		t.Notice("❌ orc: previous turn was interrupted — use /retry")
+		sess.ClearTurnPreservation()
+		sess.TurnEnd()
 	}
 	if sess.Ctx > 0 {
 		cmds.CtxUsed(sess.Ctx)

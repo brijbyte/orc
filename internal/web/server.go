@@ -67,6 +67,11 @@ type Server struct {
 	scheduler       *wakeScheduler
 	http            *http.Server
 	acmeHTTP        *http.Server
+	drainMu         sync.Mutex
+	draining        bool
+	drainToken      string
+	drainReady      chan struct{}
+	drainReadyOnce  sync.Once
 }
 
 func NewServer(prov provider.Provider, base *config.Config, addr, domain string) (*Server, error) {
@@ -74,12 +79,18 @@ func NewServer(prov provider.Provider, base *config.Config, addr, domain string)
 	if err != nil {
 		return nil, fmt.Errorf("web password: %w", err)
 	}
+	drainToken, err := config.EnsureDrainToken()
+	if err != nil {
+		return nil, fmt.Errorf("drain token: %w", err)
+	}
 	s := &Server{
 		Addr: addr, Domain: domain, prov: prov, base: *base,
 		initialPassword: password,
 		passwordCreated: created,
 		startedAt:       time.Now(),
 		runtimes:        map[string]*Runtime{},
+		drainToken:      drainToken,
+		drainReady:      make(chan struct{}),
 	}
 	s.scheduler = newWakeScheduler(s)
 	return s, nil
@@ -103,6 +114,7 @@ func (s *Server) Register(rt *Runtime) {
 			}
 			s.scheduler.arm(current, rt.Ag.Sess.Wake)
 		}
+		s.checkDrainReady()
 	})
 	s.mu.Lock()
 	s.runtimes[rt.ID] = rt
@@ -136,6 +148,63 @@ func (s *Server) runtime(id string) *Runtime {
 		}
 	}
 	return nil
+}
+
+func (s *Server) isDraining() bool {
+	s.drainMu.Lock()
+	defer s.drainMu.Unlock()
+	return s.draining
+}
+
+func (s *Server) allIdle() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, rt := range s.runtimes {
+		if rt.IO.Busy() {
+			return false
+		}
+		if _, queued := rt.IO.q.peek(); queued {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Server) checkDrainReady() bool {
+	if !s.isDraining() || !s.allIdle() {
+		return false
+	}
+	s.drainReadyOnce.Do(func() { close(s.drainReady) })
+	return true
+}
+
+// handleDrain coordinates upgrades with a separate file-backed bearer token;
+// browser authentication cannot request a service shutdown.
+func (s *Server) handleDrain(rw http.ResponseWriter, r *http.Request) {
+	if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")),
+		[]byte("Bearer "+s.drainToken)) != 1 {
+		http.Error(rw, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	s.drainMu.Lock()
+	s.draining = true
+	s.drainMu.Unlock()
+	if s.checkDrainReady() {
+		rw.WriteHeader(http.StatusNoContent)
+		return
+	}
+	rw.WriteHeader(http.StatusAccepted)
+}
+
+func (s *Server) drainGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if s.isDraining() && r.Method != http.MethodGet &&
+			!strings.HasSuffix(r.URL.Path, "/interrupt") && r.URL.Path != "/api/logout" {
+			http.Error(rw, "service is waiting to restart", http.StatusServiceUnavailable)
+			return
+		}
+		next.ServeHTTP(rw, r)
+	})
 }
 
 func (s *Server) auth(next http.Handler) http.Handler {
@@ -532,6 +601,10 @@ func serverAttachment(path string) (agent.Attachment, error) {
 }
 
 func (s *Server) handleInput(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
+	if s.isDraining() {
+		http.Error(rw, "service is waiting to restart", http.StatusServiceUnavailable)
+		return
+	}
 	var in struct {
 		Text  string `json:"text"`
 		Files []struct {
@@ -1243,9 +1316,11 @@ func (s *Server) secure(next http.Handler) http.Handler {
 func (s *Server) router() http.Handler {
 	router := chi.NewRouter()
 	router.Route("/api", func(api chi.Router) {
+		api.Post("/drain", s.handleDrain)
 		api.Post("/login", s.handleLogin)
 		api.Group(func(api chi.Router) {
 			api.Use(s.auth)
+			api.Use(s.drainGuard)
 			api.Post("/logout", s.handleLogout)
 			api.Get("/diagnostics", s.handleDiagnostics)
 			api.Get("/provider/auth", s.handleProviderAuth)
@@ -1367,6 +1442,9 @@ func (s *Server) startTLS(notify func(string)) (string, error) {
 	}
 	return fmt.Sprintf("https://%s/", s.Domain), nil
 }
+
+// DrainReady closes when an updater requested drain and all turns are idle.
+func (s *Server) DrainReady() <-chan struct{} { return s.drainReady }
 
 // Shutdown closes every runtime, then the HTTP server.
 func (s *Server) Shutdown() {

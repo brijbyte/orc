@@ -7,10 +7,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/brijbyte/orc/internal/config"
@@ -19,9 +22,22 @@ import (
 )
 
 const (
-	codexURL   = "https://chatgpt.com/backend-api/codex/responses"
-	originator = "orc"
+	codexURL              = "https://chatgpt.com/backend-api/codex/responses"
+	originator            = "orc"
+	responseHeaderTimeout = 30 * time.Second
 )
+
+var streamIdleTimeout = 5 * time.Minute
+var errStreamIdle = errors.New("stream idle timeout")
+
+var turnHTTPClient = &http.Client{Transport: &http.Transport{
+	Proxy:                 http.ProxyFromEnvironment,
+	DialContext:           (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+	TLSHandshakeTimeout:   10 * time.Second,
+	ResponseHeaderTimeout: responseHeaderTimeout,
+	ExpectContinueTimeout: time.Second,
+	IdleConnTimeout:       90 * time.Second,
+}}
 
 type Codex struct {
 	webLoginMu sync.Mutex
@@ -125,6 +141,21 @@ func (st *streamState) onEvent(data []byte) {
 		}
 	}
 	// output_item.added, content_part.*, etc.: ignored.
+}
+
+// activityReader records any received bytes. A watchdog in once closes the
+// body after prolonged silence, unblocking Scanner so the request can retry.
+type activityReader struct {
+	io.Reader
+	last atomic.Int64
+}
+
+func (r *activityReader) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	if n > 0 {
+		r.last.Store(time.Now().UnixNano())
+	}
+	return n, err
 }
 
 // readSSE dispatches each SSE data payload to st. Returns on stream end.
@@ -244,7 +275,7 @@ func (p *Codex) once(ctx context.Context, body []byte, accessToken,
 	req.Header.Set("originator", originator)
 	req.Header.Set("User-Agent", "orc/"+config.Version)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := turnHTTPClient.Do(req)
 	if err != nil {
 		return 0, err
 	}
@@ -254,7 +285,43 @@ func (p *Codex) once(ctx context.Context, body []byte, accessToken,
 		st.failed = string(msg)
 		return resp.StatusCode, nil
 	}
-	if err := readSSE(resp.Body, st); err != nil {
+
+	active := &activityReader{Reader: resp.Body}
+	active.last.Store(time.Now().UnixNano())
+	done := make(chan struct{})
+	idle := make(chan struct{}, 1)
+	var closeDone sync.Once
+	finish := func() { closeDone.Do(func() { close(done) }) }
+	defer finish()
+	go func() {
+		interval := min(streamIdleTimeout/4, time.Minute)
+		if interval <= 0 {
+			interval = time.Millisecond
+		}
+		tick := time.NewTicker(interval)
+		defer tick.Stop()
+		for {
+			select {
+			case <-tick.C:
+				last := time.Unix(0, active.last.Load())
+				if time.Since(last) >= streamIdleTimeout {
+					idle <- struct{}{}
+					resp.Body.Close()
+					return
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
+	err = readSSE(active, st)
+	finish()
+	select {
+	case <-idle:
+		return resp.StatusCode, errStreamIdle
+	default:
+	}
+	if err != nil {
 		return resp.StatusCode, err
 	}
 	return resp.StatusCode, nil

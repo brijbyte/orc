@@ -166,6 +166,37 @@ func TestRoutineMetaRoundTripAndLaterStateWins(t *testing.T) {
 	}
 }
 
+func TestInterruptedTurnMarkerRoundTrip(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	cfg := &config.Config{SessionID: "turn1111-1234-1234-1234-123456789abc", Cwd: "/tmp"}
+	s, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendUser(s, "hello")
+	s.TurnBegin()
+	s.Close()
+
+	r, _, err := Resume(cfg.SessionID, &config.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Interrupted || r.InterruptedTools {
+		t.Fatalf("model marker = interrupted %v, tools %v", r.Interrupted, r.InterruptedTools)
+	}
+	r.ToolsBegin()
+	r.Close()
+
+	r, _, err = Resume(cfg.SessionID, &config.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if !r.Interrupted || !r.InterruptedTools {
+		t.Fatalf("tool marker = interrupted %v, tools %v", r.Interrupted, r.InterruptedTools)
+	}
+}
+
 func TestResumeRefusesLockedSession(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	id := "aaaa1111-1234-1234-1234-123456789abc"
