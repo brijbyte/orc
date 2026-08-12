@@ -64,10 +64,11 @@ const SchemaJSON = `[{"type":"function","name":"bash",` +
 	`"query":{"type":"string",` +
 	`"description":"Search by name or description. Omit to list all skills."}}}},` +
 	`{"type":"function","name":"notify",` +
-	`"description":"Reach the user while they are away. Sent only then.",` +
+	`"description":"Push a notification to the user. Routine agents always send; other agents only while the user is away.",` +
 	`"parameters":{"type":"object","properties":{` +
 	`"title":{"type":"string"},` +
 	`"body":{"type":"string"},` +
+	`"url":{"type":"string","description":"Optional link opened from the notification."},` +
 	`"urgency":{"type":"string","enum":["info","warn","urgent"]}},` +
 	`"required":["title","body"]}}]`
 
@@ -175,7 +176,7 @@ func RunWithRoutine(ctx context.Context, cwd, name, argsJSON string, routine *Ro
 	case "skill":
 		out = clampOutput(skills.Query(cwd, a.str("query")))
 	case "notify":
-		out = toolNotify(ctx, a)
+		out = toolNotify(ctx, a, routine != nil)
 	default:
 		out = fmt.Sprintf("error: unknown tool %s", name)
 	}

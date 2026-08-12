@@ -39,8 +39,9 @@ Minimal Go coding-agent harness. Keep the code and model-facing text terse.
   (config.json `notify`). The `notify` tool never names a channel, in its
   schema or its output — the model writes the message, the user owns the
   transport. `notify.Attach` counts live UIs (each browser SSE stream, and the
-  TUI for its whole run); `SendAway` drops the message when that count is
-  above zero, so notifications only go out when nobody is watching.
+  TUI for its whole run); interactive agents use `SendAway`, while routine
+  agents always push, so autonomous alerts arrive even when a UI is connected.
+  Messages may include a channel-native URL.
 - `internal/commands` implements slash commands (/model /effort /new /compact
   /resume /status /login /help /quit) and custom ones from
   `.agents/commands/*.md` (cwd, then home; body becomes the turn prompt,

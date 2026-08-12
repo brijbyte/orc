@@ -133,6 +133,7 @@ and `orc --login` for the provider.
 | write   | atomic write, creates parent dirs                                |
 | edit    | exact string replace; errors unless exactly one match            |
 | skill   | search installed skills (`.agents/skills`, `~/.agents/skills`)   |
+| notify  | push title/body and optional link; routines send even with an open UI |
 
 All tool outputs are clamped to ~20KB (head + tail) before entering history.
 
