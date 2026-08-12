@@ -5,7 +5,7 @@
   align-items: center;
   gap: 0.75rem;
   color: var(--fg);
-  font-size: 0.8125rem;
+  font-size: var(--meta-size);
 }
 .setting:not(:last-child) {
   padding-bottom: 0.75rem;
@@ -20,7 +20,7 @@
   border-radius: 0.35rem;
   padding: 0.4rem 0.55rem;
   color: var(--fg);
-  font: 0.8125rem var(--font-mono);
+  font: var(--meta-size) var(--font-mono);
 }
 .hint {
   margin: -0.35rem 0 0 9.25rem;

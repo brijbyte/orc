@@ -28,7 +28,7 @@
   background: var(--diff-del-bg);
 }
 .add .prefix {
-  color: var(--green);
+  color: var(--cyan);
 }
 .del .prefix {
   color: var(--red);

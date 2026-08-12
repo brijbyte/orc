@@ -4,7 +4,8 @@ import s from "./Button.module.css";
 // Button is the app's only button. It is a quiet ghost by default: `outline`
 // draws the frame of a committed action, `icon` makes a square tap target,
 // `link` an underlined inline affordance, `nav` a full-width navigation row,
-// `small` the inline size, and `tone` colors it. `tip` adds an accessible
+// `tab` a segmented view control, `small` the inline size, and `tone` colors
+// it. `tip` adds an accessible
 // tooltip (hover and focus). Callers pass
 // className for placement alone (position, margin, reveal-on-hover) — never
 // for the button's own look.
@@ -15,6 +16,7 @@ export function Button({
   link,
   nav,
   primary,
+  tab,
   small,
   tone,
   className,
@@ -26,8 +28,9 @@ export function Button({
   link?: boolean;
   nav?: boolean;
   primary?: boolean;
+  tab?: boolean;
   small?: boolean;
-  tone?: "accent" | "success" | "danger";
+  tone?: "accent" | "danger";
 }) {
   const cls = [
     s.btn,
@@ -36,6 +39,7 @@ export function Button({
     link && s.link,
     nav && s.nav,
     primary && s.primary,
+    tab && s.tab,
     small && s.small,
     tone && s[tone],
     className,

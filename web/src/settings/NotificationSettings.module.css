@@ -23,7 +23,7 @@
   align-items: center;
   gap: 0.35rem;
   color: var(--fg);
-  font-size: 0.8125rem;
+  font-size: var(--meta-size);
 }
 .name,
 .channel input[type="text"],
@@ -35,7 +35,7 @@
   border-radius: 0.35rem;
   padding: 0.4rem 0.55rem;
   color: var(--fg);
-  font: 0.8125rem var(--font-mono);
+  font: var(--meta-size) var(--font-mono);
 }
 .name {
   flex: 1;
@@ -52,7 +52,7 @@
   align-items: center;
   gap: 0.75rem;
   color: var(--fg);
-  font-size: 0.8125rem;
+  font-size: var(--meta-size);
 }
 .testRow {
   display: grid;

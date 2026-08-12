@@ -37,7 +37,10 @@ const editorTheme = EditorView.theme({
     color: "var(--code-fg)",
     fontSize: "0.8125rem",
   },
-  "&.cm-focused": { outline: "none" },
+  "&.cm-focused": {
+    outline: "var(--focus-ring)",
+    outlineOffset: "calc(-1 * var(--focus-offset))",
+  },
   ".cm-scroller": {
     overflow: "auto",
     fontFamily: "var(--font-mono)",
@@ -82,7 +85,7 @@ const editorTheme = EditorView.theme({
     color: "var(--dim)",
   },
   ".cm-diff-hunk-selected": {
-    backgroundColor: "color-mix(in srgb, var(--green) 14%, transparent)",
+    backgroundColor: "color-mix(in srgb, var(--cyan) 14%, transparent)",
   },
   ".cm-diff-meta": { color: "var(--dim)" },
   ".cm-diff-number": { cursor: "pointer", textDecoration: "underline" },
@@ -112,10 +115,10 @@ const editorTheme = EditorView.theme({
   },
   ".cm-change-map[data-dragging]": { cursor: "grabbing" },
   ".cm-change-map-mark": { zIndex: "1", minHeight: "2px" },
-  ".cm-change-map-add": { backgroundColor: "var(--green)" },
+  ".cm-change-map-add": { backgroundColor: "var(--cyan)" },
   ".cm-change-map-del": { backgroundColor: "var(--red)" },
   ".cm-change-map-both": {
-    background: "linear-gradient(to right, var(--red) 50%, var(--green) 50%)",
+    background: "linear-gradient(to right, var(--red) 50%, var(--cyan) 50%)",
   },
   ".cm-change-map-viewport": {
     zIndex: "2",
@@ -130,7 +133,7 @@ const editorTheme = EditorView.theme({
     textAlign: "center",
     whiteSpace: "nowrap",
   },
-  ".cm-diff-marker-add": { color: "var(--green)" },
+  ".cm-diff-marker-add": { color: "var(--cyan)" },
   ".cm-diff-marker-del": { color: "var(--red)" },
 });
 

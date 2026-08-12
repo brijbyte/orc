@@ -68,6 +68,7 @@ export function CodeEditor({
   original,
   line,
   editable = false,
+  autoFocus = false,
   onChange,
   onSave,
   className,
@@ -77,6 +78,7 @@ export function CodeEditor({
   original?: string;
   line?: number;
   editable?: boolean;
+  autoFocus?: boolean;
   onChange?: (content: string) => void;
   onSave?: () => void;
   className?: string;
@@ -141,6 +143,7 @@ export function CodeEditor({
       }),
     });
     setEditorTarget(view.current, line);
+    if (autoFocus) view.current.focus();
     return () => {
       view.current?.destroy();
       view.current = null;
@@ -199,5 +202,5 @@ export function CodeEditor({
     };
   }, [path, plain]);
 
-  return <div ref={host} className={className} role="tabpanel" />;
+  return <div ref={host} className={className} />;
 }

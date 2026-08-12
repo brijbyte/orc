@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertDialog } from "@base-ui/react/alert-dialog";
 import { Dialog } from "@base-ui/react/dialog";
+import { Tabs } from "@base-ui/react/tabs";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Code2, Eye, LoaderCircle, RefreshCw, Save, X } from "lucide-react";
@@ -55,7 +56,6 @@ export function FileDrawer({
   const [refresh, setRefresh] = useState(0);
   const [discard, setDiscard] = useState<DiscardAction | null>(null);
   const close = useRef<HTMLButtonElement>(null);
-  const editorHost = useRef<HTMLDivElement>(null);
   const loaded = useRef("");
   const savedTimer = useRef(0);
   const dirty = !!data && draft !== data.content;
@@ -154,8 +154,7 @@ export function FileDrawer({
 
   const displayPath = data?.path ?? path;
   const markdown = /\.md$/i.test(displayPath);
-  const preview = markdown && view === "preview";
-  const focusTarget = data?.editable ? editorHost : close;
+  const conflict = saveError === "file changed on disk";
   const state = saveError
     ? saveError
     : saving
@@ -168,6 +167,19 @@ export function FileDrawer({
             ? "read only"
             : "";
 
+  const editor = data && (
+    <CodeEditor
+      path={data.path}
+      content={draft}
+      original={data.original}
+      line={line}
+      editable={data.editable}
+      autoFocus={data.editable}
+      onChange={setDraft}
+      onSave={() => void save()}
+    />
+  );
+
   return (
     <>
       <Dialog.Root
@@ -176,147 +188,142 @@ export function FileDrawer({
       >
         <Dialog.Portal>
           <Dialog.Backdrop className={`${d.overlay} ${s.overlay}`} />
-          <Dialog.Popup className={s.drawer} initialFocus={focusTarget}>
-            <header className={s.head}>
-              <Dialog.Title className={s.title} title={displayPath}>
-                {displayPath}
-              </Dialog.Title>
-              <span
-                className={s.state}
-                data-error={!!saveError || undefined}
-                data-saved={(saved && !dirty) || undefined}
-                role="status"
-                aria-live="polite"
-              >
-                {state}
-              </span>
-              {saveError === "file changed on disk" && (
-                <Button
-                  outline
-                  small
-                  onClick={() => (dirty ? setDiscard("reload") : reload())}
-                >
-                  <RefreshCw size={13} strokeWidth={1.8} aria-hidden />
-                  reload
-                </Button>
-              )}
-              {data?.editable && (
-                <Button
-                  outline
-                  small
-                  tone="accent"
-                  disabled={!dirty || saving}
-                  data-saving={saving || undefined}
-                  onClick={() => void save()}
-                >
-                  {saving ? (
-                    <LoaderCircle size={13} strokeWidth={1.8} aria-hidden />
-                  ) : (
-                    <Save size={13} strokeWidth={1.8} aria-hidden />
-                  )}
-                  save
-                </Button>
-              )}
-              {markdown && (
-                <div className={s.tabs} role="tablist" aria-label="file view">
-                  {(["code", "preview"] as View[]).map((tab) => (
-                    <Button
-                      small
-                      id={`file-tab-${tab}`}
-                      role="tab"
-                      aria-selected={view === tab}
-                      aria-controls={`file-panel-${tab}`}
-                      tabIndex={view === tab ? 0 : -1}
-                      className={s.tab}
-                      data-active={view === tab || undefined}
-                      onClick={() => setView(tab)}
-                      onKeyDown={(event) => {
-                        if (
-                          event.key !== "ArrowLeft" &&
-                          event.key !== "ArrowRight"
-                        )
-                          return;
-                        event.preventDefault();
-                        const next = view === "code" ? "preview" : "code";
-                        setView(next);
-                        requestAnimationFrame(() =>
-                          document.getElementById(`file-tab-${next}`)?.focus(),
-                        );
-                      }}
-                      key={tab}
+          <Dialog.Popup className={s.drawer} initialFocus={close}>
+            <Tabs.Root
+              value={view}
+              onValueChange={(value) => setView(value as View)}
+              className={s.tabsRoot}
+            >
+              <header className={s.head}>
+                <Dialog.Title className={s.title} title={displayPath}>
+                  {displayPath}
+                </Dialog.Title>
+                <div className={s.viewGroup}>
+                  {markdown && (
+                    <Tabs.List
+                      className={s.tabs}
+                      aria-label="file view"
+                      activateOnFocus
                     >
-                      {tab === "code" ? (
+                      <Tabs.Tab
+                        value="code"
+                        aria-label="Code"
+                        render={<Button tab small />}
+                      >
                         <Code2 size={13} strokeWidth={1.8} aria-hidden />
-                      ) : (
+                        <span className={s.buttonLabel}>Code</span>
+                      </Tabs.Tab>
+                      <Tabs.Tab
+                        value="preview"
+                        aria-label="Preview"
+                        render={<Button tab small />}
+                      >
                         <Eye size={13} strokeWidth={1.8} aria-hidden />
-                      )}
-                      {tab === "code" ? "Code" : "Preview"}
-                    </Button>
-                  ))}
+                        <span className={s.buttonLabel}>Preview</span>
+                      </Tabs.Tab>
+                    </Tabs.List>
+                  )}
                 </div>
-              )}
-              <Dialog.Close
-                ref={close}
-                render={<Button icon className={s.close} />}
-                aria-label="close file"
-              >
-                <X size={17} strokeWidth={1.8} aria-hidden />
-              </Dialog.Close>
-            </header>
-            <div className={s.body} data-preview={preview || undefined}>
-              {!data && !err && (
-                <div className={s.message}>
-                  <LoaderCircle size={14} strokeWidth={1.8} aria-hidden />
-                  loading
-                </div>
-              )}
-              {err && <div className={`${s.message} ${s.error}`}>{err}</div>}
-              {data && preview && !draft && (
-                <div
-                  id="file-panel-preview"
-                  aria-labelledby="file-tab-preview"
-                  className={s.message}
-                  role="tabpanel"
-                >
-                  (empty file)
-                </div>
-              )}
-              {data && preview && draft && (
-                <article
-                  id="file-panel-preview"
-                  aria-labelledby="file-tab-preview"
-                  className={s.markdown}
-                  role="tabpanel"
-                >
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={mdComponents}
+                <div className={s.actions}>
+                  <span
+                    className={s.state}
+                    data-error={!!saveError || undefined}
+                    data-saved={(saved && !dirty) || undefined}
+                    role="status"
+                    aria-live="polite"
+                    title={state}
                   >
-                    {draft}
-                  </ReactMarkdown>
-                </article>
-              )}
-              {data && !preview && (
-                <div
-                  ref={editorHost}
-                  id="file-panel-code"
-                  aria-labelledby="file-tab-code"
-                  role={markdown ? "tabpanel" : undefined}
-                  tabIndex={-1}
-                  className={s.editor}
-                >
-                  <CodeEditor
-                    path={data.path}
-                    content={draft}
-                    original={data.original}
-                    line={line}
-                    editable={data.editable}
-                    onChange={setDraft}
-                    onSave={() => void save()}
-                  />
+                    {state}
+                  </span>
+                  {data?.editable && (
+                    <>
+                      <span className={s.reloadSlot}>
+                        {conflict && (
+                          <Button
+                            outline
+                            small
+                            aria-label="reload"
+                            onClick={() =>
+                              dirty ? setDiscard("reload") : reload()
+                            }
+                          >
+                            <RefreshCw
+                              size={13}
+                              strokeWidth={1.8}
+                              aria-hidden
+                            />
+                            <span className={s.actionLabel}>reload</span>
+                          </Button>
+                        )}
+                      </span>
+                      <span className={s.saveSlot}>
+                        <Button
+                          primary
+                          small
+                          tone="accent"
+                          aria-label="save"
+                          disabled={!dirty || saving}
+                          data-saving={saving || undefined}
+                          onClick={() => void save()}
+                        >
+                          {saving ? (
+                            <LoaderCircle
+                              size={13}
+                              strokeWidth={1.8}
+                              aria-hidden
+                            />
+                          ) : (
+                            <Save size={13} strokeWidth={1.8} aria-hidden />
+                          )}
+                          <span className={s.actionLabel}>save</span>
+                        </Button>
+                      </span>
+                    </>
+                  )}
                 </div>
-              )}
-            </div>
+                <Dialog.Close
+                  ref={close}
+                  render={<Button icon className={s.close} />}
+                  aria-label="close file"
+                >
+                  <X size={17} strokeWidth={1.8} aria-hidden />
+                </Dialog.Close>
+              </header>
+              <div
+                className={s.body}
+                data-preview={(markdown && view === "preview") || undefined}
+              >
+                {!data && !err && (
+                  <div className={s.message}>
+                    <LoaderCircle size={14} strokeWidth={1.8} aria-hidden />
+                    loading
+                  </div>
+                )}
+                {err && <div className={`${s.message} ${s.error}`}>{err}</div>}
+                {data && markdown && (
+                  <>
+                    <Tabs.Panel value="code" className={s.editor}>
+                      {editor}
+                    </Tabs.Panel>
+                    <Tabs.Panel value="preview" className={s.previewPanel}>
+                      {!draft ? (
+                        <div className={s.message}>(empty file)</div>
+                      ) : (
+                        <article className={s.markdown}>
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={mdComponents}
+                          >
+                            {draft}
+                          </ReactMarkdown>
+                        </article>
+                      )}
+                    </Tabs.Panel>
+                  </>
+                )}
+                {data && !markdown && <div className={s.editor}>{editor}</div>}
+              </div>
+            </Tabs.Root>
           </Dialog.Popup>
         </Dialog.Portal>
       </Dialog.Root>
