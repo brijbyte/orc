@@ -33,9 +33,16 @@ export default defineConfig({
               priority: 2,
             },
             {
+              // Mermaid is imported only for Mermaid fences; keep it out of
+              // the preloaded vendor chunk so ordinary Markdown stays light.
+              name: "mermaid",
+              test: /node_modules[\\/](mermaid|@mermaid-js|cytoscape|d3-|dagre|elkjs|katex|roughjs|khroma|dompurify)/,
+              priority: 2,
+            },
+            {
               // Keep CodeMirror language parsers in lazy chunks.
               name: "all-libs",
-              test: /node_modules[\\/](?!@codemirror[\\/]|@lezer[\\/])/,
+              test: /node_modules[\\/](?!@codemirror[\\/]|@lezer[\\/]|mermaid[\\/]|@mermaid-js[\\/]|cytoscape[\\/]|d3-|dagre[\\/]|elkjs[\\/]|katex[\\/]|roughjs[\\/]|khroma[\\/]|dompurify[\\/])/,
               priority: 1,
             },
           ],

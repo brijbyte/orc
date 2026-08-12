@@ -28,7 +28,7 @@ import {
 import type { Block } from "../lib/types";
 import { Preview } from "./Preview";
 import { CopyButton } from "./CopyButton";
-import { MarkdownCode } from "./MarkdownCode";
+import { markdownComponents } from "./MarkdownContent";
 import { Button } from "../ui/Button";
 import s from "./BlockView.module.css";
 
@@ -70,30 +70,12 @@ function Notice({ text }: { text: string }) {
 
 // wide tables scroll in their own container instead of widening the column
 const mdComponents: Components = {
-  a: ({ node: _, ...props }) => (
-    <a {...props} target="_blank" rel="noopener noreferrer" />
-  ),
+  ...markdownComponents,
   table: ({ node: _, ...props }) => (
     <div className={s.tblwrap}>
       <table {...props} />
     </div>
   ),
-  code: ({ node: _, className, children, ...props }) => {
-    const language = /(?:^|\s)language-([^\s]+)/.exec(className ?? "")?.[1];
-    if (!language)
-      return (
-        <code className={className} {...props}>
-          {children}
-        </code>
-      );
-    return (
-      <MarkdownCode
-        code={String(children)}
-        language={language}
-        className={className}
-      />
-    );
-  },
 };
 
 function Markdown({ text }: { text: string }) {
