@@ -327,7 +327,31 @@ func (p *Codex) once(ctx context.Context, body []byte, accessToken,
 	return resp.StatusCode, nil
 }
 
-// Models returns selectable models from models.dev; best effort.
+// The ChatGPT Codex route exposes smaller windows than the public API for
+// these models. models.dev describes the public API (for example 1.05M for
+// GPT-5.6), which would delay compaction until after Codex rejects the input.
+var codexContextWindows = map[string]int64{
+	"gpt-5.6":           272000, // alias routes to Sol
+	"gpt-5.6-sol":       272000,
+	"gpt-5.6-terra":     272000,
+	"gpt-5.6-luna":      272000,
+	"gpt-5.5":           272000,
+	"gpt-5.4":           272000,
+	"gpt-5.4-mini":      272000,
+	"gpt-5.2":           272000,
+	"codex-auto-review": 272000,
+}
+
+func applyCodexContextWindows(models []provider.Model) []provider.Model {
+	for i := range models {
+		if window := codexContextWindows[models[i].Slug]; window > 0 {
+			models[i].ContextWindow = window
+		}
+	}
+	return models
+}
+
+// Models returns selectable models from models.dev with Codex-route limits.
 func (p *Codex) Models() []provider.Model {
-	return modelsdev.Models("openai")
+	return applyCodexContextWindows(modelsdev.Models("openai"))
 }
