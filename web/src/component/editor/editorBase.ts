@@ -51,6 +51,9 @@ const editorTheme = EditorView.theme({
     width: "0",
     height: "0.5rem",
   },
+  // The app-wide contenteditable focus rule would outline only the document,
+  // starting after the gutters. The editor root above owns the focus ring.
+  ".cm-content:focus-visible": { outline: "none" },
   ".cm-content": { minWidth: "max-content", padding: "0.75rem 0" },
   ".cm-line": { minHeight: "1.55em", padding: "0 1rem 0 0.65rem" },
   ".cm-gutters": {
