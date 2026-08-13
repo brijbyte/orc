@@ -67,6 +67,9 @@
   .mobileStat {
     display: inline-flex;
   }
+  .statPopup {
+    width: min(50vw, var(--available-width));
+  }
   .actions {
     margin-left: auto;
     justify-content: flex-end;
