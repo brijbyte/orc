@@ -45,6 +45,17 @@ func (r rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r.base.RoundTrip(clone)
 }
 
+func TestCodexContextWindowOverridesPublicAPIMetadata(t *testing.T) {
+	models := []provider.Model{
+		{Slug: "gpt-5.6-sol", ContextWindow: 1_050_000},
+		{Slug: "other", ContextWindow: 400_000},
+	}
+	got := applyCodexContextWindows(models)
+	if got[0].ContextWindow != 272_000 || got[1].ContextWindow != 400_000 {
+		t.Fatalf("context windows = %d, %d", got[0].ContextWindow, got[1].ContextWindow)
+	}
+}
+
 func TestReadSSE(t *testing.T) {
 	var text string
 	st := &streamState{cb: &provider.Callbacks{OnTextDelta: func(s string) { text += s }}}
