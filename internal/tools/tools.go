@@ -58,6 +58,10 @@ const SchemaJSON = `[{"type":"function","name":"bash",` +
 	`"path":{"type":"string"},` +
 	`"old":{"type":"string"},` +
 	`"new":{"type":"string"}},"required":["path","old","new"]}},` +
+	`{"type":"function","name":"cwd",` +
+	`"description":"Change the session working directory. Use after switching to a different worktree.",` +
+	`"parameters":{"type":"object","properties":{` +
+	`"path":{"type":"string"}},"required":["path"]}},` +
 	`{"type":"function","name":"skill",` +
 	`"description":"Find installed skills. Use when the user asks to find or use a skill.",` +
 	`"parameters":{"type":"object","properties":{` +

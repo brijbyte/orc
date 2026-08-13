@@ -712,6 +712,25 @@ func (s *Server) handleWake(rw http.ResponseWriter, r *http.Request) {
 }
 
 // handleControl queues a command without a user echo.
+func (s *Server) handleCwd(rw http.ResponseWriter, r *http.Request, rt *Runtime) {
+	if rt.IO.Busy() {
+		http.Error(rw, "busy", http.StatusConflict)
+		return
+	}
+	var in struct {
+		Path string `json:"path"`
+	}
+	if json.NewDecoder(r.Body).Decode(&in) != nil {
+		http.Error(rw, "bad request", http.StatusBadRequest)
+		return
+	}
+	if err := rt.Cmds.SetCwd(rt.Ag, in.Path); err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 func handleControl(line string) func(http.ResponseWriter, *http.Request, *Runtime) {
 	return func(rw http.ResponseWriter, _ *http.Request, rt *Runtime) {
 		if rt.IO.Busy() {
@@ -1364,6 +1383,7 @@ func (s *Server) router() http.Handler {
 			api.Post("/sessions/{id}/compact", s.withRuntime(handleControl("/compact")))
 			api.Post("/sessions/{id}/retry", s.withRuntime(handleControl("/retry")))
 			api.Post("/sessions/{id}/wake", s.handleWake)
+			api.Post("/sessions/{id}/cwd", s.withRuntime(s.handleCwd))
 			api.Post("/sessions/{id}/interrupt", s.withRuntime(s.handleInterrupt))
 			api.Get("/sessions/{id}/browse", s.withRuntime(s.handleBrowse))
 			api.Get("/sessions/{id}/file", s.withRuntime(s.handleFile))

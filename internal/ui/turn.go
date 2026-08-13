@@ -126,6 +126,8 @@ func toolIcon(name string) string {
 		return "📝"
 	case "edit":
 		return "✏️"
+	case "cwd":
+		return "📁"
 	case "skill":
 		return "🧠"
 	}

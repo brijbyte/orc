@@ -52,6 +52,7 @@ type Agent struct {
 	IO      IO
 
 	tools       json.RawMessage
+	onCwdChange func(string) error
 	interrupted bool
 }
 
@@ -82,6 +83,9 @@ func New(cfg *config.Config, prov provider.Provider, sess *session.Session,
 }
 
 func (ag *Agent) Interrupted() bool { return ag.interrupted }
+
+// SetCwdHandler connects the cwd tool to the driver's validated config update.
+func (ag *Agent) SetCwdHandler(fn func(string) error) { ag.onCwdChange = fn }
 
 // completeInterruptedCalls makes a crashed tool round valid Responses input
 // without executing tools again. The user may then explicitly retry the model.
@@ -174,7 +178,24 @@ func (ag *Agent) runCall(ctx context.Context, call item) bool {
 			},
 		}
 	}
-	output, endTurn := tools.RunWithRoutine(ctx, ag.Cfg.Cwd, call.Name, call.Arguments, routine)
+	var output string
+	endTurn := false
+	if call.Name == "cwd" {
+		var args struct {
+			Path string `json:"path"`
+		}
+		if json.Unmarshal([]byte(call.Arguments), &args) != nil || strings.TrimSpace(args.Path) == "" {
+			output = "error: missing path"
+		} else if ag.onCwdChange == nil {
+			output = "error: working directory cannot be changed in this mode"
+		} else if err := ag.onCwdChange(args.Path); err != nil {
+			output = "error: " + err.Error()
+		} else {
+			output = ag.Cfg.Cwd
+		}
+	} else {
+		output, endTurn = tools.RunWithRoutine(ctx, ag.Cfg.Cwd, call.Name, call.Arguments, routine)
+	}
 	ag.commit(callOutput(call.CallID, output))
 	return endTurn
 }

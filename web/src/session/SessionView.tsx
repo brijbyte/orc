@@ -24,6 +24,7 @@ import { InputBar } from "./InputBar";
 import { StatusBar } from "./StatusBar";
 import { FileDrawer } from "./FileDrawer";
 import { GitDrawer } from "./GitDrawer";
+import { CwdPicker } from "../sidebar/CwdPicker";
 import s from "./SessionView.module.css";
 
 export type SessionOutletContext = {
@@ -66,6 +67,7 @@ export function SessionView({
   const [dragging, setDragging] = useState(false);
   const [complete, setComplete] = useState(false);
   const [compacting, setCompacting] = useState(false);
+  const [cwdOpen, setCwdOpen] = useState(false);
   const [gitOpen, setGitOpen] = useState(false);
   const [gitRequest, setGitRequest] = useState(0);
   const [draft, setDraft] = useState<{ text: string; request: number }>();
@@ -210,6 +212,7 @@ export function SessionView({
             models={models}
             compactDisabled={busy || compacting || blocks.length === 0}
             canWake={!busy && !!selected?.routine && !!selected.wake}
+            cwdDisabled={busy}
             onCompact={() => {
               setCompacting(true);
               void api.compact(sid).catch(() => setCompacting(false));
@@ -220,11 +223,26 @@ export function SessionView({
                 .then(revalidateSoon)
                 .catch(() => {})
             }
+            onChangeCwd={() => setCwdOpen(true)}
             onOpenGit={() => setGitOpen(true)}
             onOpenTerminal={openTerminal}
           />
         </>
       )}
+      <CwdPicker
+        open={cwdOpen}
+        start={selected?.cwd ?? ""}
+        onCancel={() => setCwdOpen(false)}
+        onPick={(path) => {
+          void api
+            .cwd(sid, path)
+            .then(() => {
+              setCwdOpen(false);
+              revalidateSoon();
+            })
+            .catch(() => {});
+        }}
+      />
       <FileDrawer
         sid={sid}
         path={file?.path ?? ""}

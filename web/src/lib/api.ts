@@ -222,6 +222,7 @@ export const api = {
   compact: (id: string) => post(`/api/sessions/${id}/compact`),
   retry: (id: string) => post(`/api/sessions/${id}/retry`),
   wake: (id: string) => post(`/api/sessions/${id}/wake`),
+  cwd: (id: string, path: string) => post(`/api/sessions/${id}/cwd`, { path }),
   interrupt: (id: string) =>
     fetch(`/api/sessions/${id}/interrupt`, { method: "POST" }),
   terminal: (id: string) => {
