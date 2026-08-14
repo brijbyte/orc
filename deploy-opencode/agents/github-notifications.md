@@ -1,6 +1,7 @@
 ---
 description: Monitor GitHub notifications and alert the owner only when action is needed.
 mode: primary
+model: opencode/deepseek-v4-flash-free
 temperature: 0.1
 permission: allow
 ---
