@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": "allow",
+  "agent": {
+    "build": { "permission": "allow" },
+    "plan": { "permission": "allow" },
+    "general": { "permission": "allow" },
+    "explore": { "permission": "allow" },
+    "compaction": { "permission": "allow" },
+    "title": { "permission": "allow" },
+    "summary": { "permission": "allow" }
+  }
+}

@@ -4,6 +4,7 @@ bin/
 /orc
 .DS_Store
 deploy/.env
+deploy-opencode/.env
 vendor/
 dist/
 node_modules/
@@ -13,3 +14,7 @@ internal/web/dist/*
 !internal/web/dist/.gitkeep
 *.tsbuildinfo
 deploy/orc_ed25519
+deploy-opencode/git_ed25519
+deploy-opencode/agy-auth-token
+deploy-opencode/opencode-auth.json
+deploy-opencode/github-auth.yml

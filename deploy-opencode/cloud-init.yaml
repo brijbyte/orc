@@ -1,0 +1,205 @@
+#cloud-config
+# Rendered by deploy-opencode/provision.sh. The VM is disposable.
+package_update: true
+package_upgrade: true
+packages:
+  - curl
+  - gh
+  - git
+  - jq
+  - python3
+  - ripgrep
+  - sudo
+  - tmux
+  - ufw
+  - unzip
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/99-hardening.conf
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+  - path: /run/opencode-agents.md
+    encoding: b64
+    content: __AGENTS_B64__
+  - path: /run/opencode.jsonc
+    encoding: b64
+    content: __OPENCODE_CONFIG_B64__
+  - path: /run/agy-settings.json
+    encoding: b64
+    content: __AGY_CONFIG_B64__
+  - path: /run/agy-auth-token
+    encoding: b64
+    permissions: "0600"
+    content: __AGY_AUTH_B64__
+  - path: /run/opencode-auth.json
+    encoding: b64
+    permissions: "0600"
+    content: __OPENCODE_AUTH_B64__
+  - path: /run/github-notifications-agent.md
+    encoding: b64
+    content: __GITHUB_NOTIFICATIONS_AGENT_B64__
+  - path: /run/github-notifications-policy.md
+    encoding: b64
+    content: __GITHUB_NOTIFICATIONS_POLICY_B64__
+  - path: /run/github-auth.yml
+    encoding: b64
+    permissions: "0600"
+    content: __GITHUB_AUTH_B64__
+  - path: /run/agy
+    encoding: b64
+    permissions: "0755"
+    content: __AGY_WRAPPER_B64__
+  - path: /run/agy-search-skill.md
+    encoding: b64
+    content: __AGY_SKILL_B64__
+  - path: /run/tailscale-authkey
+    encoding: b64
+    permissions: "0600"
+    content: __TS_AUTHKEY_B64__
+  - path: /run/notify-owner
+    encoding: b64
+    permissions: "0755"
+    content: __NOTIFY_SCRIPT_B64__
+  - path: /run/notify-owner.env
+    encoding: b64
+    permissions: "0600"
+    content: __NOTIFY_CONFIG_B64__
+  - path: /run/opencode-server.env
+    encoding: b64
+    permissions: "0600"
+    content: __SERVER_CONFIG_B64__
+  - path: /run/opencode-git-key
+    encoding: b64
+    permissions: "0600"
+    content: __GIT_KEY_B64__
+  - path: /run/git-name
+    encoding: b64
+    content: __GIT_NAME_B64__
+  - path: /run/git-email
+    encoding: b64
+    content: __GIT_EMAIL_B64__
+  - path: /etc/systemd/system/opencode-web.service
+    content: |
+      [Unit]
+      Description=OpenCode web UI
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      User=opencode
+      Group=opencode
+      WorkingDirectory=/home/opencode/projects
+      Environment=HOME=/home/opencode
+      EnvironmentFile=/home/opencode/.config/opencode/server.env
+      ExecStart=/home/opencode/.opencode/bin/opencode web --hostname 127.0.0.1 --port 4096
+      Restart=on-failure
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+  - path: /etc/systemd/system/opencode-update.service
+    content: |
+      [Unit]
+      Description=Update OpenCode and agy
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/sudo -iu opencode /bin/bash -c 'curl -fsSL https://opencode.ai/install | bash'
+      ExecStart=/usr/bin/sudo -iu opencode /home/opencode/.local/bin/agy-real update
+      ExecStart=/bin/systemctl restart opencode-web.service
+  - path: /etc/systemd/system/opencode-update.timer
+    content: |
+      [Unit]
+      Description=Nightly OpenCode and agy update
+
+      [Timer]
+      OnCalendar=*-*-* 22:00:00 UTC
+      RandomizedDelaySec=15m
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+  - path: /etc/systemd/system/github-notifications.service
+    content: |
+      [Unit]
+      Description=Check GitHub notifications with OpenCode
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      User=opencode
+      Group=opencode
+      WorkingDirectory=/home/opencode/projects
+      Environment=HOME=/home/opencode
+      Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+      ExecStart=/home/opencode/.opencode/bin/opencode run --agent github-notifications "Check GitHub notifications now."
+      TimeoutStartSec=10m
+  - path: /etc/systemd/system/github-notifications.timer
+    content: |
+      [Unit]
+      Description=Check GitHub notifications every 15 minutes
+
+      [Timer]
+      OnCalendar=*:0/15
+      RandomizedDelaySec=2m
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+
+runcmd:
+  - fallocate -l 2G /swapfile && chmod 600 /swapfile
+  - mkswap /swapfile && swapon /swapfile
+  - echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  - curl -fsSL https://deb.nodesource.com/setup_current.x | bash -
+  - apt-get install -y nodejs
+  - npm install --global corepack@latest playwright-core@latest
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  - tailscale up --authkey="$(cat /run/tailscale-authkey)" --hostname=__SERVER_NAME__ --ssh
+  - ufw allow in on tailscale0
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw --force enable
+  - systemctl restart ssh
+  - useradd -m -s /bin/bash opencode
+  - install -d -o opencode -g opencode /home/opencode/projects /home/opencode/.config/gh /home/opencode/.config/opencode/agents /home/opencode/.config/opencode/policies /home/opencode/.agents/skills/agy-search /home/opencode/.local/bin /home/opencode/.local/share/opencode
+  - install -o opencode -g opencode -m 0644 /run/opencode-agents.md /home/opencode/.config/opencode/AGENTS.md
+  - install -o opencode -g opencode -m 0644 /run/opencode.jsonc /home/opencode/.config/opencode/opencode.jsonc
+  - install -o opencode -g opencode -m 0600 /run/opencode-auth.json /home/opencode/.local/share/opencode/auth.json
+  - install -o opencode -g opencode -m 0600 /run/github-auth.yml /home/opencode/.config/gh/hosts.yml
+  - install -o opencode -g opencode -m 0644 /run/github-notifications-agent.md /home/opencode/.config/opencode/agents/github-notifications.md
+  - install -o opencode -g opencode -m 0644 /run/github-notifications-policy.md /home/opencode/.config/opencode/policies/github-notifications.md
+  - install -o opencode -g opencode -m 0644 /run/agy-search-skill.md /home/opencode/.agents/skills/agy-search/SKILL.md
+  - install -o opencode -g opencode -m 0600 /run/opencode-server.env /home/opencode/.config/opencode/server.env
+  - install -o root -g opencode -m 0640 /run/notify-owner.env /etc/notify-owner.env
+  - install -o root -g root -m 0755 /run/notify-owner /usr/local/bin/notify-owner
+  - install -d -o opencode -g opencode -m 0700 /home/opencode/.ssh
+  - install -o opencode -g opencode -m 0600 /run/opencode-git-key /home/opencode/.ssh/id_ed25519
+  - ssh-keyscan github.com > /home/opencode/.ssh/known_hosts 2>/dev/null
+  - chown opencode:opencode /home/opencode/.ssh/known_hosts
+  - sudo -u opencode git config --global user.name "$(cat /run/git-name)"
+  - sudo -u opencode git config --global user.email "$(cat /run/git-email)"
+  - sudo -u opencode git config --global init.defaultBranch main
+  - echo 'opencode ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/90-opencode
+  - chmod 440 /etc/sudoers.d/90-opencode
+  - loginctl enable-linger opencode
+  - tailscale set --operator=opencode
+  - chown -R opencode:opencode /home/opencode
+  - sudo -iu opencode bash -c 'curl -fsSL https://opencode.ai/install | bash'
+  - ln -sf /home/opencode/.opencode/bin/opencode /usr/local/bin/opencode
+  - sudo -iu opencode bash -c 'curl -fsSL https://antigravity.google/cli/install.sh | bash'
+  - mv /home/opencode/.local/bin/agy /home/opencode/.local/bin/agy-real
+  - install -o opencode -g opencode -m 0644 /run/agy-settings.json /home/opencode/.gemini/antigravity-cli/settings.json
+  - install -o opencode -g opencode -m 0600 /run/agy-auth-token /home/opencode/.gemini/antigravity-cli/antigravity-oauth-token
+  - install -o root -g root -m 0755 /run/agy /home/opencode/.local/bin/agy
+  - ln -sf /home/opencode/.local/bin/agy /usr/local/bin/agy
+  - ufw deny out to 169.254.169.254
+  - rm -f /run/tailscale-authkey /run/opencode-git-key /run/opencode-auth.json /run/agy-auth-token /run/github-auth.yml /run/notify-owner.env /run/opencode-server.env /run/git-name /run/git-email
+  - systemctl daemon-reload
+  - systemctl enable --now opencode-web.service opencode-update.timer github-notifications.timer
+  - tailscale serve --bg --yes 4096
