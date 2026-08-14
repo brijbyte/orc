@@ -140,6 +140,8 @@ func (s *Session) SetCfg(cfg *config.Config) {
 	s.writeMeta(meta{Model: cfg.Model, Effort: cfg.Effort})
 }
 
+func (s *Session) SetCwd(cwd string) { s.writeMeta(meta{Cwd: cwd}) }
+
 // TurnBegin/TurnEnd bracket each provider/tool round on disk. An unmatched
 // begin means the process disappeared while a safe model retry was pending.
 func (s *Session) TurnBegin() {

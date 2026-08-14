@@ -216,6 +216,7 @@ func runOneShot(cfg *config.Config, prov provider.Provider, sess *session.Sessio
 	cmds := commands.New(prov, cfg, plain)
 	plain.Cmds = cmds
 	ag := agent.New(cfg, prov, sess, resumed, plain)
+	ag.SetCwdHandler(func(path string) error { return cmds.SetCwd(ag, path) })
 	if ag.Interrupted() {
 		fmt.Fprintln(os.Stderr, "❌ orc: previous turn was interrupted — retry with --resume")
 		sess.ClearTurnPreservation()
@@ -241,6 +242,7 @@ func runPipe(cfg *config.Config, prov provider.Provider, sess *session.Session,
 	cmds := commands.New(prov, cfg, plain)
 	plain.Cmds = cmds
 	ag := agent.New(cfg, prov, sess, resumed, plain)
+	ag.SetCwdHandler(func(path string) error { return cmds.SetCwd(ag, path) })
 	ui.Banner(cfg, didResume, true)
 	if ag.Interrupted() {
 		fmt.Println("❌ orc: previous turn was interrupted — enter /retry")
@@ -360,6 +362,7 @@ func runTUI(cfg *config.Config, prov provider.Provider, sess *session.Session,
 	cmds := commands.New(prov, cfg, t)
 	t.SetCommands(cmds)
 	ag := agent.New(cfg, prov, sess, resumed, t)
+	ag.SetCwdHandler(func(path string) error { return cmds.SetCwd(ag, path) })
 
 	ui.Banner(cfg, didResume, false)
 	if !prov.Authenticated() {

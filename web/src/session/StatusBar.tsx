@@ -2,6 +2,7 @@ import { useState } from "react";
 import { PreviewCard } from "@base-ui/react/preview-card";
 import {
   AlarmClock,
+  FolderInput,
   GitBranch,
   Minimize2,
   SlidersHorizontal,
@@ -23,6 +24,8 @@ export function StatusBar({
   canWake,
   onCompact,
   onWake,
+  cwdDisabled,
+  onChangeCwd,
   onOpenGit,
   onOpenTerminal,
 }: {
@@ -33,6 +36,8 @@ export function StatusBar({
   canWake: boolean;
   onCompact: () => void;
   onWake: () => void;
+  cwdDisabled: boolean;
+  onChangeCwd: () => void;
   onOpenGit: () => void;
   onOpenTerminal: () => void;
 }) {
@@ -114,6 +119,14 @@ export function StatusBar({
               wake now
             </Button>
           )}
+          <Button
+            small
+            tip="change working directory"
+            disabled={cwdDisabled}
+            onClick={onChangeCwd}
+          >
+            <FolderInput size={13} strokeWidth={1.8} aria-hidden /> cwd
+          </Button>
           <Button small tip="open Git (Ctrl/⌘ G)" onClick={onOpenGit}>
             <GitBranch size={13} strokeWidth={1.8} aria-hidden /> Git
           </Button>

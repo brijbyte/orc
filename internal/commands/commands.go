@@ -12,6 +12,7 @@ import (
 
 	"github.com/brijbyte/orc/internal/agent"
 	"github.com/brijbyte/orc/internal/config"
+	"github.com/brijbyte/orc/internal/instructions"
 	"github.com/brijbyte/orc/internal/provider"
 	"github.com/brijbyte/orc/internal/session"
 	"github.com/google/uuid"
@@ -22,6 +23,7 @@ type Cmd struct{ Name, Args, Desc string }
 var Cmds = []Cmd{
 	{"/model", "[slug]", "set or show the model"},
 	{"/effort", "<level>", "set reasoning effort"},
+	{"/cwd", "[path]", "set or show the working directory"},
 	{"/new", "", "start a fresh session"},
 	{"/compact", "", "summarize history into a fresh context"},
 	{"/resume", "[id]", "switch to another session"},
@@ -199,6 +201,8 @@ func (c *Commands) Dispatch(ag *agent.Agent, line string) (handled, quit bool, p
 		c.cmdModel(ag, arg)
 	case "/effort":
 		c.cmdEffort(ag, arg)
+	case "/cwd":
+		c.cmdCwd(ag, arg)
 	}
 	return true, false, ""
 }
@@ -339,4 +343,49 @@ func (c *Commands) cmdEffort(ag *agent.Agent, arg string) {
 	ag.Sess.SetCfg(c.cfg)
 	c.saveDefaults()
 	c.StatusUpdate()
+}
+
+// SetCwd validates and persists a new working directory. Relative paths are
+// resolved against the current session directory, not the process directory.
+func (c *Commands) SetCwd(ag *agent.Agent, path string) error {
+	path = config.ExpandHome(strings.TrimSpace(path))
+	if path == "" {
+		return errors.New("missing directory")
+	}
+	if !filepath.IsAbs(path) {
+		base := c.cfg.Cwd
+		if base == "" {
+			base, _ = os.Getwd()
+		}
+		path = filepath.Join(base, path)
+	}
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	path = filepath.Clean(path)
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("cannot read %s", path)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("not a directory: %s", path)
+	}
+	c.cfg.Cwd = path
+	c.cfg.Instructions = instructions.Build(path, c.cfg.Routine)
+	ag.Sess.SetCwd(path)
+	c.StatusUpdate()
+	return nil
+}
+
+func (c *Commands) cmdCwd(ag *agent.Agent, arg string) {
+	if arg == "" {
+		c.ui.Printf("📁 %s", c.cfg.Cwd)
+		return
+	}
+	if err := c.SetCwd(ag, arg); err != nil {
+		c.ui.Printf("❌ cwd: %v", err)
+		return
+	}
+	c.ui.Printf("✅ working directory set to %s", c.cfg.Cwd)
 }

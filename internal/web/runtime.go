@@ -48,6 +48,7 @@ func NewRuntime(prov provider.Provider, cfg *config.Config, sess *session.Sessio
 	cmds := commands.New(prov, cfg, w)
 	w.SetCommands(cmds)
 	ag := agent.New(cfg, prov, sess, resumed, w)
+	ag.SetCwdHandler(func(path string) error { return cmds.SetCwd(ag, path) })
 	if replay {
 		ag.Replay() // seed the event log so browsers render the history
 	}
