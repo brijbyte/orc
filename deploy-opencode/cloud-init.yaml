@@ -142,10 +142,10 @@ write_files:
   - path: /etc/systemd/system/github-notifications.timer
     content: |
       [Unit]
-      Description=Check GitHub notifications every 15 minutes
+      Description=Check GitHub notifications every two hours
 
       [Timer]
-      OnCalendar=*:0/15
+      OnCalendar=*-*-* 00/2:00:00
       RandomizedDelaySec=2m
       Persistent=true
 
